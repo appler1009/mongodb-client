@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Hello World",
+    "uri": "mongodb://admin:password@mongodb:27017/",
+    "database": "testdb",
+    "username": "",
+    "password": "",
+    "id": "b148bb6c-3152-4b29-8df7-9053144a0e36"
+  }
+]
