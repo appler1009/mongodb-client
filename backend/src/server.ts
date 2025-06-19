@@ -4,7 +4,8 @@ import pino from 'pino';
 import dotenv from 'dotenv';
 import { MongoClient, Db } from 'mongodb';
 import { ConnectionService } from './services/ConnectionService';
-import { ConnectionConfig } from './types';
+import { DatabaseService } from './services/DatabaseService';
+import { ConnectionConfig, CollectionInfo } from './types';
 
 dotenv.config();
 
@@ -28,21 +29,11 @@ app.use(express.urlencoded({ extended: true }));
 let activeMongoClient: MongoClient | null = null;
 let activeDb: Db | null = null;
 let activeConnectionId: string | null = null; // To keep track of which connection config is active
+let activeDatabaseName: string | null = null; // To keep track of the connected database name
 
 // Initialize ConnectionService
 const connectionService = new ConnectionService(logger);
-
-// Helper function to disconnect
-async function disconnectFromMongo() {
-  if (activeMongoClient) {
-    logger.info('Closing existing MongoDB connection...');
-    await activeMongoClient.close();
-    activeMongoClient = null;
-    activeDb = null;
-    activeConnectionId = null;
-    logger.info('MongoDB connection closed.');
-  }
-}
+const databaseService = new DatabaseService(logger);
 
 // --- API Routes ---
 
@@ -121,18 +112,6 @@ app.delete('/api/connections/:id', async (req, res) => {
   }
 });
 
-// Disconnect from the current MongoDB instance
-app.post('/api/disconnect', async (req, res) => {
-  try {
-    await disconnectFromMongo();
-    logger.info('Successfully disconnected from MongoDB.');
-    res.status(200).json({ message: 'Successfully disconnected from MongoDB.' });
-  } catch (error) {
-    logger.error({ error }, 'Failed to disconnect from MongoDB');
-    res.status(500).json({ message: 'Failed to disconnect from MongoDB', error: (error as Error).message });
-  }
-});
-
 app.post('/api/connect', async (req, res) => {
   const { id } = req.body;
   if (!id) {
@@ -150,26 +129,87 @@ app.post('/api/connect', async (req, res) => {
       return res.status(404).json({ message: 'Connection configuration not found.' });
     }
 
-    const uri = connectionConfig.uri; // Assuming URI is complete, or build it from parts
+    const uri = connectionConfig.uri;
 
     logger.info(`Attempting to connect to MongoDB using ID: ${id}`);
     const client = new MongoClient(uri);
     await client.connect();
     activeMongoClient = client;
-    activeDb = client.db(connectionConfig.database); // Default to specified database
+    activeDb = client.db(connectionConfig.database);
     activeConnectionId = id;
+    activeDatabaseName = connectionConfig.database; // Store active database name
+
+    databaseService.setActiveDb(activeDb); // Set active DB in DatabaseService
 
     logger.info(`Successfully connected to MongoDB: ${connectionConfig.name}`);
     res.status(200).json({
       message: 'Successfully connected to MongoDB.',
       connectionId: activeConnectionId,
-      database: connectionConfig.database
+      database: activeDatabaseName // Return the database name
     });
   } catch (error) {
     logger.error({ error, connectionId: id }, 'Failed to connect to MongoDB');
     res.status(500).json({ message: 'Failed to connect to MongoDB', error: (error as Error).message });
   }
 });
+
+// Disconnect from the current MongoDB instance
+app.post('/api/disconnect', async (req, res) => {
+  try {
+    await disconnectFromMongo();
+    logger.info('Successfully disconnected from MongoDB.');
+    res.status(200).json({ message: 'Successfully disconnected from MongoDB.' });
+  } catch (error) {
+    logger.error({ error }, 'Failed to disconnect from MongoDB');
+    res.status(500).json({ message: 'Failed to disconnect from MongoDB', error: (error as Error).message });
+  }
+});
+
+// Get collections for the active database
+app.get('/api/database/collections', async (req, res) => {
+  try {
+    if (!databaseService.isDbActive()) {
+      return res.status(400).json({ message: 'No active database connection to list collections.' });
+    }
+    const collections = await databaseService.getCollections();
+    res.json(collections);
+  } catch (error) {
+    logger.error({ error }, 'Failed to get collections from active database');
+    res.status(500).json({ message: 'Failed to retrieve collections', error: (error as Error).message });
+  }
+});
+
+// Get documents from a specific collection in the active database
+app.get('/api/database/documents/:collectionName', async (req, res) => {
+  try {
+    if (!databaseService.isDbActive()) {
+      return res.status(400).json({ message: 'No active database connection to retrieve documents.' });
+    }
+    const { collectionName } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 20; // Default limit 20
+    const documents = await databaseService.getDocuments(collectionName, limit);
+    res.json(documents);
+  } catch (error) {
+    logger.error({ error, collectionName: req.params.collectionName }, 'Failed to get documents from collection');
+    res.status(500).json({ message: `Failed to retrieve documents from collection ${req.params.collectionName}`, error: (error as Error).message });
+  }
+});
+
+// Helper function to disconnect
+async function disconnectFromMongo() {
+  if (activeMongoClient) {
+    logger.info('Closing existing MongoDB connection...');
+    await activeMongoClient.close();
+    activeMongoClient = null;
+    activeDb = null;
+    activeConnectionId = null;
+    activeDatabaseName = null;
+
+    databaseService.setActiveDb(null);
+    logger.info('MongoDB connection closed.');
+  }
+}
+
 
 // Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -8,3 +8,7 @@ export interface ConnectionConfig {
   password?: string; // Optional
   // Add other MongoDB connection options as needed, e.g., authSource
 }
+
+export interface CollectionInfo {
+  name: string;
+}

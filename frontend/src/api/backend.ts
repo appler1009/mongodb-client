@@ -1,5 +1,5 @@
 // frontend/src/api/backend.ts
-import { ConnectionConfig, ConnectionStatus } from '../types';
+import type { ConnectionConfig, ConnectionStatus, CollectionInfo, Document } from '../types';
 
 // Use a relative path /api, Vite's proxy will handle the redirection in dev
 // For production, you'd configure your web server (nginx, etc.) to proxy /api requests
@@ -66,4 +66,18 @@ export const disconnectFromMongo = (): Promise<ConnectionStatus> => {
 // Health check (useful for debugging network issues)
 export const getHealthStatus = (): Promise<{ status: string; message: string }> => {
   return request<{ status: string; message: string }>('GET', '/health'); // CORRECTED: removed /api
+};
+
+
+// --- Database Browse API Calls ---
+
+export const getDatabaseCollections = (): Promise<CollectionInfo[]> => {
+  // This calls the /api/database/collections endpoint
+  return request<CollectionInfo[]>('GET', '/database/collections');
+};
+
+export const getCollectionDocuments = (collectionName: string, limit: number = 20): Promise<Document[]> => {
+  // This calls the /api/database/documents/:collectionName endpoint
+  // We can pass the limit as a query parameter
+  return request<Document[]>('GET', `/database/documents/${collectionName}?limit=${limit}`);
 };

@@ -17,3 +17,13 @@ export interface ConnectionStatus {
   database?: string;
   error?: string;
 }
+
+// Interface for a MongoDB collection (mirrors backend/src/types.ts)
+export interface CollectionInfo {
+  name: string;
+}
+
+// Generic interface for a MongoDB document
+export interface Document {
+  [key: string]: unknown;
+}

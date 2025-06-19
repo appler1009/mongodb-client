@@ -215,3 +215,99 @@
 .connection-actions button:nth-child(3):hover {
   background-color: #c82333;
 }
+
+
+/* Layout for the browser section */
+.database-browser-section {
+  margin-top: 30px;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.database-browser-section h3 {
+  text-align: center;
+  color: #0056b3;
+  margin-bottom: 20px;
+}
+
+.browser-content {
+  display: flex;
+  gap: 20px; /* Space between collection list and document viewer */
+}
+
+.collections-pane {
+  flex: 0 0 250px; /* Fixed width for collections list */
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.collections-pane h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.collections-pane ul {
+  list-style: none;
+  padding: 0;
+  max-height: 400px; /* Scrollable if many collections */
+  overflow-y: auto;
+}
+
+.collections-pane li {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.collections-pane li:last-child {
+  border-bottom: none;
+}
+
+.collections-pane li:hover {
+  background-color: #f5f5f5;
+}
+
+.collections-pane li.selected {
+  background-color: #e6f7ff;
+  font-weight: bold;
+  color: #1890ff;
+  border-left: 3px solid #1890ff;
+  padding-left: 7px;
+}
+
+.document-viewer {
+  flex-grow: 1; /* Takes remaining space */
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  overflow: hidden; /* To contain pre tag */
+}
+
+.document-viewer h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.document-json-display {
+  background-color: #f8f8f8;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 4px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 0.9em;
+  white-space: pre-wrap; /* Wrap long lines */
+  word-wrap: break-word; /* Break long words */
+  max-height: 500px; /* Scrollable if many documents */
+  overflow-y: auto;
+}
