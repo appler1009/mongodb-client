@@ -5,12 +5,11 @@ import dotenv from 'dotenv';
 import { MongoClient, Db } from 'mongodb';
 import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
-import { ConnectionConfig, CollectionInfo } from './types';
+import { ConnectionConfig, CollectionInfo, DocumentsResponse } from './types';
 
 dotenv.config();
 
 const app = express();
-// Configure pino-pretty for development. For production, you might remove transport.
 const logger = pino({
   transport: {
     target: 'pino-pretty',
@@ -28,8 +27,8 @@ app.use(express.urlencoded({ extended: true }));
 // --- Global state for active MongoDB connection ---
 let activeMongoClient: MongoClient | null = null;
 let activeDb: Db | null = null;
-let activeConnectionId: string | null = null; // To keep track of which connection config is active
-let activeDatabaseName: string | null = null; // To keep track of the connected database name
+let activeConnectionId: string | null = null;
+let activeDatabaseName: string | null = null;
 
 // Initialize ConnectionService
 const connectionService = new ConnectionService(logger);
@@ -74,7 +73,6 @@ app.put('/api/connections/:id', async (req, res) => {
     const updatedConnection: ConnectionConfig = req.body;
     const result = await connectionService.updateConnection(id, updatedConnection);
     if (result) {
-      // If the updated connection is the active one, disconnect it
       if (activeConnectionId === id) {
         await disconnectFromMongo();
         logger.warn(`Updated active connection ${id}. Disconnected existing connection.`);
@@ -96,7 +94,6 @@ app.delete('/api/connections/:id', async (req, res) => {
     const { id } = req.params;
     const deleted = await connectionService.deleteConnection(id);
     if (deleted) {
-      // If the deleted connection was the active one, disconnect it
       if (activeConnectionId === id) {
         await disconnectFromMongo();
         logger.warn(`Deleted active connection ${id}. Disconnected existing connection.`);
@@ -112,6 +109,7 @@ app.delete('/api/connections/:id', async (req, res) => {
   }
 });
 
+// Connect to a MongoDB instance
 app.post('/api/connect', async (req, res) => {
   const { id } = req.body;
   if (!id) {
@@ -119,7 +117,6 @@ app.post('/api/connect', async (req, res) => {
   }
 
   try {
-    // Disconnect any existing connection first
     if (activeMongoClient) {
       await disconnectFromMongo();
     }
@@ -129,10 +126,8 @@ app.post('/api/connect', async (req, res) => {
       return res.status(404).json({ message: 'Connection configuration not found.' });
     }
 
-    const uri = connectionConfig.uri;
-
     logger.info(`Attempting to connect to MongoDB using ID: ${id}`);
-    const client = new MongoClient(uri);
+    const client = new MongoClient(connectionConfig.uri);
     await client.connect();
     activeMongoClient = client;
     activeDb = client.db(connectionConfig.database);
@@ -187,8 +182,16 @@ app.get('/api/database/documents/:collectionName', async (req, res) => {
     }
     const { collectionName } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20; // Default limit 20
-    const documents = await databaseService.getDocuments(collectionName, limit);
-    res.json(documents);
+    const skip = req.query.skip ? parseInt(req.query.skip as string) : 0;     // Default skip 0
+
+    // Get documents with skip and limit from DatabaseService
+    const documents = await databaseService.getDocuments(collectionName, limit, skip);
+    // Get total count from DatabaseService
+    const totalDocuments = await databaseService.getDocumentCount(collectionName);
+
+    // Return both documents and total count using the new interface
+    const response: DocumentsResponse = { documents, totalDocuments };
+    res.json(response);
   } catch (error) {
     logger.error({ error, collectionName: req.params.collectionName }, 'Failed to get documents from collection');
     res.status(500).json({ message: `Failed to retrieve documents from collection ${req.params.collectionName}`, error: (error as Error).message });

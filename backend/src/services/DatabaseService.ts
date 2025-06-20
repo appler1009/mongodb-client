@@ -1,18 +1,17 @@
 // backend/src/services/DatabaseService.ts
-import { Db, Collection } from 'mongodb';
+import { Db, Collection, Document as MongoDocument } from 'mongodb';
 import { CollectionInfo } from '../types';
 import { Logger } from 'pino';
 
 export class DatabaseService {
-  private activeDb: Db | null;
+  private activeDb: Db | null = null;
   private logger: Logger;
 
   constructor(logger: Logger) {
     this.logger = logger;
-    this.activeDb = null; // This will be set externally by server.ts
+    this.activeDb = null;
   }
 
-  // Method to set the active database instance
   public setActiveDb(db: Db | null): void {
     this.activeDb = db;
     if (db) {
@@ -22,12 +21,10 @@ export class DatabaseService {
     }
   }
 
-  // Check if a database connection is active
   public isDbActive(): boolean {
     return this.activeDb !== null;
   }
 
-  // Get a list of collection names in the active database
   public async getCollections(): Promise<CollectionInfo[]> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
@@ -45,8 +42,8 @@ export class DatabaseService {
     }
   }
 
-  // Get documents from a specific collection
-  public async getDocuments(collectionName: string, limit: number = 20): Promise<any[]> {
+  // MODIFIED: getDocuments to accept skip and limit
+  public async getDocuments(collectionName: string, limit: number, skip: number): Promise<MongoDocument[]> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to get documents without active DB');
@@ -56,7 +53,7 @@ export class DatabaseService {
     try {
       const collection: Collection = this.activeDb.collection(collectionName);
       // Find all documents, limit the results, and convert to array
-      const documents = await collection.find({}).limit(limit).toArray();
+      const documents = await collection.find({}).skip(skip).limit(limit).toArray();
       return documents;
     } catch (error) {
       this.logger.error({ error, collectionName }, 'Failed to retrieve documents from collection');
@@ -64,8 +61,13 @@ export class DatabaseService {
     }
   }
 
-  // Optional: Add methods for CRUD operations on documents if needed later
-  // public async insertDocument(collectionName: string, document: any): Promise<any> { ... }
-  // public async updateDocument(collectionName: string, query: any, update: any): Promise<any> { ... }
-  // public async deleteDocument(collectionName: string, query: any): Promise<any> { ... }
+  // Method to get the total count of documents in a collection
+  async getDocumentCount(collectionName: string): Promise<number> {
+    if (!this.activeDb) {
+      throw new Error('No active database connection.');
+    }
+    this.logger.info(`DatabaseService: Counting documents in collection "${collectionName}"`);
+    const collection: Collection<MongoDocument> = this.activeDb.collection(collectionName);
+    return await collection.countDocuments({});
+  }
 }
