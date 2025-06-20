@@ -285,3 +285,24 @@ button:disabled {
   overflow-y: auto;
   color: var(--text-color);
 }
+
+.theme-toggle-container {
+  text-align: right; /* Align button to the right */
+  margin-bottom: 20px;
+  padding-right: 10px; /* Some padding from the edge */
+}
+
+.theme-toggle-button {
+  /* Inherits general button styles, but can be customized */
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  padding: 8px 15px;
+  border-radius: 20px; /* More pill-shaped */
+  font-size: 0.9em;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.theme-toggle-button:hover {
+  background-color: var(--button-hover-bg);
+  transform: translateY(-1px);
+}
