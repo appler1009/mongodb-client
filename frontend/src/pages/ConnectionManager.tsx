@@ -54,6 +54,10 @@ export const ConnectionManager: React.FC = () => {
   const [parsedQuery, setParsedQuery] = useState<object>({}); // The actual parsed query object to be used for fetching
   const [queryError, setQueryError] = useState<string | null>(null);
 
+  // --- Notification State ---
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+
+
   // --- Data Fetching ---
   const fetchConnections = async () => {
     setLoading(true);
@@ -94,6 +98,8 @@ export const ConnectionManager: React.FC = () => {
     setError(null);
     try {
       const fetchedCollections = await getDatabaseCollections();
+      // --- Sort collections alphabetically by name ---
+      fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setCollections(fetchedCollections);
       // Automatically select the first collection if available
       if (fetchedCollections.length > 0) {
@@ -126,7 +132,6 @@ export const ConnectionManager: React.FC = () => {
     setError(null);
     try {
       const skip = (currentPage - 1) * documentsPerPage;
-      // Pass the parsedQuery to your backend API
       const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedQuery);
       setDocuments(response.documents);
       setTotalDocuments(response.totalDocuments);
@@ -169,6 +174,16 @@ export const ConnectionManager: React.FC = () => {
     fetchDocuments();
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, fetchDocuments]);
 
+  // --- Effect for auto-dismissing notifications ---
+  useEffect(() => {
+    if (notificationMessage) {
+      const timer = setTimeout(() => {
+        setNotificationMessage(null);
+      }, 3000); // Message disappears after 3 seconds
+      return () => clearTimeout(timer); // Cleanup timer if component unmounts or message changes
+    }
+  }, [notificationMessage]);
+
 
   // --- Form Handlers ---
   const handleNewConnectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,7 +203,7 @@ export const ConnectionManager: React.FC = () => {
       const added = await addConnection(newConnection);
       setConnections((prev) => [...prev, added]);
       setNewConnection(initialNewConnection); // Reset form
-      alert('Connection added successfully!');
+      setNotificationMessage('Connection added successfully!');
     } catch (err: any) {
       setError(`Failed to add connection: ${err.message}`);
     }
@@ -204,7 +219,7 @@ export const ConnectionManager: React.FC = () => {
         prev.map((conn) => (conn.id === updated.id ? updated : conn))
       );
       setEditingConnection(null); // Exit edit mode
-      alert('Connection updated successfully!');
+      setNotificationMessage('Connection updated successfully!');
     } catch (err: any) {
       setError(`Failed to update connection: ${err.message}`);
     }
@@ -228,7 +243,7 @@ export const ConnectionManager: React.FC = () => {
           setParsedQuery({});
           setQueryError(null);
         }
-        alert('Connection deleted successfully!');
+        setNotificationMessage('Connection deleted successfully!');
       } catch (err: any) {
         setError(`Failed to delete connection: ${err.message}`);
       }
@@ -241,7 +256,7 @@ export const ConnectionManager: React.FC = () => {
     try {
       const status = await connectToMongo(id);
       setCurrentStatus(status);
-      alert('Connected to MongoDB!');
+      setNotificationMessage('Connected to MongoDB!');
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
@@ -268,7 +283,7 @@ export const ConnectionManager: React.FC = () => {
       setQueryText('{}');
       setParsedQuery({});
       setQueryError(null);
-      alert('Disconnected from MongoDB!');
+      setNotificationMessage('Disconnected from MongoDB!');
     } catch (err: any) {
       setError(`Failed to disconnect: ${err.message}`);
     }
@@ -330,6 +345,8 @@ export const ConnectionManager: React.FC = () => {
       />
 
       {error && <div className="error-message">{error}</div>}
+      {/* NEW: Notification Message Display --- */}
+      {notificationMessage && <div className="notification-message">{notificationMessage}</div>}
 
       {/* Conditionally render connection status/manager content */}
       {currentStatus?.database ? (
@@ -347,12 +364,9 @@ export const ConnectionManager: React.FC = () => {
                 />
               )}
             </div>
-            {/* NEW WRAPPER FOR QUERY EDITOR + DOCUMENTS */}
             <div className="document-panel-right">
-              {/* Query Error Message */}
               {queryError && <div className="query-error-message">{queryError}</div>}
 
-              {/* Query Editor Section */}
               <div className="query-editor-container">
                 <h4>Find Query (JSON)</h4>
                 <textarea
@@ -360,15 +374,14 @@ export const ConnectionManager: React.FC = () => {
                   value={queryText}
                   onChange={handleQueryTextChange}
                   placeholder='e.g., {"name": "Alice", "age": {"$gt": 30}}'
-                  rows={5} // Makes it a few lines tall
-                  disabled={documentsLoading} // Disable while documents are loading
+                  rows={5}
+                  disabled={documentsLoading}
                 />
                 <div className="query-controls">
                   <button onClick={handleRunQuery} disabled={documentsLoading}>Run Query</button>
                 </div>
               </div>
 
-              {/* Pagination Controls */}
               {selectedCollection && (
                 <div className="pagination-controls">
                   <span>
@@ -401,7 +414,6 @@ export const ConnectionManager: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Original connection manager content when not connected */}
           <h3>Add New Connection</h3>
           <form onSubmit={handleAddConnection} className="connection-form">
             <input
@@ -453,46 +465,16 @@ export const ConnectionManager: React.FC = () => {
               {connections.map((conn) => (
                 <li key={conn.id} className="connection-item">
                   {editingConnection && editingConnection.id === conn.id ? (
-                    // Edit Form
                     <form onSubmit={handleUpdateConnection} className="edit-form">
-                      <input
-                        type="text"
-                        name="name"
-                        value={editingConnection.name}
-                        onChange={handleEditConnectionChange}
-                        required
-                      />
-                      <input
-                        type="text"
-                        name="uri"
-                        value={editingConnection.uri}
-                        onChange={handleEditConnectionChange}
-                        required
-                      />
-                      <input
-                        type="text"
-                        name="database"
-                        value={editingConnection.database}
-                        onChange={handleEditConnectionChange}
-                        required
-                      />
-                      <input
-                        type="text"
-                        name="username"
-                        value={editingConnection.username || ''}
-                        onChange={handleEditConnectionChange}
-                      />
-                      <input
-                        type="password"
-                        name="password"
-                        value={editingConnection.password || ''}
-                        onChange={handleEditConnectionChange}
-                      />
+                      <input type="text" name="name" value={editingConnection.name} onChange={handleEditConnectionChange} required />
+                      <input type="text" name="uri" value={editingConnection.uri} onChange={handleEditConnectionChange} required />
+                      <input type="text" name="database" value={editingConnection.database} onChange={handleEditConnectionChange} required />
+                      <input type="text" name="username" value={editingConnection.username || ''} onChange={handleEditConnectionChange} />
+                      <input type="password" name="password" value={editingConnection.password || ''} onChange={handleEditConnectionChange} />
                       <button type="submit">Save</button>
                       <button type="button" onClick={() => setEditingConnection(null)}>Cancel</button>
                     </form>
                   ) : (
-                    // Display Mode
                     <div className="connection-details">
                       <h4>{conn.name}</h4>
                       <p>URI: {conn.uri}</p>

@@ -512,3 +512,19 @@ button:disabled {
   /* ... existing styles ... */
   flex-grow: 1; /* Important: Make the viewer itself take remaining vertical space */
 }
+
+.notification-message {
+  background-color: color-mix(in srgb, var(--accent-color) 15%, transparent); /* Light background using accent color */
+  color: var(--accent-color); /* Text color using accent color */
+  border: 1px solid var(--accent-color);
+  padding: 10px 15px;
+  border-radius: 4px;
+  margin: 15px auto; /* Centered, with space above and below */
+  width: fit-content; /* Shrink to content width */
+  max-width: 80%; /* Don't get too wide */
+  text-align: center;
+  font-weight: bold;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
