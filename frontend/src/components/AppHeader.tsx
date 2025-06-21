@@ -3,7 +3,9 @@
 import React, { useContext } from 'react';
 import type { ConnectionStatus } from '../types';
 import { ThemeContext } from '../context/ThemeContext';
-// import type { Theme } from '../context/ThemeContext';
+
+import SunIcon from '../assets/icons/sun-icon.svg';
+import MoonIcon from '../assets/icons/moon-icon.svg';
 
 
 interface AppHeaderProps {
@@ -17,15 +19,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   currentStatus,
   onDisconnect,
 }) => {
-  // Consume ThemeContext directly within AppHeader
   const themeContext = useContext(ThemeContext);
   if (!themeContext) {
-    // This should ideally not happen if App is wrapped by ThemeProvider
     throw new Error('AppHeader must be used within a ThemeProvider');
   }
-  const { theme, setTheme } = themeContext; // Get the current theme and the setter from context
+  const { theme, setTheme } = themeContext;
 
-  // Define the local toggleTheme function using the context's setTheme
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
   };
@@ -42,14 +41,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           )}
 
           {currentStatus && (
-            <> {/* Use React Fragment to group the two elements */}
+            <>
               <span className="connection-status-header">
                 Connected to: <strong className="connected-db-name">{currentStatus.database}</strong>
               </span>
-              {/* Disconnect Button */}
               <button
                 onClick={onDisconnect}
-                className="disconnect-button" // Add a class for styling
+                className="disconnect-button"
                 title="Disconnect from current database"
               >Disconnect</button>
             </>
@@ -57,9 +55,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
       <div className="header-right">
-        {/* Use 'theme' from context for display logic */}
-        <button onClick={toggleTheme} className="theme-toggle-button">
-          Switch to {theme === 'light' ? 'Dark' : 'Light'} Mode
+        <button onClick={toggleTheme} className="theme-toggle-button" title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}>
+          {theme === 'light' ? (
+            <img src={MoonIcon} alt="Moon icon for Dark Mode" className="theme-icon" />
+          ) : (
+            <img src={SunIcon} alt="Sun icon for Light Mode" className="theme-icon" />
+          )}
         </button>
       </div>
     </header>
