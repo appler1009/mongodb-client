@@ -19,12 +19,6 @@ import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { AppHeader } from '../components/AppHeader';
 
-// Add props for theme from App.tsx
-interface ConnectionManagerProps {
-  toggleTheme: () => void;
-  currentTheme: 'light' | 'dark';
-}
-
 // Initial state for a new connection form
 const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
   name: '',
@@ -34,7 +28,7 @@ const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
   password: '',
 };
 
-export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ toggleTheme, currentTheme }) => {
+export const ConnectionManager: React.FC = () => {
   const [connections, setConnections] = useState<ConnectionConfig[]>([]);
   const [newConnection, setNewConnection] = useState<Omit<ConnectionConfig, 'id'>>(initialNewConnection);
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
@@ -286,12 +280,11 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ toggleThem
 
   return (
     <div className="connection-manager">
-      {/* Render the AppHeader component */}
+      {/* Render the AppHeader component, passing context-derived props */}
       <AppHeader
         backendHealth={backendHealth}
         currentStatus={currentStatus}
-        toggleTheme={toggleTheme}
-        currentTheme={currentTheme}
+        onDisconnect={handleDisconnect}
       />
 
       {error && <div className="error-message">{error}</div>}

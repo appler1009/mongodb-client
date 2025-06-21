@@ -57,9 +57,10 @@ body {
 
 /* General Layout */
 .App {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px 20px 20px; /* Adjust top padding as header is now fixed/takes its own space */
+  padding: 0 20px 20px 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .connection-manager {
@@ -69,6 +70,7 @@ body {
   padding: 30px;
   color: var(--text-color);
   margin-top: 20px; /* Add margin to separate from the fixed header if App is not the root */
+  flex-grow: 1; /* Allow it to take up remaining vertical space */
 }
 
 /* App Header/Toolbar Styles */
@@ -79,9 +81,11 @@ body {
   padding: 15px 30px; /* Match padding to connection-manager for alignment */
   background-color: var(--header-bg-color); /* New variable for header background */
   border-bottom: 1px solid var(--border-color);
-  margin: 0 -20px; /* Extend full width if App has horizontal padding */
+  /* Adjust margins to extend full width, compensating for .App padding */
+  margin: 0 -20px; /* This compensates for the .App's 20px left/right padding */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   color: var(--text-color);
+  flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 .app-title {
@@ -119,7 +123,25 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  gap: 15px; /* Add gap between theme button and new disconnect button */
 }
+
+/* Style for the Disconnect Button in the header */
+.disconnect-button {
+  background-color: var(--error-color); /* Use error color for disconnect */
+  color: var(--button-text);
+  padding: 8px 12px;
+  font-size: 0.9em;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-right: 0; /* Ensure no extra margin from general button style */
+}
+
+.disconnect-button:hover {
+  background-color: darken(var(--error-color), 10%); /* Darken on hover */
+}
+
 
 /* Remove old top-level status/health styles as they are now in AppHeader */
 h2, h3, h4 {
@@ -178,7 +200,7 @@ button {
   cursor: pointer;
   font-size: 1em;
   transition: background-color 0.2s ease, transform 0.1s ease;
-  margin-right: 10px;
+  margin-right: 10px; /* Keep this general button margin */
 }
 
 button:last-child {
@@ -234,6 +256,9 @@ button:disabled {
   border-top: 1px solid var(--border-color);
   padding-top: 20px;
   color: var(--text-color);
+  flex-grow: 1; /* Allow this section to take remaining vertical space */
+  display: flex; /* Make it a flex container */
+  flex-direction: column; /* Stack children vertically */
 }
 
 .database-browser-section h3 {
@@ -245,6 +270,7 @@ button:disabled {
 .browser-content {
   display: flex;
   gap: 20px;
+  flex-grow: 1; /* Allow browser content to take remaining vertical space */
 }
 
 .collections-pane {
@@ -254,6 +280,8 @@ button:disabled {
   border-radius: 4px;
   padding: 15px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  display: flex; /* Make it a flex container */
+  flex-direction: column; /* Stack children vertically */
 }
 
 .collections-pane h4 {
@@ -267,8 +295,9 @@ button:disabled {
 .collections-pane ul {
   list-style: none;
   padding: 0;
-  max-height: 400px;
-  overflow-y: auto;
+  flex-grow: 1; /* Allow the list to take available height */
+  overflow-y: auto; /* Keep scroll if content overflows */
+  margin-bottom: 0; /* Remove default ul margin-bottom */
 }
 
 .collections-pane li {
@@ -411,6 +440,7 @@ button:disabled {
   color: var(--text-color);
 }
 
-.theme-toggle-container { /* This is now obsolete, logic moved to AppHeader */
+/* This is now obsolete, logic moved to AppHeader */
+.theme-toggle-container {
   display: none;
 }

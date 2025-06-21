@@ -7,7 +7,7 @@ export type Theme = 'light' | 'dark';
 // Define the interface for the context value
 export interface ThemeContextType {
   theme: Theme;
-  setTheme: (theme: Theme) => void;
+  setTheme: React.Dispatch<React.SetStateAction<Theme>>;
 }
 
 // Create and export the context
