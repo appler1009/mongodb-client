@@ -1,45 +1,5 @@
 /* frontend/src/index.css */
 
-:root {
-  /* Light Theme Defaults */
-  --bg-color: #f4f7f6;
-  --text-color: #333;
-  --card-bg: #ffffff;
-  --border-color: #e0e0e0;
-  --header-bg: #0056b3;
-  --header-text: #ffffff;
-  --button-bg: #007bff;
-  --button-text: #ffffff;
-  --button-hover-bg: #0056b3;
-  --input-border: #ccc;
-  --error-color: #dc3545;
-  --success-color: #28a745;
-  --selected-item-bg: #e6f7ff;
-  --selected-item-border: #1890ff;
-  --table-header-bg: #f2f2f2;
-  --table-row-hover-bg: #f9f9f9;
-}
-
-/* Dark Theme Overrides */
-body.dark {
-  --bg-color: #282c34; /* Dark background */
-  --text-color: #e0e0e0; /* Light text */
-  --card-bg: #3c4046; /* Slightly lighter dark for cards */
-  --border-color: #444;
-  --header-bg: #1e2126; /* Darker header */
-  --header-text: #ffffff;
-  --button-bg: #61dafb; /* React blue for buttons */
-  --button-text: #282c34;
-  --button-hover-bg: #21a1f1;
-  --input-border: #555;
-  --error-color: #ff6b6b;
-  --success-color: #90ee90;
-  --selected-item-bg: #3a4253;
-  --selected-item-border: #61dafb;
-  --table-header-bg: #32363e;
-  --table-row-hover-bg: #4c5059;
-}
-
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -48,10 +8,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Apply CSS variables */
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  /* These will now be handled by App.css variables */
+  /* background-color: var(--bg-color); */
+  /* color: var(--text-color); */
+  /* transition: background-color 0.3s ease, color 0.3s ease; */
 }
 
 code {

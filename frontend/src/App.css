@@ -10,9 +10,10 @@
   --text-color: #343a40; /* Main text color */
   --header-color: #0056b3; /* Darker blue for headings */
   --error-color: #dc3545; /* Red for error messages */
+  --success-color: #28a745; /* Green for success messages (from index.css) */
   --button-bg: var(--primary-color); /* Button background */
-  --button-hover-bg: #0056b3; /* Button hover background */
   --button-text: #ffffff; /* Button text color */
+  --button-hover-bg: #0056b3; /* Button hover background */
   --input-border: #ced4da; /* Input field borders */
   --border-color: #e9ecef; /* General border color */
   --selected-item-bg: #e2f2ff; /* Background for selected list items */
@@ -32,6 +33,7 @@
   --text-color: #f8f9fa; /* Light text color */
   --header-color: #17a2b8; /* Cyan for dark theme headings */
   --error-color: #dc3545; /* Red still prominent for errors */
+  --success-color: #90ee90; /* Light green for success (from index.css dark) */
   --button-bg: var(--primary-color);
   --button-hover-bg: #17a2b8; /* Darker teal/cyan hover */
   --button-text: #ffffff;
@@ -69,8 +71,8 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 30px;
   color: var(--text-color);
-  margin-top: 20px; /* Add margin to separate from the fixed header if App is not the root */
-  flex-grow: 1; /* Allow it to take up remaining vertical space */
+  margin-top: 20px;
+  flex-grow: 1;
 }
 
 /* App Header/Toolbar Styles */
@@ -78,28 +80,27 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 30px; /* Match padding to connection-manager for alignment */
-  background-color: var(--header-bg-color); /* New variable for header background */
+  padding: 15px 30px;
+  background-color: var(--header-bg-color);
   border-bottom: 1px solid var(--border-color);
-  /* Adjust margins to extend full width, compensating for .App padding */
-  margin: 0 -20px; /* This compensates for the .App's 20px left/right padding */
+  margin: 0 -20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   color: var(--text-color);
-  flex-shrink: 0; /* Prevent header from shrinking */
+  flex-shrink: 0;
 }
 
 .app-title {
   margin: 0;
   font-size: 1.8em;
   color: var(--primary-color);
-  flex-shrink: 0; /* Prevent shrinking on smaller screens */
+  flex-shrink: 0;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 20px;
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  flex-wrap: wrap;
 }
 
 .status-indicators {
@@ -110,40 +111,37 @@ body {
   flex-wrap: wrap;
 }
 
-.health-status-header span { /* Specific span for health status color */
+.health-status-header span {
     font-weight: bold;
 }
 
 .connection-status-header .connected-db-name {
   font-weight: bold;
-  color: var(--header-color); /* Highlight connected DB name */
+  color: var(--header-color);
 }
 
 .header-right {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: 15px; /* Add gap between theme button and new disconnect button */
+  gap: 15px;
 }
 
-/* Style for the Disconnect Button in the header */
 .disconnect-button {
-  background-color: var(--error-color); /* Use error color for disconnect */
+  background-color: var(--error-color);
   color: var(--button-text);
   padding: 8px 12px;
   font-size: 0.9em;
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  margin-right: 0; /* Ensure no extra margin from general button style */
+  margin-right: 0;
 }
 
 .disconnect-button:hover {
-  background-color: darken(var(--error-color), 10%); /* Darken on hover */
+  background-color: darken(var(--error-color), 10%);
 }
 
-
-/* Remove old top-level status/health styles as they are now in AppHeader */
 h2, h3, h4 {
   color: var(--header-color);
   text-align: center;
@@ -200,7 +198,7 @@ button {
   cursor: pointer;
   font-size: 1em;
   transition: background-color 0.2s ease, transform 0.1s ease;
-  margin-right: 10px; /* Keep this general button margin */
+  margin-right: 10px;
 }
 
 button:last-child {
@@ -256,9 +254,9 @@ button:disabled {
   border-top: 1px solid var(--border-color);
   padding-top: 20px;
   color: var(--text-color);
-  flex-grow: 1; /* Allow this section to take remaining vertical space */
-  display: flex; /* Make it a flex container */
-  flex-direction: column; /* Stack children vertically */
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .database-browser-section h3 {
@@ -270,7 +268,7 @@ button:disabled {
 .browser-content {
   display: flex;
   gap: 20px;
-  flex-grow: 1; /* Allow browser content to take remaining vertical space */
+  flex-grow: 1;
 }
 
 .collections-pane {
@@ -280,8 +278,8 @@ button:disabled {
   border-radius: 4px;
   padding: 15px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  display: flex; /* Make it a flex container */
-  flex-direction: column; /* Stack children vertically */
+  display: flex;
+  flex-direction: column;
 }
 
 .collections-pane h4 {
@@ -295,9 +293,9 @@ button:disabled {
 .collections-pane ul {
   list-style: none;
   padding: 0;
-  flex-grow: 1; /* Allow the list to take available height */
-  overflow-y: auto; /* Keep scroll if content overflows */
-  margin-bottom: 0; /* Remove default ul margin-bottom */
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 0;
 }
 
 .collections-pane li {
@@ -440,7 +438,6 @@ button:disabled {
   color: var(--text-color);
 }
 
-/* This is now obsolete, logic moved to AppHeader */
 .theme-toggle-container {
   display: none;
 }
