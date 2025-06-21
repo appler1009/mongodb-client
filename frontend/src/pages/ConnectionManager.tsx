@@ -386,7 +386,7 @@ export const ConnectionManager: React.FC = () => {
                   disabled={documentsLoading}
                 />
                 <div className="query-controls">
-                  {/* --- NEW: Export Button --- */}
+                  {/* --- Export Button --- */}
                   <button
                     onClick={handleExport}
                     disabled={!selectedCollection || documentsLoading} // Disable if no collection selected or any loading
