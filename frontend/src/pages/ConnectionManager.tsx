@@ -12,6 +12,7 @@ import {
   getHealthStatus,
   getDatabaseCollections,
   getCollectionDocuments,
+  exportCollectionDocuments,
 } from '../api/backend';
 
 // imports for components
@@ -98,16 +99,13 @@ export const ConnectionManager: React.FC = () => {
     setError(null);
     try {
       const fetchedCollections = await getDatabaseCollections();
-      // Sort collections alphabetically by name
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setCollections(fetchedCollections);
-      // Automatically select the first collection if available
       if (fetchedCollections.length > 0) {
         setSelectedCollection(fetchedCollections[0].name);
       } else {
         setSelectedCollection(null);
       }
-      // Reset documents and total documents when collections are re-fetched
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
@@ -146,18 +144,16 @@ export const ConnectionManager: React.FC = () => {
 
   // --- Initial Loads and Health Check ---
   useEffect(() => {
-    fetchBackendHealth(); // Check health on initial load
-    fetchConnections(); // Fetch connections on initial load
-    const healthInterval = setInterval(fetchBackendHealth, 10000); // Every 10 seconds
+    fetchBackendHealth();
+    fetchConnections();
+    const healthInterval = setInterval(fetchBackendHealth, 10000);
     return () => clearInterval(healthInterval);
   }, []);
 
-  // Effect to trigger fetching collections when currentStatus.database becomes available
   useEffect(() => {
     if (currentStatus?.database) {
       fetchCollections();
     } else {
-      // Clear Browse state if disconnected
       setCollections([]);
       setSelectedCollection(null);
       setDocuments([]);
@@ -169,23 +165,21 @@ export const ConnectionManager: React.FC = () => {
     }
   }, [currentStatus?.database, fetchCollections]);
 
-  // Effect to trigger fetching documents when selectedCollection, pagination state, or parsedQuery changes
   useEffect(() => {
     fetchDocuments();
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, fetchDocuments]);
 
-  // Effect for auto-dismissing notifications
   useEffect(() => {
     if (notificationMessage) {
       const timer = setTimeout(() => {
         setNotificationMessage(null);
-      }, 3000); // Message disappears after 3 seconds
-      return () => clearTimeout(timer); // Cleanup timer if component unmounts or message changes
+      }, 3000);
+      return () => clearTimeout(timer);
     }
   }, [notificationMessage]);
 
 
-  // --- Form Handlers ---
+  // --- Form Handlers (Existing) ---
   const handleNewConnectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewConnection((prev) => ({ ...prev, [name]: value }));
@@ -202,7 +196,7 @@ export const ConnectionManager: React.FC = () => {
     try {
       const added = await addConnection(newConnection);
       setConnections((prev) => [...prev, added]);
-      setNewConnection(initialNewConnection); // Reset form
+      setNewConnection(initialNewConnection);
       setNotificationMessage('Connection added successfully!');
     } catch (err: any) {
       setError(`Failed to add connection: ${err.message}`);
@@ -218,7 +212,7 @@ export const ConnectionManager: React.FC = () => {
       setConnections((prev) =>
         prev.map((conn) => (conn.id === updated.id ? updated : conn))
       );
-      setEditingConnection(null); // Exit edit mode
+      setEditingConnection(null);
       setNotificationMessage('Connection updated successfully!');
     } catch (err: any) {
       setError(`Failed to update connection: ${err.message}`);
@@ -232,8 +226,7 @@ export const ConnectionManager: React.FC = () => {
         await deleteConnection(id);
         setConnections((prev) => prev.filter((conn) => conn.id !== id));
         if (currentStatus?.connectionId === id) {
-          setCurrentStatus(null); // Clear status if deleted active connection
-          // Clear Browse state if active connection is deleted
+          setCurrentStatus(null);
           setCollections([]);
           setSelectedCollection(null);
           setDocuments([]);
@@ -250,7 +243,6 @@ export const ConnectionManager: React.FC = () => {
     }
   };
 
-  // --- MongoDB Connection/Disconnection ---
   const handleConnect = async (id: string) => {
     setError(null);
     try {
@@ -273,8 +265,7 @@ export const ConnectionManager: React.FC = () => {
     setError(null);
     try {
       await disconnectFromMongo();
-      setCurrentStatus(null); // Clear status
-      // Clear Browse state on disconnect
+      setCurrentStatus(null);
       setCollections([]);
       setSelectedCollection(null);
       setDocuments([]);
@@ -316,7 +307,7 @@ export const ConnectionManager: React.FC = () => {
   // --- Query Editor Handlers ---
   const handleQueryTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setQueryText(e.target.value);
-    setQueryError(null); // Clear error when user starts typing again
+    setQueryError(null);
   };
 
   const handleRunQuery = () => {
@@ -330,6 +321,26 @@ export const ConnectionManager: React.FC = () => {
     }
   };
 
+  // --- Export Handler ---
+  const handleExport = async () => {
+    if (!selectedCollection) {
+      setNotificationMessage('Please select a collection to export.');
+      return;
+    }
+    setError(null);
+    setDocumentsLoading(true); // Use this flag to indicate an ongoing operation
+    try {
+      // Use the current parsedQuery for the export operation
+      await exportCollectionDocuments(selectedCollection, parsedQuery);
+      setNotificationMessage('Export initiated successfully!');
+    } catch (err: any) {
+      setError(`Failed to export documents: ${err.message}`);
+    } finally {
+      setDocumentsLoading(false); // Reset loading flag
+    }
+  };
+
+
   // --- Rendering ---
   if (loading) {
     return <div className="loading">Loading connections...</div>;
@@ -337,7 +348,6 @@ export const ConnectionManager: React.FC = () => {
 
   return (
     <div className="connection-manager">
-      {/* Render the AppHeader component, passing context-derived props */}
       <AppHeader
         backendStatus={backendStatus}
         currentStatus={currentStatus}
@@ -347,9 +357,9 @@ export const ConnectionManager: React.FC = () => {
       {error && <div className="error-message">{error}</div>}
       {notificationMessage && <div className="notification-message">{notificationMessage}</div>}
 
-      {/* Conditionally render connection status/manager content */}
       {currentStatus?.database ? (
         <div className="database-browser-section">
+          <h3>Database Browser: {currentStatus.database}</h3>
           <div className="browser-content">
             <div className="collections-pane">
               {collectionsLoading ? (
@@ -376,7 +386,18 @@ export const ConnectionManager: React.FC = () => {
                   disabled={documentsLoading}
                 />
                 <div className="query-controls">
-                  <button onClick={handleRunQuery} disabled={documentsLoading}>Run Query</button>
+                  {/* --- NEW: Export Button --- */}
+                  <button
+                    onClick={handleExport}
+                    disabled={!selectedCollection || documentsLoading} // Disable if no collection selected or any loading
+                    className="export-button" // New class for styling
+                    title="Export all documents matching the current query to a JSON Lines file"
+                  >
+                    Export
+                  </button>
+                  <button onClick={handleRunQuery} disabled={documentsLoading}>
+                    Run Query
+                  </button>
                 </div>
               </div>
 
@@ -399,7 +420,7 @@ export const ConnectionManager: React.FC = () => {
                 </div>
               )}
 
-              {documentsLoading ? (
+              {documentsLoading && !notificationMessage ? (
                 <p>Loading documents...</p>
               ) : (
                 <DocumentViewer

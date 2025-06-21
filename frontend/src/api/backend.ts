@@ -91,3 +91,47 @@ export const getCollectionDocuments = (
     { limit, skip, query }
   );
 };
+
+// --- Export documents from a collection ---
+export async function exportCollectionDocuments(collectionName: string, query: object): Promise<void> {
+  const url = `${API_BASE_URL}/database/documents/${collectionName}/export`;
+
+  // We are not using the 'request' helper here because it expects a JSON response,
+  // but for file download, we need to handle the Blob directly.
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }), // Send the query in the request body
+  });
+
+  if (!response.ok) {
+    // If the response is not OK, try to parse an error message from JSON
+    const errorData = await response.json().catch(() => ({ message: 'Unknown error during export.' }));
+    throw new Error(errorData.message || 'Failed to export documents');
+  }
+
+  // Extract filename from Content-Disposition header, or use a default
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = `${collectionName}_export_${Date.now()}.jsonl`; // Default filename with timestamp
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="([^"]+)"/);
+    if (match && match[1]) {
+      filename = match[1];
+    }
+  }
+
+  // Create a Blob from the response (which is the file content)
+  const blob = await response.blob();
+  const urlBlob = window.URL.createObjectURL(blob); // Create a URL for the blob
+
+  // Create a temporary link element to trigger the download
+  const a = document.createElement('a');
+  a.href = urlBlob;
+  a.download = filename; // Set the download filename
+  document.body.appendChild(a); // Append to body (required for Firefox)
+  a.click(); // Programmatically click the link to trigger download
+  document.body.removeChild(a); // Clean up the temporary link
+  window.URL.revokeObjectURL(urlBlob); // Revoke the object URL to free up memory
+}

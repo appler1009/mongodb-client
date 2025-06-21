@@ -77,4 +77,22 @@ export class DatabaseService {
     const collection: Collection<MongoDocument> = this.activeDb.collection(collectionName);
     return await collection.countDocuments(query);
   }
+
+  public async getAllDocuments(collectionName: string, query: object = {}): Promise<MongoDocument[]> {
+    if (!this.activeDb) {
+      const error = new Error('No active database connection.');
+      this.logger.error(error, 'Attempted to get all documents for export without active DB');
+      throw error;
+    }
+    this.logger.info(`Fetching ALL documents from collection: ${collectionName} with query: ${JSON.stringify(query)} for export`);
+    try {
+      const collection: Collection = this.activeDb.collection(collectionName);
+      // Fetch all documents matching the query, without skip/limit
+      const documents = await collection.find(query).toArray();
+      return documents;
+    } catch (error) {
+      this.logger.error({ error, collectionName, query }, 'Failed to retrieve all documents for export from collection');
+      throw error;
+    }
+  }
 }

@@ -205,6 +205,34 @@ app.post('/api/database/documents/:collectionName', async (req, res) => {
   }
 });
 
+app.post('/api/database/documents/:collectionName/export', async (req, res) => {
+  try {
+    if (!databaseService.isDbActive()) {
+      return res.status(400).json({ message: 'No active database connection to export documents.' });
+    }
+
+    const { collectionName } = req.params;
+
+    // The query for export comes from the request body, similar to fetching documents
+    const { query = {} } = req.body;
+
+    // Fetch all documents using the new DatabaseService method
+    const documents = await databaseService.getAllDocuments(collectionName, query);
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/jsonl'); // Standard MIME type for JSON Lines
+    res.setHeader('Content-Disposition', `attachment; filename="${collectionName}_export_${Date.now()}.jsonl"`);
+
+    // Format documents as newline-delimited JSON (NDJSON)
+    const ndjsonContent = documents.map(doc => JSON.stringify(doc)).join('\n');
+    res.send(ndjsonContent);
+
+  } catch (error) {
+    logger.error({ error, collectionName: req.params.collectionName, requestBody: req.body }, 'Failed to export documents from collection');
+    res.status(500).json({ message: `Failed to export documents from collection ${req.params.collectionName}`, error: (error as Error).message });
+  }
+});
+
 // Helper function to disconnect
 async function disconnectFromMongo() {
   if (activeMongoClient) {
