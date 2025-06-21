@@ -5,6 +5,8 @@ import type { Document } from '../types';
 interface DocumentViewerProps {
   collectionName: string | null;
   documents: Document[];
+  currentPage: number;
+  documentsPerPage: number;
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
@@ -34,6 +36,8 @@ const formatCellValue = (value: unknown): React.ReactNode => {
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   collectionName,
   documents,
+  currentPage,
+  documentsPerPage
 }) => {
   const columns = useMemo(() => {
     // Defensive check: Ensure documents is an array before trying to iterate
@@ -74,21 +78,30 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
         <table className="document-table">
           <thead>
             <tr>
+              {/* --- Empty header for the index column --- */}
+              <th className="index-column-header"></th>
               {columns.map(col => (
                 <th key={col}>{col}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {documents.map((doc, docIndex) => (
-              <tr key={doc._id ? String(doc._id) : docIndex}>
-                {columns.map(col => (
-                  <td key={`${doc._id || docIndex}-${col}`}>
-                    {formatCellValue(doc[col])}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {documents.map((doc, docIndex) => {
+              // --- Calculate the global index for the current document ---
+              const globalIndex = (currentPage - 1) * documentsPerPage + docIndex + 1;
+
+              return (
+                <tr key={doc._id ? String(doc._id) : `doc-${globalIndex}`}>
+                  {/* --- Cell for the global index --- */}
+                  <td className="document-index-cell">{globalIndex}</td>
+                  {columns.map(col => (
+                    <td key={`${doc._id || globalIndex}-${col}`} className="document-data-cell">
+                      {formatCellValue(doc[col])}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

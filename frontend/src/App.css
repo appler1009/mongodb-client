@@ -526,3 +526,47 @@ button:disabled {
   transition: opacity 0.3s ease-in-out;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
+
+.document-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.document-table-container th,
+.document-table-container td {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+  word-break: break-all;
+}
+
+.document-table-container th {
+  background-color: var(--secondary-background-color);
+  font-weight: bold;
+}
+
+.index-column-header,
+.document-index-cell {
+  text-align: center; /* Center the index numbers */
+  background-color: var(--background-color); /* Match row background */
+  position: sticky; /* Keep index column visible on horizontal scroll */
+  left: 0;
+  z-index: 2; /* Ensure it stays above other cells on scroll */
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.85em; /* Keep existing size */
+}
+
+.index-column-header {
+  background-color: var(--secondary-background-color);
+  z-index: 3; /* Higher z-index than data cells */
+}
+
+.document-data-cell {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.85em; /* Keep existing size */
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

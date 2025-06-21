@@ -405,6 +405,8 @@ export const ConnectionManager: React.FC = () => {
                 <DocumentViewer
                   collectionName={selectedCollection}
                   documents={documents}
+                  currentPage={currentPage}
+                  documentsPerPage={documentsPerPage}
                 />
               )}
             </div>
