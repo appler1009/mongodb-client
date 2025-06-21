@@ -27,3 +27,9 @@ export interface CollectionInfo {
 export interface Document {
   [key: string]: unknown;
 }
+
+// Interface for the response when fetching a list of documents
+export interface DocumentsResponse {
+  documents: Document[];
+  totalDocuments: number;
+}

@@ -36,6 +36,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   documents,
 }) => {
   const columns = useMemo(() => {
+    // Defensive check: Ensure documents is an array before trying to iterate
+    if (!Array.isArray(documents)) {
+      return [];
+    }
+
     const uniqueKeys = new Set<string>();
     documents.forEach(doc => {
       Object.keys(doc).forEach(key => uniqueKeys.add(key));
@@ -58,17 +63,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       <div className="document-viewer">
         <h4>Documents in "{collectionName}" (0)</h4>
         <p>No documents found in this collection.</p>
-        <p className="nested-data-indicator">
-          Note: Only the first 50 documents are loaded by default.
-          If you expect more, consider adding documents or adjusting the limit in ConnectionManager.tsx.
-        </p>
       </div>
     );
   }
 
   return (
     <div className="document-viewer">
-      <h4>Documents in "{collectionName}" ({documents.length})</h4>
+      <h4>Documents in "{collectionName}" (Showing {documents.length} records)</h4>
       <div className="document-table-container">
         <table className="document-table">
           <thead>

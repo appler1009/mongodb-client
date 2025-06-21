@@ -1,4 +1,57 @@
-/* frontend/src/App.css (Replace existing colors, add new table styles) */
+/* frontend/src/App.css */
+
+/* Define CSS Variables for Theming */
+:root {
+  /* Light Theme Defaults */
+  --primary-color: #007bff; /* Main accent color (blue) */
+  --secondary-color: #6c757d; /* Secondary text/muted color */
+  --bg-color: #f8f9fa; /* Overall page background */
+  --card-bg: #ffffff; /* Background for cards, containers, forms */
+  --text-color: #343a40; /* Main text color */
+  --header-color: #0056b3; /* Darker blue for headings */
+  --error-color: #dc3545; /* Red for error messages */
+  --button-bg: var(--primary-color); /* Button background */
+  --button-hover-bg: #0056b3; /* Button hover background */
+  --button-text: #ffffff; /* Button text color */
+  --input-border: #ced4da; /* Input field borders */
+  --border-color: #e9ecef; /* General border color */
+  --selected-item-bg: #e2f2ff; /* Background for selected list items */
+  --selected-item-border: var(--primary-color); /* Border/text for selected list items */
+  --table-header-bg: #e9ecef; /* Table header background */
+  --table-row-hover-bg: #f2f2f2; /* Table row hover background */
+  --pagination-text-color: #5a5a5a; /* Text color for pagination info */
+}
+
+/* Dark Theme Variables */
+[data-theme='dark'] {
+  --primary-color: #20c997; /* Teal for dark theme accents */
+  --secondary-color: #adb5bd;
+  --bg-color: #212529; /* Dark background */
+  --card-bg: #343a40; /* Darker card background */
+  --text-color: #f8f9fa; /* Light text color */
+  --header-color: #17a2b8; /* Cyan for dark theme headings */
+  --error-color: #dc3545; /* Red still prominent for errors */
+  --button-bg: var(--primary-color);
+  --button-hover-bg: #17a2b8; /* Darker teal/cyan hover */
+  --button-text: #ffffff;
+  --input-border: #495057;
+  --border-color: #495057;
+  --selected-item-bg: #1e5e54; /* Darker teal for selected item */
+  --selected-item-border: var(--primary-color);
+  --table-header-bg: #495057;
+  --table-row-hover-bg: #4d535b;
+  --pagination-text-color: #ced4da;
+}
+
+/* Base Styles */
+body {
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
 
 /* General Layout */
 .App {
@@ -12,11 +65,11 @@
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 30px;
-  color: var(--text-color); /* Ensure text color applies */
+  color: var(--text-color);
 }
 
 h2, h3, h4 {
-  color: var(--header-bg); /* Use a primary color for headings */
+  color: var(--header-color); /* Use header-color for headings */
   text-align: center;
   margin-bottom: 25px;
 }
@@ -39,7 +92,7 @@ h2, h3, h4 {
 }
 
 .connection-status {
-  background-color: var(--bg-color); /* Lighter background for status */
+  background-color: var(--card-bg); /* Use card-bg for consistency */
   padding: 15px;
   border-radius: 5px;
   margin-bottom: 30px;
@@ -52,7 +105,7 @@ h2, h3, h4 {
 }
 
 .connection-status strong {
-  color: var(--button-bg); /* Highlight connected DB */
+  color: var(--primary-color); /* Highlight connected DB with primary color */
 }
 
 
@@ -68,7 +121,9 @@ h2, h3, h4 {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
-.connection-form input, .edit-form input {
+.connection-form input,
+.edit-form input,
+.pagination-controls select { /* Added select for pagination */
   padding: 12px;
   border: 1px solid var(--input-border);
   border-radius: 5px;
@@ -77,7 +132,8 @@ h2, h3, h4 {
   font-size: 1em;
 }
 
-.connection-form input::placeholder, .edit-form input::placeholder {
+.connection-form input::placeholder,
+.edit-form input::placeholder {
   color: var(--text-color);
   opacity: 0.7;
 }
@@ -118,7 +174,7 @@ button:disabled {
 }
 
 .connection-item {
-  background-color: var(--card-bg); /* Use card background for items */
+  background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 20px;
@@ -129,7 +185,7 @@ button:disabled {
 .connection-item h4 {
   margin-top: 0;
   margin-bottom: 10px;
-  color: var(--header-bg);
+  color: var(--header-color); /* Use header-color */
 }
 
 .connection-item p {
@@ -146,14 +202,14 @@ button:disabled {
 /* Database Browser Section */
 .database-browser-section {
   margin-top: 30px;
-  border-top: 1px solid var(--border-color); /* Use border variable */
+  border-top: 1px solid var(--border-color);
   padding-top: 20px;
-  color: var(--text-color); /* Ensure text color applies */
+  color: var(--text-color);
 }
 
 .database-browser-section h3 {
   text-align: center;
-  color: var(--header-bg); /* Use header color */
+  color: var(--header-color);
   margin-bottom: 20px;
 }
 
@@ -216,7 +272,9 @@ button:disabled {
   border-radius: 4px;
   padding: 15px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
+  overflow: hidden; /* Prevent content from overflowing the viewer */
+  display: flex; /* Use flexbox for internal layout */
+  flex-direction: column; /* Stack header, controls, table vertically */
 }
 
 .document-viewer h4 {
@@ -227,11 +285,48 @@ button:disabled {
   padding-bottom: 10px;
 }
 
-/* --- NEW: Document Table Styles --- */
+/* --- Pagination Controls Styles --- */
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  background-color: var(--bg-color); /* Lighter background for controls */
+  padding: 10px 15px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  gap: 10px; /* Spacing between items */
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+.pagination-controls span {
+  color: var(--pagination-text-color);
+  font-size: 0.9em;
+  white-space: nowrap; /* Prevent text wrapping */
+}
+
+.pagination-controls select {
+  margin-left: 8px;
+  padding: 6px 8px;
+  font-size: 0.9em;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background-color: var(--card-bg); /* Use card-bg for select background */
+  color: var(--text-color);
+}
+
+.pagination-controls button {
+  padding: 8px 12px;
+  font-size: 0.85em;
+  margin-right: 0; /* Override default button margin */
+}
+
+
+/* --- Document Table Styles --- */
 .document-table-container {
-  overflow-x: auto; /* Enable horizontal scrolling for wide tables */
-  max-height: 500px; /* Vertical scroll for many rows */
-  overflow-y: auto;
+  overflow: auto; /* Combines x and y scrolling */
+  flex-grow: 1; /* Allows table container to take remaining height */
+  /* max-height: 500px; removed as flex-grow takes care of sizing within parent */
 }
 
 .document-table {
@@ -249,7 +344,8 @@ button:disabled {
   white-space: nowrap; /* Keep content on single line */
   text-overflow: ellipsis; /* Show ellipsis for overflow */
   overflow: hidden; /* Hide overflow */
-  max-width: 200px; /* Limit column width */
+  max-width: 200px; /* Limit column width, adjust as needed */
+  vertical-align: top; /* Align cell content to top for better readability */
 }
 
 .document-table th {
@@ -267,8 +363,9 @@ button:disabled {
 
 /* Styling for nested data */
 .nested-data-indicator {
-  color: #888; /* Muted color for indicators */
+  color: var(--secondary-color); /* Muted color for indicators */
   font-style: italic;
+  font-size: 0.9em; /* Slightly smaller font for indicator */
 }
 
 /* JSON display for debugging/detail */
@@ -287,17 +384,16 @@ button:disabled {
 }
 
 .theme-toggle-container {
-  text-align: right; /* Align button to the right */
+  text-align: right;
   margin-bottom: 20px;
-  padding-right: 10px; /* Some padding from the edge */
+  padding-right: 10px;
 }
 
 .theme-toggle-button {
-  /* Inherits general button styles, but can be customized */
   background-color: var(--button-bg);
   color: var(--button-text);
   padding: 8px 15px;
-  border-radius: 20px; /* More pill-shaped */
+  border-radius: 20px;
   font-size: 0.9em;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }

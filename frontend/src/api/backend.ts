@@ -1,5 +1,5 @@
 // frontend/src/api/backend.ts
-import type { ConnectionConfig, ConnectionStatus, CollectionInfo, Document } from '../types';
+import type { ConnectionConfig, ConnectionStatus, CollectionInfo, DocumentsResponse } from '../types';
 
 // Use a relative path /api, Vite's proxy will handle the redirection in dev
 // For production, you'd configure your web server (nginx, etc.) to proxy /api requests
@@ -38,34 +38,34 @@ async function request<T>(method: string, path: string, data?: any): Promise<T> 
 // --- Connection Management API Calls ---
 
 export const getConnections = (): Promise<ConnectionConfig[]> => {
-  return request<ConnectionConfig[]>('GET', '/connections'); // CORRECTED: removed /api
+  return request<ConnectionConfig[]>('GET', '/connections');
 };
 
 export const addConnection = (connection: Omit<ConnectionConfig, 'id'>): Promise<ConnectionConfig> => {
-  return request<ConnectionConfig>('POST', '/connections', connection); // CORRECTED: removed /api
+  return request<ConnectionConfig>('POST', '/connections', connection);
 };
 
 export const updateConnection = (id: string, connection: ConnectionConfig): Promise<ConnectionConfig> => {
-  return request<ConnectionConfig>('PUT', `/connections/${id}`, connection); // CORRECTED: removed /api
+  return request<ConnectionConfig>('PUT', `/connections/${id}`, connection);
 };
 
 export const deleteConnection = (id: string): Promise<void> => {
-  return request<void>('DELETE', `/connections/${id}`); // CORRECTED: removed /api
+  return request<void>('DELETE', `/connections/${id}`);
 };
 
 // --- MongoDB Connection API Calls ---
 
 export const connectToMongo = (connectionId: string): Promise<ConnectionStatus> => {
-  return request<ConnectionStatus>('POST', '/connect', { id: connectionId }); // CORRECTED: removed /api
+  return request<ConnectionStatus>('POST', '/connect', { id: connectionId });
 };
 
 export const disconnectFromMongo = (): Promise<ConnectionStatus> => {
-  return request<ConnectionStatus>('POST', '/disconnect'); // CORRECTED: removed /api
+  return request<ConnectionStatus>('POST', '/disconnect');
 };
 
 // Health check (useful for debugging network issues)
 export const getHealthStatus = (): Promise<{ status: string; message: string }> => {
-  return request<{ status: string; message: string }>('GET', '/health'); // CORRECTED: removed /api
+  return request<{ status: string; message: string }>('GET', '/health');
 };
 
 
@@ -76,8 +76,13 @@ export const getDatabaseCollections = (): Promise<CollectionInfo[]> => {
   return request<CollectionInfo[]>('GET', '/database/collections');
 };
 
-export const getCollectionDocuments = (collectionName: string, limit: number = 20): Promise<Document[]> => {
+// accept skip and limit, and return DocumentsResponse
+export const getCollectionDocuments = (
+  collectionName: string,
+  limit: number = 20,
+  skip: number = 0
+): Promise<DocumentsResponse> => {
   // This calls the /api/database/documents/:collectionName endpoint
-  // We can pass the limit as a query parameter
-  return request<Document[]>('GET', `/database/documents/${collectionName}?limit=${limit}`);
+  // We can pass limit and skip as query parameters
+  return request<DocumentsResponse>('GET', `/database/documents/${collectionName}?limit=${limit}&skip=${skip}`);
 };

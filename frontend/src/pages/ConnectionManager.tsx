@@ -1,5 +1,6 @@
 // frontend/src/pages/ConnectionManager.tsx
 import React, { useState, useEffect, useCallback } from 'react';
+import type { ChangeEvent } from 'react';
 import type { ConnectionConfig, ConnectionStatus, CollectionInfo, Document } from '../types';
 import {
   getConnections,
@@ -16,7 +17,6 @@ import {
 // imports for components
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
-
 
 // Initial state for a new connection form
 const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
@@ -41,6 +41,12 @@ export const ConnectionManager: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
   const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
+
+  // --- Pagination State ---
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [documentsPerPage, setDocumentsPerPage] = useState<number>(25); // Default items per page
+  const [totalDocuments, setTotalDocuments] = useState<number>(0);
+  const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
 
   // --- Data Fetching ---
@@ -72,6 +78,8 @@ export const ConnectionManager: React.FC = () => {
       setCollections([]);
       setSelectedCollection(null);
       setDocuments([]);
+      setTotalDocuments(0);
+      setCurrentPage(1);
       return;
     }
     setCollectionsLoading(true);
@@ -85,6 +93,10 @@ export const ConnectionManager: React.FC = () => {
       } else {
         setSelectedCollection(null);
       }
+      // Reset documents and total documents when collections are re-fetched
+      setDocuments([]);
+      setTotalDocuments(0);
+      setCurrentPage(1);
     } catch (err: any) {
       setError(`Failed to fetch collections: ${err.message}`);
     } finally {
@@ -96,20 +108,24 @@ export const ConnectionManager: React.FC = () => {
   const fetchDocuments = useCallback(async () => {
     if (!selectedCollection) {
       setDocuments([]);
+      setTotalDocuments(0);
       return;
     }
     setDocumentsLoading(true);
     setError(null);
     try {
-      // You can adjust the limit here, e.g., allow user input
-      const fetchedDocuments = await getCollectionDocuments(selectedCollection, 50);
-      setDocuments(fetchedDocuments);
+      const skip = (currentPage - 1) * documentsPerPage;
+      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip);
+      setDocuments(response.documents);
+      setTotalDocuments(response.totalDocuments);
     } catch (err: any) {
       setError(`Failed to fetch documents for ${selectedCollection}: ${err.message}`);
+      setDocuments([]);
+      setTotalDocuments(0);
     } finally {
       setDocumentsLoading(false);
     }
-  }, [selectedCollection]); // Re-run when selectedCollection changes
+  }, [selectedCollection, currentPage, documentsPerPage]);
 
 
   useEffect(() => {
@@ -128,16 +144,18 @@ export const ConnectionManager: React.FC = () => {
       setCollections([]);
       setSelectedCollection(null);
       setDocuments([]);
+      setTotalDocuments(0);
+      setCurrentPage(1);
     }
-  }, [currentStatus?.database, fetchCollections]); // Add fetchCollections to dependency array
+  }, [currentStatus?.database, fetchCollections]);
 
-  // Effect to trigger fetching documents when selectedCollection changes
+  // Effect to trigger fetching documents when selectedCollection or pagination state changes
   useEffect(() => {
     fetchDocuments();
-  }, [selectedCollection, fetchDocuments]); // Add fetchDocuments to dependency array
+  }, [selectedCollection, currentPage, documentsPerPage, fetchDocuments]);
 
 
-  // --- Form Handlers (no change) ---
+  // --- Form Handlers ---
   const handleNewConnectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewConnection((prev) => ({ ...prev, [name]: value }));
@@ -185,10 +203,12 @@ export const ConnectionManager: React.FC = () => {
         setConnections((prev) => prev.filter((conn) => conn.id !== id));
         if (currentStatus?.connectionId === id) {
           setCurrentStatus(null); // Clear status if deleted active connection
-          // NEW: Clear Browse state if active connection is deleted
+          // Clear Browse state if active connection is deleted
           setCollections([]);
           setSelectedCollection(null);
           setDocuments([]);
+          setTotalDocuments(0);
+          setCurrentPage(1);
         }
         alert('Connection deleted successfully!');
       } catch (err: any) {
@@ -205,8 +225,11 @@ export const ConnectionManager: React.FC = () => {
       setCurrentStatus(status);
       // No need to explicitly call fetchCollections here, the useEffect will trigger it
       alert('Connected to MongoDB!');
+      setDocuments([]);
+      setTotalDocuments(0);
+      setCurrentPage(1);
     } catch (err: any) {
-      setCurrentStatus(null); // Clear status on failed connect
+      setCurrentStatus(null);
       setError(`Failed to connect: ${err.message}`);
     }
   };
@@ -220,11 +243,35 @@ export const ConnectionManager: React.FC = () => {
       setCollections([]);
       setSelectedCollection(null);
       setDocuments([]);
+      setTotalDocuments(0);
+      setCurrentPage(1);
       alert('Disconnected from MongoDB!');
     } catch (err: any) {
       setError(`Failed to disconnect: ${err.message}`);
     }
   };
+
+  // --- Pagination Handlers ---
+  const handleCollectionSelect = (collectionName: string) => {
+    setSelectedCollection(collectionName);
+    setCurrentPage(1);
+    setDocuments([]);
+    setTotalDocuments(0);
+  };
+
+  const handlePrevPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
+
+  const handleDocumentsPerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setDocumentsPerPage(parseInt(e.target.value, 10));
+    setCurrentPage(1);
+  };
+
 
   // --- Rendering ---
   if (loading) {
@@ -266,11 +313,31 @@ export const ConnectionManager: React.FC = () => {
                 <CollectionBrowser
                   collections={collections}
                   selectedCollection={selectedCollection}
-                  onSelectCollection={setSelectedCollection}
+                  onSelectCollection={handleCollectionSelect}
                 />
               )}
             </div>
             <div className="documents-pane">
+              {/* Pagination Controls */}
+              {selectedCollection && (
+                <div className="pagination-controls">
+                  <span>
+                    Documents per page:
+                    <select value={documentsPerPage} onChange={handleDocumentsPerPageChange} disabled={documentsLoading}>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </span>
+                  <span>
+                    Page {currentPage} of {totalPages} (Total: {totalDocuments} documents)
+                  </span>
+                  <button onClick={handlePrevPage} disabled={currentPage === 1 || documentsLoading}>Previous</button>
+                  <button onClick={handleNextPage} disabled={currentPage === totalPages || documentsLoading}>Next</button>
+                </div>
+              )}
+
               {documentsLoading ? (
                 <p>Loading documents...</p>
               ) : (

@@ -7,6 +7,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
       - mongo_data:/data/db # Persist data
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
