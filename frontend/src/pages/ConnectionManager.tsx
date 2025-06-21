@@ -17,6 +17,13 @@ import {
 // imports for components
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
+import { AppHeader } from '../components/AppHeader';
+
+// Add props for theme from App.tsx
+interface ConnectionManagerProps {
+  toggleTheme: () => void;
+  currentTheme: 'light' | 'dark';
+}
 
 // Initial state for a new connection form
 const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
@@ -27,7 +34,7 @@ const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
   password: '',
 };
 
-export const ConnectionManager: React.FC = () => {
+export const ConnectionManager: React.FC<ConnectionManagerProps> = ({ toggleTheme, currentTheme }) => {
   const [connections, setConnections] = useState<ConnectionConfig[]>([]);
   const [newConnection, setNewConnection] = useState<Omit<ConnectionConfig, 'id'>>(initialNewConnection);
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
@@ -102,7 +109,7 @@ export const ConnectionManager: React.FC = () => {
     } finally {
       setCollectionsLoading(false);
     }
-  }, [currentStatus?.database]); // Re-run when database changes
+  }, [currentStatus?.database]);
 
   // Fetch documents for the currently selected collection
   const fetchDocuments = useCallback(async () => {
@@ -223,7 +230,6 @@ export const ConnectionManager: React.FC = () => {
     try {
       const status = await connectToMongo(id);
       setCurrentStatus(status);
-      // No need to explicitly call fetchCollections here, the useEffect will trigger it
       alert('Connected to MongoDB!');
       setDocuments([]);
       setTotalDocuments(0);
@@ -280,28 +286,17 @@ export const ConnectionManager: React.FC = () => {
 
   return (
     <div className="connection-manager">
-      <h2>MongoDB Client</h2>
+      {/* Render the AppHeader component */}
+      <AppHeader
+        backendHealth={backendHealth}
+        currentStatus={currentStatus}
+        toggleTheme={toggleTheme}
+        currentTheme={currentTheme}
+      />
 
       {error && <div className="error-message">{error}</div>}
-      <div className="health-status">
-        Backend Health: <span style={{ color: backendHealth.includes('Up') ? 'green' : 'red' }}>{backendHealth}</span>
-      </div>
 
-      <div className="connection-status">
-        {currentStatus ? (
-          <div>
-            <h3>Current Connection:</h3>
-            <p>Status: {currentStatus.message}</p>
-            {currentStatus.connectionId && <p>ID: {currentStatus.connectionId}</p>}
-            {currentStatus.database && <p>Database: <strong>{currentStatus.database}</strong></p>}
-            <button onClick={handleDisconnect}>Disconnect</button>
-          </div>
-        ) : (
-          <h3>Not Connected to any MongoDB instance.</h3>
-        )}
-      </div>
-
-      {/* Conditional rendering for Browse section */}
+      {/* Conditionally render connection status/manager content */}
       {currentStatus?.database ? (
         <div className="database-browser-section">
           <h3>Database Browser: {currentStatus.database}</h3>
@@ -351,6 +346,7 @@ export const ConnectionManager: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* Original connection manager content when not connected */}
           <h3>Add New Connection</h3>
           <form onSubmit={handleAddConnection} className="connection-form">
             <input

@@ -1,12 +1,13 @@
 // frontend/src/App.tsx
-import React, { useState, useEffect, useContext } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import { ConnectionManager } from './pages/ConnectionManager';
-// Import ThemeContext and Theme type from the new file
-import { Theme, ThemeContext, ThemeContextType } from './context/ThemeContext';
+import { ThemeContext } from './context/ThemeContext';
+import type { Theme } from './context/ThemeContext';
 
 
-// Theme Provider Component (remains in this file for now as it's a component)
+// Theme Provider Component
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
@@ -17,7 +18,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   useEffect(() => {
-    document.body.className = theme;
+    // This correctly matches your CSS variable setup: [data-theme='dark']
+    document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -42,25 +44,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 // Main App component
 function App() {
-  const themeContext = useContext(ThemeContext);
-
-  if (!themeContext) {
-    return <div>Error: Theme context not provided.</div>;
-  }
-
-  const { theme, setTheme } = themeContext;
-
-  const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
 
   return (
     <div className="App">
-      <div className="theme-toggle-container">
-        <button onClick={toggleTheme} className="theme-toggle-button">
-          Switch to {theme === 'light' ? 'Dark' : 'Light'} Mode
-        </button>
-      </div>
       <ConnectionManager />
     </div>
   );

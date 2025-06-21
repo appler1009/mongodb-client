@@ -20,6 +20,7 @@
   --table-header-bg: #e9ecef; /* Table header background */
   --table-row-hover-bg: #f2f2f2; /* Table row hover background */
   --pagination-text-color: #5a5a5a; /* Text color for pagination info */
+  --header-bg-color: #e9ecef; /* Background for the new app header */
 }
 
 /* Dark Theme Variables */
@@ -41,6 +42,7 @@
   --table-header-bg: #495057;
   --table-row-hover-bg: #4d535b;
   --pagination-text-color: #ced4da;
+  --header-bg-color: #343a40; /* Darker background for the new app header */
 }
 
 /* Base Styles */
@@ -57,7 +59,7 @@ body {
 .App {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 0 20px 20px 20px; /* Adjust top padding as header is now fixed/takes its own space */
 }
 
 .connection-manager {
@@ -66,15 +68,66 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 30px;
   color: var(--text-color);
+  margin-top: 20px; /* Add margin to separate from the fixed header if App is not the root */
 }
 
+/* App Header/Toolbar Styles */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 30px; /* Match padding to connection-manager for alignment */
+  background-color: var(--header-bg-color); /* New variable for header background */
+  border-bottom: 1px solid var(--border-color);
+  margin: 0 -20px; /* Extend full width if App has horizontal padding */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  color: var(--text-color);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.8em;
+  color: var(--primary-color);
+  flex-shrink: 0; /* Prevent shrinking on smaller screens */
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+.status-indicators {
+  display: flex;
+  gap: 15px;
+  font-size: 0.9em;
+  color: var(--secondary-color);
+  flex-wrap: wrap;
+}
+
+.health-status-header span { /* Specific span for health status color */
+    font-weight: bold;
+}
+
+.connection-status-header .connected-db-name {
+  font-weight: bold;
+  color: var(--header-color); /* Highlight connected DB name */
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Remove old top-level status/health styles as they are now in AppHeader */
 h2, h3, h4 {
-  color: var(--header-color); /* Use header-color for headings */
+  color: var(--header-color);
   text-align: center;
   margin-bottom: 25px;
 }
 
-/* Status & Error Messages */
 .error-message {
   background-color: var(--error-color);
   color: var(--button-text);
@@ -82,30 +135,6 @@ h2, h3, h4 {
   border-radius: 5px;
   margin-bottom: 20px;
   text-align: center;
-}
-
-.health-status {
-  text-align: center;
-  margin-bottom: 20px;
-  font-weight: bold;
-  color: var(--text-color);
-}
-
-.connection-status {
-  background-color: var(--card-bg); /* Use card-bg for consistency */
-  padding: 15px;
-  border-radius: 5px;
-  margin-bottom: 30px;
-  border: 1px solid var(--border-color);
-  text-align: center;
-}
-
-.connection-status p {
-  margin: 5px 0;
-}
-
-.connection-status strong {
-  color: var(--primary-color); /* Highlight connected DB with primary color */
 }
 
 
@@ -123,12 +152,12 @@ h2, h3, h4 {
 
 .connection-form input,
 .edit-form input,
-.pagination-controls select { /* Added select for pagination */
+.pagination-controls select {
   padding: 12px;
   border: 1px solid var(--input-border);
   border-radius: 5px;
-  background-color: var(--bg-color); /* Match overall background */
-  color: var(--text-color); /* Ensure input text color is correct */
+  background-color: var(--bg-color);
+  color: var(--text-color);
   font-size: 1em;
 }
 
@@ -185,7 +214,7 @@ button:disabled {
 .connection-item h4 {
   margin-top: 0;
   margin-bottom: 10px;
-  color: var(--header-color); /* Use header-color */
+  color: var(--header-color);
 }
 
 .connection-item p {
@@ -230,7 +259,7 @@ button:disabled {
 .collections-pane h4 {
   margin-top: 0;
   margin-bottom: 10px;
-  color: var(--text-color); /* Match regular text for sub-headings */
+  color: var(--text-color);
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 10px;
 }
@@ -254,13 +283,13 @@ button:disabled {
 }
 
 .collections-pane li:hover {
-  background-color: var(--bg-color); /* Lighter hover for collections */
+  background-color: var(--bg-color);
 }
 
 .collections-pane li.selected {
   background-color: var(--selected-item-bg);
   font-weight: bold;
-  color: var(--selected-item-border); /* Highlight color */
+  color: var(--selected-item-border);
   border-left: 3px solid var(--selected-item-border);
   padding-left: 7px;
 }
@@ -272,9 +301,9 @@ button:disabled {
   border-radius: 4px;
   padding: 15px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  overflow: hidden; /* Prevent content from overflowing the viewer */
-  display: flex; /* Use flexbox for internal layout */
-  flex-direction: column; /* Stack header, controls, table vertically */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .document-viewer h4 {
@@ -285,24 +314,24 @@ button:disabled {
   padding-bottom: 10px;
 }
 
-/* --- Pagination Controls Styles --- */
+/* Pagination Controls Styles */
 .pagination-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
-  background-color: var(--bg-color); /* Lighter background for controls */
+  background-color: var(--bg-color);
   padding: 10px 15px;
   border-radius: 4px;
   border: 1px solid var(--border-color);
-  gap: 10px; /* Spacing between items */
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .pagination-controls span {
   color: var(--pagination-text-color);
   font-size: 0.9em;
-  white-space: nowrap; /* Prevent text wrapping */
+  white-space: nowrap;
 }
 
 .pagination-controls select {
@@ -311,29 +340,28 @@ button:disabled {
   font-size: 0.9em;
   border: 1px solid var(--input-border);
   border-radius: 4px;
-  background-color: var(--card-bg); /* Use card-bg for select background */
+  background-color: var(--card-bg);
   color: var(--text-color);
 }
 
 .pagination-controls button {
   padding: 8px 12px;
   font-size: 0.85em;
-  margin-right: 0; /* Override default button margin */
+  margin-right: 0;
 }
 
 
-/* --- Document Table Styles --- */
+/* Document Table Styles */
 .document-table-container {
-  overflow: auto; /* Combines x and y scrolling */
-  flex-grow: 1; /* Allows table container to take remaining height */
-  /* max-height: 500px; removed as flex-grow takes care of sizing within parent */
+  overflow: auto;
+  flex-grow: 1;
 }
 
 .document-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9em;
-  min-width: 600px; /* Ensure table doesn't shrink too much */
+  min-width: 600px;
 }
 
 .document-table th,
@@ -341,20 +369,20 @@ button:disabled {
   padding: 10px 12px;
   border: 1px solid var(--border-color);
   text-align: left;
-  white-space: nowrap; /* Keep content on single line */
-  text-overflow: ellipsis; /* Show ellipsis for overflow */
-  overflow: hidden; /* Hide overflow */
-  max-width: 200px; /* Limit column width, adjust as needed */
-  vertical-align: top; /* Align cell content to top for better readability */
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 200px;
+  vertical-align: top;
 }
 
 .document-table th {
   background-color: var(--table-header-bg);
   color: var(--text-color);
   font-weight: bold;
-  position: sticky; /* Sticky headers */
+  position: sticky;
   top: 0;
-  z-index: 10; /* Ensure header is above scrolling content */
+  z-index: 10;
 }
 
 .document-table tbody tr:hover {
@@ -363,14 +391,14 @@ button:disabled {
 
 /* Styling for nested data */
 .nested-data-indicator {
-  color: var(--secondary-color); /* Muted color for indicators */
+  color: var(--secondary-color);
   font-style: italic;
-  font-size: 0.9em; /* Slightly smaller font for indicator */
+  font-size: 0.9em;
 }
 
 /* JSON display for debugging/detail */
 .document-json-display {
-  background-color: var(--bg-color); /* Consistent background */
+  background-color: var(--bg-color);
   border: 1px solid var(--border-color);
   padding: 10px;
   border-radius: 4px;
@@ -383,22 +411,6 @@ button:disabled {
   color: var(--text-color);
 }
 
-.theme-toggle-container {
-  text-align: right;
-  margin-bottom: 20px;
-  padding-right: 10px;
-}
-
-.theme-toggle-button {
-  background-color: var(--button-bg);
-  color: var(--button-text);
-  padding: 8px 15px;
-  border-radius: 20px;
-  font-size: 0.9em;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.theme-toggle-button:hover {
-  background-color: var(--button-hover-bg);
-  transform: translateY(-1px);
+.theme-toggle-container { /* This is now obsolete, logic moved to AppHeader */
+  display: none;
 }
