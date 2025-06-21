@@ -33,7 +33,7 @@ export const ConnectionManager: React.FC = () => {
   const [newConnection, setNewConnection] = useState<Omit<ConnectionConfig, 'id'>>(initialNewConnection);
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
   const [currentStatus, setCurrentStatus] = useState<ConnectionStatus | null>(null);
-  const [backendHealth, setBackendHealth] = useState<string>('Checking...');
+  const [backendStatus, setBackendStatus] = useState<{ status: string; message: string; } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -75,9 +75,9 @@ export const ConnectionManager: React.FC = () => {
   const fetchBackendHealth = async () => {
     try {
       const status = await getHealthStatus();
-      setBackendHealth(`Backend: ${status.status} (${status.message})`);
+      setBackendStatus(status);
     } catch (err: any) {
-      setBackendHealth(`Backend: Down (${err.message})`);
+      setBackendStatus({ status: 'error', message: `Down (${err.message})` });
     }
   };
 
@@ -98,7 +98,7 @@ export const ConnectionManager: React.FC = () => {
     setError(null);
     try {
       const fetchedCollections = await getDatabaseCollections();
-      // --- Sort collections alphabetically by name ---
+      // Sort collections alphabetically by name
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setCollections(fetchedCollections);
       // Automatically select the first collection if available
@@ -174,7 +174,7 @@ export const ConnectionManager: React.FC = () => {
     fetchDocuments();
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, fetchDocuments]);
 
-  // --- Effect for auto-dismissing notifications ---
+  // Effect for auto-dismissing notifications
   useEffect(() => {
     if (notificationMessage) {
       const timer = setTimeout(() => {
@@ -339,13 +339,12 @@ export const ConnectionManager: React.FC = () => {
     <div className="connection-manager">
       {/* Render the AppHeader component, passing context-derived props */}
       <AppHeader
-        backendHealth={backendHealth}
+        backendStatus={backendStatus}
         currentStatus={currentStatus}
         onDisconnect={handleDisconnect}
       />
 
       {error && <div className="error-message">{error}</div>}
-      {/* NEW: Notification Message Display --- */}
       {notificationMessage && <div className="notification-message">{notificationMessage}</div>}
 
       {/* Conditionally render connection status/manager content */}

@@ -7,13 +7,13 @@ import { ThemeContext } from '../context/ThemeContext';
 
 
 interface AppHeaderProps {
-  backendHealth: string;
+  backendStatus: { status: string; message: string; } | null;
   currentStatus: ConnectionStatus | null;
   onDisconnect: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
-  backendHealth,
+  backendStatus,
   currentStatus,
   onDisconnect,
 }) => {
@@ -35,22 +35,23 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="header-left">
         <h1 className="app-title">MongoDB Client</h1>
         <div className="status-indicators">
-          <span className="health-status-header">
-            Backend: <span style={{ color: backendHealth.includes('Up') ? 'green' : 'red' }}>{backendHealth.split(': ')[1]}</span>
-          </span>
+          {backendStatus && backendStatus.status !== 'ok' && (
+            <span className="health-status-header">
+              Backend: <span style={{ color: backendStatus.status === 'error' ? 'red' : 'inherit' }}>{backendStatus.message}</span>
+            </span>
+          )}
+
           {currentStatus && (
             <> {/* Use React Fragment to group the two elements */}
               <span className="connection-status-header">
                 Connected to: <strong className="connected-db-name">{currentStatus.database}</strong>
               </span>
-              {/* NEW: Disconnect Button */}
+              {/* Disconnect Button */}
               <button
                 onClick={onDisconnect}
                 className="disconnect-button" // Add a class for styling
                 title="Disconnect from current database"
-              >
-                Disconnect
-              </button>
+              >Disconnect</button>
             </>
           )}
         </div>
