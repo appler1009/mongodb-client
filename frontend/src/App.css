@@ -122,9 +122,8 @@ body {
 
 .header-right {
   display: flex;
+  gap: 10px;
   align-items: center;
-  flex-shrink: 0;
-  gap: 15px;
 }
 
 .disconnect-button {
@@ -604,28 +603,48 @@ button:disabled {
 }
 
 .theme-toggle-button {
-  background-color: var(--button-background-color); /* Use your existing button background */
+  background-color: var(--button-background-color); /* Ensure a base background */
   color: var(--button-text-color);
-  border: none;
+  border: 1px solid transparent; /* Add a default transparent border for smooth transition */
   border-radius: 5px;
   cursor: pointer;
-  padding: 8px; /* Reduced padding for icon-only button */
-  display: flex; /* Use flex to center the icon */
+  padding: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px; /* Fixed width and height to make it square */
+  width: 40px;
   height: 40px;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
 }
 
-.theme-toggle-button:hover {
-  background-color: var(--hover-color); /* Use your existing hover color */
-  transform: scale(1.05); /* Slightly enlarge on hover */
+.theme-toggle-button:hover:not(:disabled) {
+  background-color: var(--hover-color);
+  transform: scale(1.05);
 }
 
+.theme-toggle-button.system-toggle.active {
+  /* Using !important as a last resort if specificity issues persist,
+     but ideally, a more specific selector should be enough. */
+  background-color: var(--selected-item-background-color) !important; /* Brighter background */
+  border-color: var(--primary-color) !important; /* Distinct border */
+  box-shadow: 0 0 5px rgba(var(--primary-color-rgb), 0.5); /* Subtle glow */
+}
+
+.theme-toggle-button:disabled {
+  background-color: var(--disabled-button-background-color, #cccccc) !important; /* Stronger disabled background */
+  color: var(--disabled-text-color, #666666) !important; /* Dimmed text/icon color */
+  cursor: not-allowed !important;
+  opacity: 0.6 !important; /* Dim the button */
+  pointer-events: none; /* Ensures no click events are processed */
+  border-color: transparent !important; /* No border for disabled state */
+}
+
+.theme-toggle-button:disabled .theme-icon {
+  filter: grayscale(100%) brightness(1.5); /* Example: desaturate and brighten slightly for disabled look */
+  opacity: 0.7;
+}
 .theme-icon {
-  width: 24px; /* Set icon size */
+  width: 24px;
   height: 24px;
-  /* Ensure icon color adapts to theme if using currentColor in SVG */
-  filter: var(--theme-icon-filter, none); /* Example for applying filter if needed for color adaptation */
+  filter: var(--theme-icon-filter, none);
 }
