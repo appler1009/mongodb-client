@@ -42,32 +42,39 @@ export class DatabaseService {
     }
   }
 
-  // MODIFIED: getDocuments to accept skip and limit
-  public async getDocuments(collectionName: string, limit: number, skip: number): Promise<MongoDocument[]> {
+  // getDocuments to accept skip and limit
+  public async getDocuments(
+    collectionName: string,
+    limit: number,
+    skip: number,
+    query: object = {}
+  ): Promise<MongoDocument[]> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to get documents without active DB');
       throw error;
     }
-    this.logger.info(`Fetching documents from collection: ${collectionName} (limit: ${limit})`);
+    this.logger.info(`Fetching documents from collection: ${collectionName} (limit: ${limit}, skip: ${skip}, query: ${JSON.stringify(query)})`);
     try {
       const collection: Collection = this.activeDb.collection(collectionName);
-      // Find all documents, limit the results, and convert to array
-      const documents = await collection.find({}).skip(skip).limit(limit).toArray();
+      const documents = await collection.find(query).skip(skip).limit(limit).toArray();
       return documents;
     } catch (error) {
-      this.logger.error({ error, collectionName }, 'Failed to retrieve documents from collection');
+      this.logger.error({ error, collectionName, query }, 'Failed to retrieve documents from collection with query');
       throw error;
     }
   }
 
   // Method to get the total count of documents in a collection
-  async getDocumentCount(collectionName: string): Promise<number> {
+  async getDocumentCount(
+    collectionName: string,
+    query: object = {}
+  ): Promise<number> {
     if (!this.activeDb) {
       throw new Error('No active database connection.');
     }
-    this.logger.info(`DatabaseService: Counting documents in collection "${collectionName}"`);
+    this.logger.info(`DatabaseService: Counting documents in collection "${collectionName}" with query: ${JSON.stringify(query)}`);
     const collection: Collection<MongoDocument> = this.activeDb.collection(collectionName);
-    return await collection.countDocuments({});
+    return await collection.countDocuments(query);
   }
 }

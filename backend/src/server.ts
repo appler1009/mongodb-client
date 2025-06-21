@@ -175,21 +175,28 @@ app.get('/api/database/collections', async (req, res) => {
 });
 
 // Get documents from a specific collection in the active database
-app.get('/api/database/documents/:collectionName', async (req, res) => {
+app.post('/api/database/documents/:collectionName', async (req, res) => {
   try {
     if (!databaseService.isDbActive()) {
       return res.status(400).json({ message: 'No active database connection to retrieve documents.' });
     }
+
     const { collectionName } = req.params;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 20; // Default limit 20
-    const skip = req.query.skip ? parseInt(req.query.skip as string) : 0;     // Default skip 0
 
-    // Get documents with skip and limit from DatabaseService
-    const documents = await databaseService.getDocuments(collectionName, limit, skip);
-    // Get total count from DatabaseService
-    const totalDocuments = await databaseService.getDocumentCount(collectionName);
+    // --- Extract limit, skip, and query from the request body ---
+    // The frontend now sends { limit, skip, query } in the JSON body for POST requests.
+    const {
+      limit = 20, // Default limit 20
+      skip = 0,   // Default skip 0
+      query = {}  // Default query to an empty object, which means find all documents
+    } = req.body;
 
-    // Return both documents and total count using the new interface
+    // Get documents with skip, limit, and the new query from DatabaseService
+    const documents = await databaseService.getDocuments(collectionName, limit, skip, query);
+    // Get total count with the new query from DatabaseService
+    const totalDocuments = await databaseService.getDocumentCount(collectionName, query);
+
+    // Return both documents and total count
     const response: DocumentsResponse = { documents, totalDocuments };
     res.json(response);
   } catch (error) {

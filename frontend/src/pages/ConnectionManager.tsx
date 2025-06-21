@@ -49,6 +49,10 @@ export const ConnectionManager: React.FC = () => {
   const [totalDocuments, setTotalDocuments] = useState<number>(0);
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
+  // --- Query Editor State ---
+  const [queryText, setQueryText] = useState<string>('{}'); // Default to an empty object for "find all"
+  const [parsedQuery, setParsedQuery] = useState<object>({}); // The actual parsed query object to be used for fetching
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   // --- Data Fetching ---
   const fetchConnections = async () => {
@@ -81,6 +85,9 @@ export const ConnectionManager: React.FC = () => {
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
+      setQueryText('{}');
+      setParsedQuery({});
+      setQueryError(null);
       return;
     }
     setCollectionsLoading(true);
@@ -98,6 +105,9 @@ export const ConnectionManager: React.FC = () => {
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
+      setQueryText('{}');
+      setParsedQuery({});
+      setQueryError(null);
     } catch (err: any) {
       setError(`Failed to fetch collections: ${err.message}`);
     } finally {
@@ -105,7 +115,7 @@ export const ConnectionManager: React.FC = () => {
     }
   }, [currentStatus?.database]);
 
-  // Fetch documents for the currently selected collection
+  // Fetch documents for the currently selected collection with the current parsedQuery
   const fetchDocuments = useCallback(async () => {
     if (!selectedCollection) {
       setDocuments([]);
@@ -116,7 +126,8 @@ export const ConnectionManager: React.FC = () => {
     setError(null);
     try {
       const skip = (currentPage - 1) * documentsPerPage;
-      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip);
+      // Pass the parsedQuery to your backend API
+      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedQuery);
       setDocuments(response.documents);
       setTotalDocuments(response.totalDocuments);
     } catch (err: any) {
@@ -126,9 +137,9 @@ export const ConnectionManager: React.FC = () => {
     } finally {
       setDocumentsLoading(false);
     }
-  }, [selectedCollection, currentPage, documentsPerPage]);
+  }, [selectedCollection, currentPage, documentsPerPage, parsedQuery]);
 
-
+  // --- Initial Loads and Health Check ---
   useEffect(() => {
     fetchBackendHealth(); // Check health on initial load
     fetchConnections(); // Fetch connections on initial load
@@ -147,13 +158,16 @@ export const ConnectionManager: React.FC = () => {
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
+      setQueryText('{}');
+      setParsedQuery({});
+      setQueryError(null);
     }
   }, [currentStatus?.database, fetchCollections]);
 
-  // Effect to trigger fetching documents when selectedCollection or pagination state changes
+  // Effect to trigger fetching documents when selectedCollection, pagination state, or parsedQuery changes
   useEffect(() => {
     fetchDocuments();
-  }, [selectedCollection, currentPage, documentsPerPage, fetchDocuments]);
+  }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, fetchDocuments]);
 
 
   // --- Form Handlers ---
@@ -210,6 +224,9 @@ export const ConnectionManager: React.FC = () => {
           setDocuments([]);
           setTotalDocuments(0);
           setCurrentPage(1);
+          setQueryText('{}');
+          setParsedQuery({});
+          setQueryError(null);
         }
         alert('Connection deleted successfully!');
       } catch (err: any) {
@@ -228,6 +245,9 @@ export const ConnectionManager: React.FC = () => {
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
+      setQueryText('{}');
+      setParsedQuery({});
+      setQueryError(null);
     } catch (err: any) {
       setCurrentStatus(null);
       setError(`Failed to connect: ${err.message}`);
@@ -245,6 +265,9 @@ export const ConnectionManager: React.FC = () => {
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
+      setQueryText('{}');
+      setParsedQuery({});
+      setQueryError(null);
       alert('Disconnected from MongoDB!');
     } catch (err: any) {
       setError(`Failed to disconnect: ${err.message}`);
@@ -257,6 +280,9 @@ export const ConnectionManager: React.FC = () => {
     setCurrentPage(1);
     setDocuments([]);
     setTotalDocuments(0);
+    setQueryText('{}');
+    setParsedQuery({});
+    setQueryError(null);
   };
 
   const handlePrevPage = () => {
@@ -272,6 +298,22 @@ export const ConnectionManager: React.FC = () => {
     setCurrentPage(1);
   };
 
+  // --- Query Editor Handlers ---
+  const handleQueryTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setQueryText(e.target.value);
+    setQueryError(null); // Clear error when user starts typing again
+  };
+
+  const handleRunQuery = () => {
+    try {
+      const newQuery = JSON.parse(queryText);
+      setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
+      setCurrentPage(1); // Reset to first page for new query
+      setQueryError(null);
+    } catch (e) {
+      setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
+    }
+  };
 
   // --- Rendering ---
   if (loading) {
@@ -305,7 +347,27 @@ export const ConnectionManager: React.FC = () => {
                 />
               )}
             </div>
-            <div className="documents-pane">
+            {/* NEW WRAPPER FOR QUERY EDITOR + DOCUMENTS */}
+            <div className="document-panel-right">
+              {/* Query Error Message */}
+              {queryError && <div className="query-error-message">{queryError}</div>}
+
+              {/* Query Editor Section */}
+              <div className="query-editor-container">
+                <h4>Find Query (JSON)</h4>
+                <textarea
+                  className="query-editor"
+                  value={queryText}
+                  onChange={handleQueryTextChange}
+                  placeholder='e.g., {"name": "Alice", "age": {"$gt": 30}}'
+                  rows={5} // Makes it a few lines tall
+                  disabled={documentsLoading} // Disable while documents are loading
+                />
+                <div className="query-controls">
+                  <button onClick={handleRunQuery} disabled={documentsLoading}>Run Query</button>
+                </div>
+              </div>
+
               {/* Pagination Controls */}
               {selectedCollection && (
                 <div className="pagination-controls">

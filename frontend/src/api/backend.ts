@@ -80,9 +80,14 @@ export const getDatabaseCollections = (): Promise<CollectionInfo[]> => {
 export const getCollectionDocuments = (
   collectionName: string,
   limit: number = 20,
-  skip: number = 0
+  skip: number = 0,
+  query: object = {}
 ): Promise<DocumentsResponse> => {
-  // This calls the /api/database/documents/:collectionName endpoint
-  // We can pass limit and skip as query parameters
-  return request<DocumentsResponse>('GET', `/database/documents/${collectionName}?limit=${limit}&skip=${skip}`);
+  // This will now call the /api/database/documents/:collectionName endpoint
+  // using a POST request, with limit, skip, and query in the request body.
+  return request<DocumentsResponse>(
+    'POST',
+    `/database/documents/${collectionName}`,
+    { limit, skip, query }
+  );
 };
