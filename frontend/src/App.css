@@ -506,7 +506,6 @@ button:disabled {
 
 /* Ensure .document-viewer itself also has flex-grow: 1 if it doesn't already */
 .document-viewer {
-  /* ... existing styles ... */
   flex-grow: 1; /* Important: Make the viewer itself take remaining vertical space */
 }
 
@@ -554,7 +553,7 @@ button:disabled {
   left: 0;
   z-index: 2; /* Ensure it stays above other cells on scroll */
   font-family: 'Courier New', Courier, monospace;
-  font-size: 0.85em; /* Keep existing size */
+  font-size: 0.85em;
 }
 
 .index-column-header {
@@ -564,7 +563,7 @@ button:disabled {
 
 .document-data-cell {
   font-family: 'Courier New', Courier, monospace;
-  font-size: 0.85em; /* Keep existing size */
+  font-size: 0.85em;
   max-width: 250px;
   overflow: hidden;
   text-overflow: ellipsis;

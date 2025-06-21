@@ -186,7 +186,7 @@ export const ConnectionManager: React.FC = () => {
   }, [notificationMessage]);
 
 
-  // --- Form Handlers (Existing) ---
+  // --- Form Handlers ---
   const handleNewConnectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewConnection((prev) => ({ ...prev, [name]: value }));
@@ -348,7 +348,6 @@ export const ConnectionManager: React.FC = () => {
 
       {currentStatus?.database ? (
         <div className="database-browser-section">
-          <h3>Database Browser: {currentStatus.database}</h3>
           <div className="browser-content">
             <div className="collections-pane">
               {collectionsLoading ? (
