@@ -58,6 +58,17 @@ export const ConnectionManager: React.FC = () => {
   // --- Notification State ---
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
 
+  // --- Helper function to reset collection/document related states ---
+  const resetBrowserState = useCallback(() => {
+    setCollections([]);
+    setSelectedCollection(null);
+    setDocuments([]);
+    setTotalDocuments(0);
+    setCurrentPage(1);
+    setQueryText('{}');
+    setParsedQuery({});
+    setQueryError(null);
+  }, []); // Dependencies are empty as these are all setters for local state
 
   // --- Data Fetching ---
   const fetchConnections = async () => {
@@ -85,14 +96,7 @@ export const ConnectionManager: React.FC = () => {
   // Fetch collections for the currently active database
   const fetchCollections = useCallback(async () => {
     if (!currentStatus?.database) {
-      setCollections([]);
-      setSelectedCollection(null);
-      setDocuments([]);
-      setTotalDocuments(0);
-      setCurrentPage(1);
-      setQueryText('{}');
-      setParsedQuery({});
-      setQueryError(null);
+      resetBrowserState(); // Keep this for when there's no database active
       return;
     }
     setCollectionsLoading(true);
@@ -100,24 +104,34 @@ export const ConnectionManager: React.FC = () => {
     try {
       const fetchedCollections = await getDatabaseCollections();
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
-      setCollections(fetchedCollections);
-      if (fetchedCollections.length > 0) {
-        setSelectedCollection(fetchedCollections[0].name);
-      } else {
-        setSelectedCollection(null);
-      }
+
+      // 1. Reset documents/query related states BEFORE setting collections
+      // This ensures that when new collections are loaded, the document viewer
+      // and query editor are cleared of previous collection's data.
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
       setQueryText('{}');
       setParsedQuery({});
       setQueryError(null);
+
+      setCollections(fetchedCollections); // Set the collections here
+
+      if (fetchedCollections.length > 0) {
+        setSelectedCollection(fetchedCollections[0].name); // Select the first one
+      } else {
+        setSelectedCollection(null); // No collections, so no selected collection
+      }
+
     } catch (err: any) {
       setError(`Failed to fetch collections: ${err.message}`);
+      setCollections([]); // Clear collections on error
+      setSelectedCollection(null); // Clear selected collection on error
+      resetBrowserState(); // Reset other states on error
     } finally {
       setCollectionsLoading(false);
     }
-  }, [currentStatus?.database]);
+  }, [currentStatus?.database, resetBrowserState]);
 
   // Fetch documents for the currently selected collection with the current parsedQuery
   const fetchDocuments = useCallback(async () => {
@@ -154,16 +168,9 @@ export const ConnectionManager: React.FC = () => {
     if (currentStatus?.database) {
       fetchCollections();
     } else {
-      setCollections([]);
-      setSelectedCollection(null);
-      setDocuments([]);
-      setTotalDocuments(0);
-      setCurrentPage(1);
-      setQueryText('{}');
-      setParsedQuery({});
-      setQueryError(null);
+      resetBrowserState();
     }
-  }, [currentStatus?.database, fetchCollections]);
+  }, [currentStatus?.database, fetchCollections, resetBrowserState]);
 
   useEffect(() => {
     fetchDocuments();
@@ -227,14 +234,7 @@ export const ConnectionManager: React.FC = () => {
         setConnections((prev) => prev.filter((conn) => conn.id !== id));
         if (currentStatus?.connectionId === id) {
           setCurrentStatus(null);
-          setCollections([]);
-          setSelectedCollection(null);
-          setDocuments([]);
-          setTotalDocuments(0);
-          setCurrentPage(1);
-          setQueryText('{}');
-          setParsedQuery({});
-          setQueryError(null);
+          resetBrowserState();
         }
         setNotificationMessage('Connection deleted successfully!');
       } catch (err: any) {
@@ -249,12 +249,7 @@ export const ConnectionManager: React.FC = () => {
       const status = await connectToMongo(id);
       setCurrentStatus(status);
       setNotificationMessage('Connected to MongoDB!');
-      setDocuments([]);
-      setTotalDocuments(0);
-      setCurrentPage(1);
-      setQueryText('{}');
-      setParsedQuery({});
-      setQueryError(null);
+      resetBrowserState();
     } catch (err: any) {
       setCurrentStatus(null);
       setError(`Failed to connect: ${err.message}`);
@@ -266,14 +261,7 @@ export const ConnectionManager: React.FC = () => {
     try {
       await disconnectFromMongo();
       setCurrentStatus(null);
-      setCollections([]);
-      setSelectedCollection(null);
-      setDocuments([]);
-      setTotalDocuments(0);
-      setCurrentPage(1);
-      setQueryText('{}');
-      setParsedQuery({});
-      setQueryError(null);
+      resetBrowserState();
       setNotificationMessage('Disconnected from MongoDB!');
     } catch (err: any) {
       setError(`Failed to disconnect: ${err.message}`);
@@ -283,6 +271,7 @@ export const ConnectionManager: React.FC = () => {
   // --- Pagination Handlers ---
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);
+    // Keep these specific resets as they're tied to collection selection
     setCurrentPage(1);
     setDocuments([]);
     setTotalDocuments(0);
