@@ -248,7 +248,7 @@ export const ConnectionManager: React.FC = () => {
     try {
       const status = await connectToMongo(id);
       setCurrentStatus(status);
-      setNotificationMessage('Connected to MongoDB!');
+      setNotificationMessage(`Connected to ${status.database || 'MongoDB'}!`);
       resetBrowserState();
     } catch (err: any) {
       setCurrentStatus(null);
@@ -258,13 +258,19 @@ export const ConnectionManager: React.FC = () => {
 
   const handleDisconnect = async () => {
     setError(null);
+
+    let disconnectedDbName = '';
+    if (currentStatus?.database) {
+      disconnectedDbName = currentStatus.database;
+    }
+
     try {
       await disconnectFromMongo();
       setCurrentStatus(null);
       resetBrowserState();
-      setNotificationMessage('Disconnected from MongoDB!');
+      setNotificationMessage(`Disconnected from ${disconnectedDbName || 'MongoDB'}!`);
     } catch (err: any) {
-      setError(`Failed to disconnect: ${err.message}`);
+      setError(`Failed to disconnect from ${disconnectedDbName || 'MongoDB'}: ${err.message}`);
     }
   };
 
