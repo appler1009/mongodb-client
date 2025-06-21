@@ -350,7 +350,6 @@ export const ConnectionManager: React.FC = () => {
       {/* Conditionally render connection status/manager content */}
       {currentStatus?.database ? (
         <div className="database-browser-section">
-          <h3>Database Browser: {currentStatus.database}</h3>
           <div className="browser-content">
             <div className="collections-pane">
               {collectionsLoading ? (

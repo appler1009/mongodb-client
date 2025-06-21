@@ -250,8 +250,6 @@ button:disabled {
 
 /* Database Browser Section */
 .database-browser-section {
-  margin-top: 30px;
-  border-top: 1px solid var(--border-color);
   padding-top: 20px;
   color: var(--text-color);
   flex-grow: 1;
