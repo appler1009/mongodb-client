@@ -66,3 +66,7 @@ mongo-data/ # This is the named volume, docker manages it, no need to track its 
 .npm
 .yarn/
 tmp/
+
+# Project specific
+backend/connections.json
+
