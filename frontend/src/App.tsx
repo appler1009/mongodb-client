@@ -2,13 +2,16 @@
 
 import './App.css';
 import { ConnectionManager } from './pages/ConnectionManager';
-
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
-    <div className="App">
-      <ConnectionManager />
-    </div>
+    // Wrap the entire application with the ThemeProvider
+    <ThemeProvider>
+      <div className="App">
+        <ConnectionManager />
+      </div>
+    </ThemeProvider>
   );
 }
 

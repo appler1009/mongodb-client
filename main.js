@@ -2,6 +2,16 @@
 const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
+const Store = require('electron-store');
+
+// Initialize electron-store for user preferences
+// It will automatically save/load from a JSON file in the user's config directory
+const store = new Store({
+  defaults: {
+    theme: 'light',          // Default theme preference
+    isSystemThemeActive: false, // Default to not using system theme
+  },
+});
 
 // Import the compiled backend module
 // Ensure this path correctly points to the compiled JavaScript file
@@ -37,13 +47,13 @@ function createWindow() {
 
   // --- Set up IPC Main Handlers ---
   // Each handler corresponds to an API call from your frontend
+
+  // Connection Management
   ipcMain.handle('connections:getConnections', async () => {
     try {
       return await backend.getConnections();
     } catch (error) {
       console.error('IPC error (getConnections):', error);
-      // It's good practice to send back a structured error, or re-throw
-      // and let the renderer handle the catch. For simplicity here, re-throwing.
       throw error;
     }
   });
@@ -75,6 +85,7 @@ function createWindow() {
     }
   });
 
+  // MongoDB Connection
   ipcMain.handle('mongo:connect', async (event, connectionId) => {
     try {
       return await backend.connectToMongo(connectionId);
@@ -93,6 +104,7 @@ function createWindow() {
     }
   });
 
+  // Database Browse
   ipcMain.handle('database:getCollections', async () => {
     try {
       return await backend.getDatabaseCollections();
@@ -111,10 +123,8 @@ function createWindow() {
     }
   });
 
-  // Handle export separately as it returns raw data for file saving
   ipcMain.handle('database:exportDocuments', async (event, collectionName, query) => {
     try {
-      // The backend returns the NDJSON string
       return await backend.exportCollectionDocuments(collectionName, query);
     } catch (error) {
       console.error('IPC error (exportCollectionDocuments):', error);
@@ -122,7 +132,7 @@ function createWindow() {
     }
   });
 
-  // IPC handler for saving files
+  // IPC handler for saving files (unchanged, but now works with the updated frontend)
   ipcMain.handle('file:save', async (event, defaultFilename, content) => {
     try {
       const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
@@ -134,16 +144,60 @@ function createWindow() {
       });
 
       if (canceled || !filePath) {
-        return { success: false, filePath: undefined }; // Return success: false if cancelled
+        return { success: false, filePath: undefined };
       }
 
-      // If a filePath is selected, write the file and return success and path
       await fs.writeFile(filePath, content);
       return { success: true, filePath: filePath };
     } catch (error) {
       console.error('IPC error (file:save):', error);
-      // Return a structured error object indicating failure
       return { success: false, filePath: undefined, error: error.message || 'Unknown error during file save.' };
+    }
+  });
+
+  // --- Theme Management IPC Handlers (NEW) ---
+
+  // Handle saving the user's selected theme preference
+  ipcMain.handle('theme:savePreference', async (event, theme) => {
+    try {
+      store.set('theme', theme);
+      // Optional: console.log(`Theme preference saved: ${theme}`);
+    } catch (error) {
+      console.error('Failed to save theme preference:', error);
+      throw error; // Re-throw to inform renderer if something went wrong
+    }
+  });
+
+  // Handle loading the user's selected theme preference
+  ipcMain.handle('theme:loadPreference', async () => {
+    try {
+      return store.get('theme');
+    } catch (error) {
+      console.error('Failed to load theme preference:', error);
+      // Return null or default in case of error, to avoid crashing the renderer
+      return null;
+    }
+  });
+
+  // Handle saving the user's system theme active status
+  ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
+    try {
+      store.set('isSystemThemeActive', isActive);
+      // Optional: console.log(`System theme active status saved: ${isActive}`);
+    } catch (error) {
+      console.error('Failed to save system theme active status:', error);
+      throw error;
+    }
+  });
+
+  // Handle loading the user's system theme active status
+  ipcMain.handle('theme:loadSystemPreference', async () => {
+    try {
+      return store.get('isSystemThemeActive');
+    } catch (error) {
+      console.error('Failed to load system theme active status:', error);
+      // Return null or default in case of error
+      return null;
     }
   });
 }

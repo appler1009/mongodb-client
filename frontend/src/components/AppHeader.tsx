@@ -22,17 +22,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   if (!themeContext) {
     throw new Error('AppHeader must be used within a ThemeProvider');
   }
-  // Destructure new context values
-  const { theme, setTheme, isSystemThemeActive, setIsSystemThemeActive } = themeContext;
 
-  // Manual theme toggle
-  const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
-
-  };
+  // Destructure values from the ThemeContext
+  // We'll use the `toggleTheme` function provided by the context directly.
+  const { theme, toggleTheme, isSystemThemeActive, setIsSystemThemeActive } = themeContext;
 
   // Toggle for system theme preference
-  const toggleSystemTheme = () => {
+  const handleToggleSystemTheme = () => {
     setIsSystemThemeActive(prev => !prev);
   };
 
@@ -58,7 +54,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="header-right">
         {/* System theme toggle button */}
         <button
-          onClick={toggleSystemTheme}
+          onClick={handleToggleSystemTheme} // Use the new handler name
           className={`theme-toggle-button system-toggle ${isSystemThemeActive ? 'active' : ''}`}
           title={isSystemThemeActive ? 'Using System Theme (Click to switch to manual mode)' : 'Switch to System Theme'}
         >
@@ -67,10 +63,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
         {/* Manual theme toggle button - disabled when system theme is active */}
         <button
-          onClick={toggleTheme}
+          onClick={toggleTheme} // Use the `toggleTheme` from context directly
           className="theme-toggle-button manual-toggle"
           title={isSystemThemeActive ? 'Disabled (System theme is active)' : `Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-          disabled={isSystemThemeActive} // NEW: Disable if system theme is active
+          disabled={isSystemThemeActive} // Disable if system theme is active
         >
           {theme === 'light' ? (
             <img src={MoonIcon} alt="Moon icon for Dark Mode" className="theme-icon" />

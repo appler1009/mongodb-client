@@ -61,5 +61,8 @@
       "target": "AppImage",
       "icon": "resources/icon.png"
     }
+  },
+  "dependencies": {
+    "electron-store": "^10.1.0"
   }
 }

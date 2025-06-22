@@ -1,5 +1,6 @@
 // frontend/src/api/backend.ts
 import type { ConnectionConfig, ConnectionStatus, CollectionInfo, DocumentsResponse } from '../types';
+import type { Theme } from '../context/ThemeContext';
 
 // Declare the Electron API on the Window object
 // This tells TypeScript that `window.electronAPI` will exist at runtime
@@ -24,6 +25,13 @@ declare global {
 
       // File system interaction (via Main Process for security)
       saveFile: (defaultFilename: string, content: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+
+      // --- Theme Management IPC calls ---
+      // These will be used by ThemeContext to persist preferences
+      saveThemePreference: (theme: Theme) => Promise<void>; // Saves the 'light'/'dark' preference
+      loadThemePreference: () => Promise<Theme | null>; // Loads the saved theme preference
+      saveSystemThemePreference: (isActive: boolean) => Promise<void>; // Saves if 'use system theme' is active
+      loadSystemThemePreference: () => Promise<boolean | null>; // Loads if 'use system theme' is active
     };
   }
 }
@@ -78,7 +86,6 @@ export const getCollectionDocuments = (
 };
 
 // --- Export documents from a collection ---
-// UPDATED: Now returns { success: boolean; filePath?: string; error?: string }
 export async function exportCollectionDocuments(
   collectionName: string,
   query: object
@@ -110,3 +117,7 @@ export async function exportCollectionDocuments(
     return { success: false, error: `Failed to export documents: ${error.message || 'An unknown error occurred during export.'}` };
   }
 }
+
+// NOTE: You don't need to export these theme functions from backend.ts
+// because ThemeContext directly accesses them via window.electronAPI.
+// However, declaring them in the global interface is crucial for TypeScript.
