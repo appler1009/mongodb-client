@@ -26,13 +26,19 @@ code {
   justify-content: space-between; /* Puts title and toggle on opposite ends */
   align-items: center;
   margin-bottom: 15px; /* Space between header/toggle and content */
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
-  gap: 10px; /* Space between items if they wrap */
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color); /* Optional separation */
 }
 
 .document-viewer-header h4 {
   margin: 0; /* Remove default margin from h4 */
   flex-shrink: 0; /* Prevent h4 from shrinking if toggle is long */
+}
+
+.view-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 15px; /* Space between view toggles and copy button */
 }
 
 .view-toggle {
@@ -44,7 +50,7 @@ code {
 .view-toggle button {
   background-color: var(--view-toggle-button-bg);
   color: var(--button-text-color); /* Use theme variables for text color */
-  border: none; /* Remove individual button borders, group border is on parent */
+  border: none;
   padding: 8px 15px;
   cursor: pointer;
   font-size: 0.9em;
@@ -52,14 +58,41 @@ code {
   white-space: nowrap; /* Prevent button text from wrapping */
 }
 
-.view-toggle button:hover:not(.active) {
+.view-toggle button:hover {
   background-color: var(--button-hover-bg); /* Hover effect for non-active buttons */
 }
 
 .view-toggle button.active {
   background-color: var(--primary-color); /* Highlight active button */
   color: var(--primary-text-color); /* Text color for active button */
-  font-weight: bold;
+}
+
+.json-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.copy-json-button {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  padding: 8px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+}
+
+.copy-json-button:hover {
+  background-color: var(--hover-bg);
+}
+
+.copy-feedback {
+  font-size: 0.85em;
+  color: var(--notification-color); /* Use a notification color from your theme */
+  opacity: 1;
+  transition: opacity 0.3s ease;
 }
 
 /* --- JSON Viewer Specific Styles --- */

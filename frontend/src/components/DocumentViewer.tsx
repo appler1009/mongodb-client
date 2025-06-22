@@ -1,5 +1,5 @@
 // frontend/src/components/DocumentViewer.tsx
-import React, { useMemo, useState, useContext } from 'react';
+import React, { useMemo, useState, useContext, useCallback } from 'react';
 import type { Document } from '../types';
 
 // Import SyntaxHighlighter component
@@ -45,15 +45,17 @@ const formatCellValue = (value: unknown): React.ReactNode => {
 interface JsonViewProps {
   documents: Document[];
   collectionName: string | null;
+  jsonContent: string; // Now receives pre-formatted jsonContent
 }
 
-const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionName }) => {
+const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionName, jsonContent }) => {
   const themeContext = useContext(ThemeContext);
   if (!themeContext) {
-    // This error will be thrown if JsonDocumentDisplay is not wrapped by ThemeProvider
     throw new Error('JsonDocumentDisplay must be used within a ThemeProvider');
   }
-  const { theme } = themeContext; // Get the current theme mode from the context
+  const { theme } = themeContext;
+
+  const syntaxHighlighterTheme = theme === 'dark' ? vs2015 : vs;
 
   if (!collectionName) {
     return <p>Please select a collection to view documents.</p>;
@@ -67,27 +69,22 @@ const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionNam
     );
   }
 
-  const jsonContent = JSON.stringify(documents, null, 2);
-
-  const syntaxHighlighterTheme = theme === 'dark' ? vs2015 : vs; // Use vs for light, vs2015 for dark
-
   return (
     <div className="json-viewer-container">
       <SyntaxHighlighter
         language="json"
-        style={syntaxHighlighterTheme} // Apply the dynamically chosen theme
+        style={syntaxHighlighterTheme}
         customStyle={{
-          // These custom styles are important to maintain consistency with your app's main theme variables
-          backgroundColor: 'var(--card-bg)', // Uses your app's themed background
-          color: 'var(--text-color)',       // Uses your app's themed text color
+          backgroundColor: 'var(--card-bg)',
+          color: 'var(--text-color)',
           padding: '15px',
           margin: '0',
           borderRadius: '8px',
           fontSize: '0.85em',
           lineHeight: '1.4',
-          maxHeight: 'calc(100vh - 250px)', // Maintain the max-height for scrolling
-          overflow: 'auto', // Ensure scrolling
-          border: '1px solid var(--border-color)' // Maintain border
+          maxHeight: 'calc(100vh - 250px)',
+          overflow: 'auto',
+          border: '1px solid var(--border-color)'
         }}
         codeTagProps={{ style: { fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace" } }}
       >
@@ -106,6 +103,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   documentsPerPage,
 }) => {
   const [viewMode, setViewMode] = useState<'table' | 'json'>('table');
+  const [copyFeedback, setCopyFeedback] = useState(''); // State for "Copied!" message
 
   const columns = useMemo(() => {
     if (!Array.isArray(documents)) {
@@ -126,6 +124,29 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return sortedKeys;
   }, [documents]);
 
+  // Generate JSON content here for the button and for the JsonDocumentDisplay
+  const jsonContent = useMemo(() => {
+    if (!collectionName || documents.length === 0) {
+      return '';
+    }
+    return JSON.stringify(documents, null, 2);
+  }, [documents, collectionName]);
+
+  // Handle copying JSON content to clipboard
+  const handleCopyJson = useCallback(async () => {
+    if (jsonContent) {
+      try {
+        await navigator.clipboard.writeText(jsonContent);
+        setCopyFeedback('Copied!');
+        setTimeout(() => setCopyFeedback(''), 2000); // Clear message after 2 seconds
+      } catch (err) {
+        console.error('Failed to copy JSON:', err);
+        setCopyFeedback('Failed to copy!');
+        setTimeout(() => setCopyFeedback(''), 2000);
+      }
+    }
+  }, [jsonContent]);
+
 
   if (!collectionName) {
     return <div className="document-viewer"><p>Please select a collection to view documents.</p></div>;
@@ -135,7 +156,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return (
       <div className="document-viewer">
         <h4>Documents in "{collectionName}" (0)</h4>
-        <p>No documents found to display as JSON.</p>
+        <p>No documents found to display.</p>
       </div>
     );
   }
@@ -144,17 +165,34 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     <div className="document-viewer">
       <div className="document-viewer-header">
         <h4>Documents in "{collectionName}" (Showing {documents.length} records)</h4>
-        <div className="view-toggle">
-          <button
-            onClick={() => setViewMode('table')}
-            className={viewMode === 'table' ? 'active' : ''}
-            aria-pressed={viewMode === 'table'}
-          >Table</button>
-          <button
-            onClick={() => setViewMode('json')}
-            className={viewMode === 'json' ? 'active' : ''}
-            aria-pressed={viewMode === 'json'}
-          >JSON</button>
+        <div className="view-controls-group">
+          {/* 1. Copy JSON button (conditionally rendered) */}
+          {viewMode === 'json' && (
+            <div className="json-actions">
+              <button
+                onClick={handleCopyJson}
+                className="copy-json-button"
+                title="Copy formatted JSON to clipboard"
+              >
+                Copy JSON
+              </button>
+              {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
+            </div>
+          )}
+
+          {/* 2. View Mode Toggles: JSON then Table */}
+          <div className="view-toggle">
+            <button
+              onClick={() => setViewMode('json')}
+              className={viewMode === 'json' ? 'active' : ''}
+              aria-pressed={viewMode === 'json'}
+            >JSON</button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={viewMode === 'table' ? 'active' : ''}
+              aria-pressed={viewMode === 'table'}
+            >Table</button>
+          </div>
         </div>
       </div>
 
@@ -188,7 +226,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </table>
         </div>
       ) : (
-        <JsonDocumentDisplay documents={documents} collectionName={collectionName} />
+        <JsonDocumentDisplay documents={documents} collectionName={collectionName} jsonContent={jsonContent} />
       )}
     </div>
   );
