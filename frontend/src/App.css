@@ -91,7 +91,7 @@ body {
   padding: 15px 30px;
   background-color: var(--header-bg-color);
   border-bottom: 1px solid var(--border-color);
-  margin: 0 -20px;
+  margin: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   color: var(--text-color);
   flex-shrink: 0;
