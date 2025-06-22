@@ -11,7 +11,7 @@ declare global {
       getConnections: () => Promise<ConnectionConfig[]>;
       addConnection: (connection: Omit<ConnectionConfig, 'id'>) => Promise<ConnectionConfig>;
       updateConnection: (id: string, connection: ConnectionConfig) => Promise<ConnectionConfig | null>;
-      deleteConnection: (id: string) => Promise<boolean>; // Backend now returns boolean from IPC
+      deleteConnection: (id: string) => Promise<boolean>;
 
       // MongoDB Connection IPC calls
       connectToMongo: (connectionId: string) => Promise<ConnectionStatus>;
@@ -23,7 +23,7 @@ declare global {
       exportCollectionDocuments: (collectionName: string, query: object) => Promise<string>; // Backend returns NDJSON string
 
       // File system interaction (via Main Process for security)
-      saveFile: (defaultFilename: string, content: string) => Promise<boolean>; // Returns true on success, false on cancel/error
+      saveFile: (defaultFilename: string, content: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
     };
   }
 }
@@ -31,7 +31,6 @@ declare global {
 // --- Connection Management API Calls ---
 
 export const getConnections = (): Promise<ConnectionConfig[]> => {
-  // Directly call the exposed Electron API method
   return window.electronAPI.getConnections();
 };
 
@@ -44,13 +43,11 @@ export const updateConnection = (id: string, connection: ConnectionConfig): Prom
 };
 
 export const deleteConnection = (id: string): Promise<void> => {
-  // The IPC handler returns a boolean. We need to convert it to Promise<void>
-  // and handle the "not found" case as an error if desired, to match previous signature.
   return window.electronAPI.deleteConnection(id).then(deleted => {
     if (!deleted) {
       throw new Error('Connection not found for deletion.');
     }
-    return; // Resolve with void for successful deletion
+    return;
   });
 };
 
@@ -62,16 +59,6 @@ export const connectToMongo = (connectionId: string): Promise<ConnectionStatus> 
 
 export const disconnectFromMongo = (): Promise<ConnectionStatus> => {
   return window.electronAPI.disconnectFromMongo();
-};
-
-// Health check: No longer an HTTP API call.
-// If a health check is needed for internal Electron status, you would add an IPC handler for it.
-// For now, we can remove it or return a static promise as it's not a direct backend interaction.
-export const getHealthStatus = (): Promise<{ status: string; message: string }> => {
-    // Return a resolved promise as there's no direct IPC equivalent for a simple "health check"
-    // unless you specifically create one in main.js and preload.js.
-    // This assumes the Electron app itself running implies "health".
-    return Promise.resolve({ status: 'ok', message: 'Electron IPC backend is active.' });
 };
 
 
@@ -91,26 +78,35 @@ export const getCollectionDocuments = (
 };
 
 // --- Export documents from a collection ---
-export async function exportCollectionDocuments(collectionName: string, query: object): Promise<void> {
+// UPDATED: Now returns { success: boolean; filePath?: string; error?: string }
+export async function exportCollectionDocuments(
+  collectionName: string,
+  query: object
+): Promise<{ success: boolean; filePath?: string; error?: string }> {
   try {
     // 1. Get the NDJSON content from the main process via IPC
     const ndjsonContent = await window.electronAPI.exportCollectionDocuments(collectionName, query);
 
     // 2. Request the main process to show a save dialog and save the file
-    //    The main process handles file system access (Electron's dialog module).
     const defaultFilename = `${collectionName}_export_${Date.now()}.jsonl`;
 
-    const savedSuccessfully = await window.electronAPI.saveFile(defaultFilename, ndjsonContent);
+    // Expect the object { success, filePath, error } from saveFile
+    const { success, filePath, error: saveError } = await window.electronAPI.saveFile(defaultFilename, ndjsonContent);
 
-    if (!savedSuccessfully) {
-        // User cancelled the dialog or file saving failed for other reasons
-        throw new Error('File export cancelled or failed.');
+    if (success && filePath) {
+      // If successfully saved and path is returned
+      return { success: true, filePath: filePath };
+    } else if (!success && saveError) {
+      // If save failed with an explicit error from main process
+      return { success: false, error: saveError };
+    } else {
+      // If user cancelled (success is false, and no explicit error)
+      return { success: false, error: 'File export cancelled.' };
     }
-
   } catch (error: any) {
-    // Handle errors from the IPC calls
-    console.error('Failed to export documents:', error);
-    // Re-throw or provide a user-friendly message
-    throw new Error(`Failed to export documents: ${error.message || 'An unknown error occurred during export.'}`);
+    // This catches errors from window.electronAPI.exportCollectionDocuments (getting content)
+    // or unexpected errors during the save process.
+    console.error('Failed to export documents during API call:', error);
+    return { success: false, error: `Failed to export documents: ${error.message || 'An unknown error occurred during export.'}` };
   }
 }

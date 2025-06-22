@@ -1,6 +1,7 @@
 // my-mongo-client/main.js
 const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs/promises');
 
 // Import the compiled backend module
 // Ensure this path correctly points to the compiled JavaScript file
@@ -41,7 +42,9 @@ function createWindow() {
       return await backend.getConnections();
     } catch (error) {
       console.error('IPC error (getConnections):', error);
-      throw error; // Re-throw to send error back to renderer
+      // It's good practice to send back a structured error, or re-throw
+      // and let the renderer handle the catch. For simplicity here, re-throwing.
+      throw error;
     }
   });
 
@@ -122,7 +125,7 @@ function createWindow() {
   // IPC handler for saving files
   ipcMain.handle('file:save', async (event, defaultFilename, content) => {
     try {
-      const { filePath } = await dialog.showSaveDialog(mainWindow, {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         defaultPath: defaultFilename,
         filters: [
           { name: 'JSON Lines', extensions: ['jsonl'] },
@@ -130,15 +133,17 @@ function createWindow() {
         ]
       });
 
-      if (filePath) {
-        const fs = require('fs/promises'); // Use fs/promises for async operations
-        await fs.writeFile(filePath, content);
-        return true; // Indicate success
+      if (canceled || !filePath) {
+        return { success: false, filePath: undefined }; // Return success: false if cancelled
       }
-      return false; // User cancelled save dialog
+
+      // If a filePath is selected, write the file and return success and path
+      await fs.writeFile(filePath, content);
+      return { success: true, filePath: filePath };
     } catch (error) {
       console.error('IPC error (file:save):', error);
-      throw error; // Re-throw error
+      // Return a structured error object indicating failure
+      return { success: false, filePath: undefined, error: error.message || 'Unknown error during file save.' };
     }
   });
 }

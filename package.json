@@ -27,9 +27,9 @@
   },
   "homepage": "https://github.com/appler1009/mongodb-client#readme",
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "electron": "^36.5.0",
     "electron-builder": "^26.0.12",
-    "concurrently": "^9.1.2",
     "electron-rebuild": "^3.2.9"
   },
   "build": {

@@ -9,7 +9,6 @@ import {
   deleteConnection,
   connectToMongo,
   disconnectFromMongo,
-  getHealthStatus,
   getDatabaseCollections,
   getCollectionDocuments,
   exportCollectionDocuments,
@@ -34,7 +33,6 @@ export const ConnectionManager: React.FC = () => {
   const [newConnection, setNewConnection] = useState<Omit<ConnectionConfig, 'id'>>(initialNewConnection);
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
   const [currentStatus, setCurrentStatus] = useState<ConnectionStatus | null>(null);
-  const [backendStatus, setBackendStatus] = useState<{ status: string; message: string; } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -68,7 +66,7 @@ export const ConnectionManager: React.FC = () => {
     setQueryText('{}');
     setParsedQuery({});
     setQueryError(null);
-  }, []); // Dependencies are empty as these are all setters for local state
+  }, []);
 
   // --- Data Fetching ---
   const fetchConnections = async () => {
@@ -84,19 +82,10 @@ export const ConnectionManager: React.FC = () => {
     }
   };
 
-  const fetchBackendHealth = async () => {
-    try {
-      const status = await getHealthStatus();
-      setBackendStatus(status);
-    } catch (err: any) {
-      setBackendStatus({ status: 'error', message: `Down (${err.message})` });
-    }
-  };
-
   // Fetch collections for the currently active database
   const fetchCollections = useCallback(async () => {
     if (!currentStatus?.database) {
-      resetBrowserState(); // Keep this for when there's no database active
+      resetBrowserState();
       return;
     }
     setCollectionsLoading(true);
@@ -105,9 +94,6 @@ export const ConnectionManager: React.FC = () => {
       const fetchedCollections = await getDatabaseCollections();
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
 
-      // 1. Reset documents/query related states BEFORE setting collections
-      // This ensures that when new collections are loaded, the document viewer
-      // and query editor are cleared of previous collection's data.
       setDocuments([]);
       setTotalDocuments(0);
       setCurrentPage(1);
@@ -115,19 +101,19 @@ export const ConnectionManager: React.FC = () => {
       setParsedQuery({});
       setQueryError(null);
 
-      setCollections(fetchedCollections); // Set the collections here
+      setCollections(fetchedCollections);
 
       if (fetchedCollections.length > 0) {
-        setSelectedCollection(fetchedCollections[0].name); // Select the first one
+        setSelectedCollection(fetchedCollections[0].name);
       } else {
-        setSelectedCollection(null); // No collections, so no selected collection
+        setSelectedCollection(null);
       }
 
     } catch (err: any) {
       setError(`Failed to fetch collections: ${err.message}`);
-      setCollections([]); // Clear collections on error
-      setSelectedCollection(null); // Clear selected collection on error
-      resetBrowserState(); // Reset other states on error
+      setCollections([]);
+      setSelectedCollection(null);
+      resetBrowserState();
     } finally {
       setCollectionsLoading(false);
     }
@@ -156,12 +142,9 @@ export const ConnectionManager: React.FC = () => {
     }
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery]);
 
-  // --- Initial Loads and Health Check ---
+  // --- Initial Loads ---
   useEffect(() => {
-    fetchBackendHealth();
     fetchConnections();
-    const healthInterval = setInterval(fetchBackendHealth, 10000);
-    return () => clearInterval(healthInterval);
   }, []);
 
   useEffect(() => {
@@ -249,10 +232,12 @@ export const ConnectionManager: React.FC = () => {
       const status = await connectToMongo(id);
       setCurrentStatus(status);
       setNotificationMessage(`Connected to ${status.database || 'MongoDB'}!`);
-      resetBrowserState();
+      // When connecting, immediately try to fetch collections
+      // The useEffect for currentStatus.database will handle triggering fetchCollections
     } catch (err: any) {
       setCurrentStatus(null);
       setError(`Failed to connect: ${err.message}`);
+      resetBrowserState(); // Ensure state is clean on connection failure
     }
   };
 
@@ -322,19 +307,32 @@ export const ConnectionManager: React.FC = () => {
       setNotificationMessage('Please select a collection to export.');
       return;
     }
-    setError(null);
-    setDocumentsLoading(true); // Use this flag to indicate an ongoing operation
+    setError(null); // Clear any previous error
+    setDocumentsLoading(true); // Indicate loading state for export operation
     try {
-      // Use the current parsedQuery for the export operation
-      await exportCollectionDocuments(selectedCollection, parsedQuery);
-      setNotificationMessage('Export initiated successfully!');
+      // Destructure the expected return values: success and filePath
+      // The `exportCollectionDocuments` function (in `backend.ts`) will now return this structure
+      const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, parsedQuery);
+
+      if (success && filePath) {
+        setNotificationMessage(`Exported to: ${filePath}`);
+      } else if (!success && exportError) {
+        // If it failed and an error message was returned from backend
+        setNotificationMessage(`Export failed: ${exportError}`);
+        setError(`Export failed: ${exportError}`); // Optionally set error state for more prominent display
+      } else {
+        // This covers the user cancellation case where success is false and no specific error
+        setNotificationMessage('Export cancelled or failed.');
+      }
     } catch (err: any) {
-      setError(`Failed to export documents: ${err.message}`);
+      // This catch block would primarily handle unexpected errors *before* the API call
+      // or if the `exportCollectionDocuments` function itself threw an uncaught error
+      setError(`An unexpected error occurred during export: ${err.message}`);
+      setNotificationMessage(`An unexpected error occurred: ${err.message}`); // Show notification too
     } finally {
-      setDocumentsLoading(false); // Reset loading flag
+      setDocumentsLoading(false); // Always reset loading flag
     }
   };
-
 
   // --- Rendering ---
   if (loading) {
@@ -344,7 +342,6 @@ export const ConnectionManager: React.FC = () => {
   return (
     <div className="connection-manager">
       <AppHeader
-        backendStatus={backendStatus}
         currentStatus={currentStatus}
         onDisconnect={handleDisconnect}
       />
@@ -353,6 +350,7 @@ export const ConnectionManager: React.FC = () => {
       {notificationMessage && <div className="notification-message">{notificationMessage}</div>}
 
       {currentStatus?.database ? (
+        // Connected View: Database Browser
         <div className="database-browser-section">
           <div className="browser-content">
             <div className="collections-pane">
@@ -380,11 +378,10 @@ export const ConnectionManager: React.FC = () => {
                   disabled={documentsLoading}
                 />
                 <div className="query-controls">
-                  {/* --- Export Button --- */}
                   <button
                     onClick={handleExport}
-                    disabled={!selectedCollection || documentsLoading} // Disable if no collection selected or any loading
-                    className="export-button" // New class for styling
+                    disabled={!selectedCollection || documentsLoading}
+                    className="export-button"
                     title="Export all documents matching the current query to a JSON Lines file"
                   >
                     Export
@@ -428,6 +425,7 @@ export const ConnectionManager: React.FC = () => {
           </div>
         </div>
       ) : (
+        // Disconnected View: Connection Management Forms
         <>
           <h3>Add New Connection</h3>
           <form onSubmit={handleAddConnection} className="connection-form">
