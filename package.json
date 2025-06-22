@@ -1,7 +1,7 @@
 {
   "name": "mongodb-client",
   "version": "1.0.0",
-  "description": "A desktop MongoDB client built with Electron, React, and Node.js",
+  "description": "A desktop MongoDB client",
   "main": "main.js",
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
@@ -33,7 +33,7 @@
     "electron-rebuild": "^3.2.9"
   },
   "build": {
-    "appId": "com.appler1009.mongodbclient",
+    "appId": "dev.appler.mongodbclient",
     "productName": "MongoDB Client",
     "copyright": "Copyright © 2025 ${author}",
     "files": [
@@ -51,15 +51,15 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "resources/icon.ico"
+      "icon": "resources/app.ico"
     },
     "mac": {
       "target": "dmg",
-      "icon": "resources/icon.icns"
+      "icon": "resources/app.icns"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "resources/icon.png"
+      "icon": "resources/app.png"
     }
   },
   "dependencies": {
