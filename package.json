@@ -1,0 +1,65 @@
+{
+  "name": "mongodb-client",
+  "version": "1.0.0",
+  "description": "A desktop MongoDB client built with Electron, React, and Node.js",
+  "main": "main.js",
+  "scripts": {
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild": "electron-rebuild -f -w",
+    "build-backend": "cd backend && npm install && npm run build",
+    "build-frontend": "cd frontend && npm install && npm run build",
+    "start-electron-dev": "electron .",
+    "dev": "npm run build-backend && concurrently \"npm run start-frontend-dev-server\" \"npm run start-electron-dev\"",
+    "start-frontend-dev-server": "cd frontend && npm run dev",
+    "package": "npm run build-backend && npm run build-frontend && electron-builder"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/appler1009/mongodb-client.git"
+  },
+  "keywords": [
+    "MongoDB"
+  ],
+  "author": "appler1009",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/appler1009/mongodb-client/issues"
+  },
+  "homepage": "https://github.com/appler1009/mongodb-client#readme",
+  "devDependencies": {
+    "electron": "^36.5.0",
+    "electron-builder": "^26.0.12",
+    "concurrently": "^9.1.2",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.appler1009.mongodbclient",
+    "productName": "MongoDB Client",
+    "copyright": "Copyright © 2025 ${author}",
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "backend/dist/**/*",
+      "frontend/build/**/*",
+      "node_modules/**/*"
+    ],
+    "extraFiles": [],
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "resources/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "resources/icon.png"
+    }
+  }
+}

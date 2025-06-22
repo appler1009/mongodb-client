@@ -11,12 +11,5 @@ export default defineConfig({
     watch: {
       usePolling: true, // Sometimes needed for shared volumes on different OSes
     },
-    proxy: {
-      '/api': {
-        target: 'http://backend:3001', // Your backend service name and port
-        changeOrigin: true,
-        // rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-    },
   },
 })

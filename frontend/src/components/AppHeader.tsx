@@ -1,6 +1,6 @@
 // frontend/src/components/AppHeader.tsx
 
-import React, { useContext, useMemo } from 'react';
+import React, { useContext } from 'react';
 import type { ConnectionStatus } from '../types';
 import { ThemeContext } from '../context/ThemeContext';
 
@@ -10,13 +10,11 @@ import SystemIcon from '../assets/icons/system-icon.svg';
 
 
 interface AppHeaderProps {
-  backendStatus: { status: string; message: string; } | null;
   currentStatus: ConnectionStatus | null;
   onDisconnect: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
-  backendStatus,
   currentStatus,
   onDisconnect,
 }) => {
@@ -38,30 +36,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     setIsSystemThemeActive(prev => !prev);
   };
 
-  // Memoize the backend health message for clarity
-  const backendHealthMessage = useMemo(() => {
-    if (backendStatus) {
-      if (backendStatus.status === 'error') {
-        return <span style={{ color: 'red' }}>{backendStatus.message}</span>;
-      }
-      // Only return message if it's not 'ok' and not just a default 'Backend is running!'
-      if (backendStatus.message && backendStatus.message !== 'Backend is running!') {
-         return <span style={{ color: 'green' }}>{backendStatus.message}</span>;
-      }
-    }
-    return null; // Don't show if status is 'ok' or message is default success
-  }, [backendStatus]);
-
-
   return (
     <header className="app-header">
       <div className="header-left">
         <h1 className="app-title">MongoDB Client</h1>
         <div className="status-indicators">
-          {backendHealthMessage && ( // Only show backend health message if it's not null
-            <span className="health-status-header">Backend: {backendHealthMessage}</span>
-          )}
-
           {currentStatus && (
             <>
               <span className="connection-status-header">
@@ -77,7 +56,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
       <div className="header-right">
-        {/* NEW: System theme toggle button */}
+        {/* System theme toggle button */}
         <button
           onClick={toggleSystemTheme}
           className={`theme-toggle-button system-toggle ${isSystemThemeActive ? 'active' : ''}`}

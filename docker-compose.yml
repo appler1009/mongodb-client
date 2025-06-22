@@ -5,7 +5,7 @@ services:
     image: mongo:latest
     container_name: mongodb_db
     ports:
-      - "27017:27017"
+      - "27017:27017" # Expose MongoDB port to your host machine
     volumes:
       - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
       - mongo_data:/data/db # Persist data
@@ -18,41 +18,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-
-  backend:
-    build:
-      context: ./backend # Build from the backend directory
-      dockerfile: Dockerfile.dev # Use a specific Dockerfile for dev
-    container_name: mongodb_client_backend
-    ports:
-      - "3001:3001" # Expose backend port
-    volumes:
-      - ./backend:/app # Mount source code for live reloads
-      - /app/node_modules # Prevent node_modules from being overwritten by host
-    environment:
-      PORT: 3001
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/?authSource=admin # Connection string for backend
-    depends_on:
-      mongodb:
-        condition: service_healthy # Wait for MongoDB to be healthy
-    command: npm run dev # Use nodemon for development
-
-  frontend:
-    build:
-      context: ./frontend # Build from frontend directory (for potential prod builds later)
-      dockerfile: Dockerfile.dev # Use a specific Dockerfile for dev
-    container_name: mongodb_client_frontend
-    ports:
-      - "5173:5173" # Vite's default dev port
-    volumes:
-      - ./frontend:/app # Mount source code for live reloads
-      - /app/node_modules # Prevent node_modules from being overwritten by host
-    # environment:
-      # VITE_API_BASE_URL: http://backend:3001 # Point frontend to backend container name
-    depends_on:
-      backend:
-        condition: service_started
-    command: npm run dev # Start Vite development server
 
 volumes:
   mongo_data:
