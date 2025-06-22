@@ -22,6 +22,10 @@
   --table-row-hover-bg: #f2f2f2; /* Table row hover background */
   --pagination-text-color: #5a5a5a; /* Text color for pagination info */
   --header-bg-color: #e9ecef; /* Background for the new app header */
+
+  --view-toggle-button-bg: #e9ecef; /* Light grey for non-active toggle buttons */
+  --view-toggle-button-text: var(--text-color); /* Default text color for toggle buttons */
+  --view-toggle-button-hover-bg: #dee2e6; /* Slightly darker on hover */
 }
 
 /* Dark Theme Variables */
@@ -45,6 +49,10 @@
   --table-row-hover-bg: #4d535b;
   --pagination-text-color: #ced4da;
   --header-bg-color: #343a40; /* Darker background for the new app header */
+
+  --view-toggle-button-bg: #495057; /* Darker grey for non-active toggle buttons */
+  --view-toggle-button-text: var(--text-color);
+  --view-toggle-button-hover-bg: #5a6068; /* Slightly lighter on hover */
 }
 
 /* Base Styles */
@@ -562,7 +570,7 @@ button:disabled {
 }
 
 .document-data-cell {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
   font-size: 0.85em;
   max-width: 250px;
   overflow: hidden;

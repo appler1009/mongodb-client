@@ -1,5 +1,5 @@
 // backend/src/index.ts
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, ObjectId } from 'mongodb';
 import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
@@ -40,6 +40,46 @@ async function disconnectMongoInternal() {
     logger.info('MongoDB connection closed.');
   }
 }
+
+// --- Helper: Prepare documents for frontend serialization ---
+// This function recursively converts MongoDB-specific types (like ObjectId)
+// into standard JavaScript types or strings that JSON.stringify can handle gracefully.
+const prepareDocumentForFrontend = (doc: any): any => {
+  if (!doc || typeof doc !== 'object') {
+    return doc;
+  }
+
+  // Handle arrays recursively
+  if (Array.isArray(doc)) {
+    return doc.map(item => prepareDocumentForFrontend(item));
+  }
+
+  const newDoc: { [key: string]: any } = {};
+  for (const key in doc) {
+    if (Object.prototype.hasOwnProperty.call(doc, key)) {
+      const value = doc[key];
+
+      // Convert ObjectId instances to their hexadecimal string
+      if (value instanceof ObjectId) {
+        newDoc[key] = value.toHexString();
+      }
+      // Date objects are generally handled well by JSON.stringify to ISO strings,
+      // but you can explicitly convert if you need different formatting or control.
+      else if (value instanceof Date) {
+        newDoc[key] = value.toISOString();
+      }
+      // Recursively process nested objects
+      else if (typeof value === 'object' && value !== null) {
+        newDoc[key] = prepareDocumentForFrontend(value);
+      }
+      // Keep other primitive values as they are
+      else {
+        newDoc[key] = value;
+      }
+    }
+  }
+  return newDoc;
+};
 
 // --- IPC Handlers (Exposed functions) ---
 
@@ -175,7 +215,11 @@ export const getCollectionDocuments = async (
     }
     const documents = await databaseService.getDocuments(collectionName, limit, skip, query);
     const totalDocuments = await databaseService.getDocumentCount(collectionName, query);
-    return { documents, totalDocuments };
+
+    // Apply the transformation before sending documents to the renderer
+    const transformedDocuments = documents.map(prepareDocumentForFrontend);
+
+    return { documents: transformedDocuments, totalDocuments };
   } catch (error: any) {
     logger.error({ error, collectionName }, 'IPC: Failed to get documents from collection');
     throw new Error(`Failed to retrieve documents from collection ${collectionName}: ${error.message}`);
@@ -183,15 +227,19 @@ export const getCollectionDocuments = async (
 };
 
 // Export documents from a collection
-export const exportCollectionDocuments = async (collectionName: string, query: object): Promise<string> => { // Returns string (NDJSON)
+export const exportCollectionDocuments = async (collectionName: string, query: object): Promise<string> => {
   try {
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to export documents.');
     }
     const documents = await databaseService.getAllDocuments(collectionName, query);
+
+    // Apply the transformation before stringifying for NDJSON export
+    const transformedDocuments = documents.map(prepareDocumentForFrontend);
+
     // Format documents as newline-delimited JSON (NDJSON)
-    const ndjsonContent = documents.map(doc => JSON.stringify(doc)).join('\n');
-    return ndjsonContent; // Return the NDJSON string
+    const ndjsonContent = transformedDocuments.map(doc => JSON.stringify(doc)).join('\n');
+    return ndjsonContent;
   } catch (error: any) {
     logger.error({ error, collectionName }, 'IPC: Failed to export documents from collection');
     throw new Error(`Failed to export documents from collection ${collectionName}: ${error.message}`);
