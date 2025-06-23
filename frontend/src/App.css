@@ -170,7 +170,7 @@ h2, h3, h4 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 15px;
-  margin-bottom: 30px;
+  margin: 0 10px 30px 10px;
   background-color: var(--card-bg);
   padding: 20px;
   border-radius: 8px;
@@ -234,7 +234,7 @@ button:disabled {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 20px;
-  margin-bottom: 15px;
+  margin: 0 10px 15px 10px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 

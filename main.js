@@ -5,7 +5,6 @@ const fs = require('fs/promises');
 const { default: Store } = require('electron-store');
 
 // Initialize electron-store for user preferences
-// It will automatically save/load from a JSON file in the user's config directory
 const store = new Store({
   defaults: {
     theme: 'light',          // Default theme preference
@@ -14,204 +13,238 @@ const store = new Store({
 });
 
 // Import the compiled backend module
-// Ensure this path correctly points to the compiled JavaScript file
 const backend = require('./backend/dist/index'); // Adjust if your compiled backend is elsewhere
 
+let mainWindow; // Declare mainWindow globally to be accessible for lifecycle events
+
 function createWindow() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
 
-  const mainWindow = new BrowserWindow({
-    width: Math.min(1200, width * 0.9),
-    height: Math.min(800, height * 0.9),
-    minWidth: 800,
-    minHeight: 600,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
+    mainWindow = new BrowserWindow({ // Assign to the global mainWindow
+      width: Math.min(1200, width * 0.9),
+      height: Math.min(800, height * 0.9),
+      minWidth: 800,
+      minHeight: 600,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
 
-  // Load the React app (from its build output)
-  const startUrl = app.isPackaged
-    ? `file://${path.join(__dirname, 'frontend/build/index.html')}`
-    : 'http://localhost:5173';
+    // Load the React app (from its build output)
+    const startUrl = app.isPackaged
+      ? `file://${path.join(__dirname, 'frontend/build/index.html')}`
+      : 'http://localhost:5173';
 
-  mainWindow.loadURL(startUrl);
-
-  // Open the DevTools.
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools();
-  }
-
-  // --- Set up IPC Main Handlers ---
-  // Each handler corresponds to an API call from your frontend
-
-  // Connection Management
-  ipcMain.handle('connections:getConnections', async () => {
-    try {
-      return await backend.getConnections();
-    } catch (error) {
-      console.error('IPC error (getConnections):', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('connections:addConnection', async (event, newConnection) => {
-    try {
-      return await backend.addConnection(newConnection);
-    } catch (error) {
-      console.error('IPC error (addConnection):', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('connections:updateConnection', async (event, id, updatedConnection) => {
-    try {
-      return await backend.updateConnection(id, updatedConnection);
-    } catch (error) {
-      console.error('IPC error (updateConnection):', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('connections:deleteConnection', async (event, id) => {
-    try {
-      return await backend.deleteConnection(id);
-    } catch (error) {
-      console.error('IPC error (deleteConnection):', error);
-      throw error;
-    }
-  });
-
-  // MongoDB Connection
-  ipcMain.handle('mongo:connect', async (event, connectionId) => {
-    try {
-      return await backend.connectToMongo(connectionId);
-    } catch (error) {
-      console.error('IPC error (connectToMongo):', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('mongo:disconnect', async () => {
-    try {
-      return await backend.disconnectFromMongo();
-    } catch (error) {
-      console.error('IPC error (disconnectFromMongo):', error);
-      throw error;
-    }
-  });
-
-  // Database Browse
-  ipcMain.handle('database:getCollections', async () => {
-    try {
-      return await backend.getDatabaseCollections();
-    } catch (error) {
-      console.error('IPC error (getDatabaseCollections):', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('database:getDocuments', async (event, collectionName, limit, skip, query) => {
-    try {
-      return await backend.getCollectionDocuments(collectionName, limit, skip, query);
-    } catch (error) {
-      console.error('IPC error (getCollectionDocuments):', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('database:exportDocuments', async (event, collectionName, query) => {
-    try {
-      return await backend.exportCollectionDocuments(collectionName, query);
-    } catch (error) {
-      console.error('IPC error (exportCollectionDocuments):', error);
-      throw error;
-    }
-  });
-
-  // IPC handler for saving files (unchanged, but now works with the updated frontend)
-  ipcMain.handle('file:save', async (event, defaultFilename, content) => {
-    try {
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-        defaultPath: defaultFilename,
-        filters: [
-          { name: 'JSON Lines', extensions: ['jsonl'] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
+    mainWindow.loadURL(startUrl)
+      .then(() => {
+        console.log('Window loaded successfully:', startUrl);
+        // Open the DevTools.
+        if (!app.isPackaged) {
+          mainWindow.webContents.openDevTools();
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load URL:', startUrl, error);
+        // If URL loading fails, also quit the app
+        dialog.showErrorBox('Application Error', `Failed to load the application. Please ensure the development server is running or the app is correctly packaged.\n\nError: ${error.message}`);
+        app.quit();
       });
 
-      if (canceled || !filePath) {
-        return { success: false, filePath: undefined };
-      }
+    // Emitted when the window is closed.
+    mainWindow.on('closed', () => {
+      mainWindow = null; // Dereference the window object to allow garbage collection
+    });
 
-      await fs.writeFile(filePath, content);
-      return { success: true, filePath: filePath };
-    } catch (error) {
-      console.error('IPC error (file:save):', error);
-      return { success: false, filePath: undefined, error: error.message || 'Unknown error during file save.' };
-    }
-  });
-
-  // --- Theme Management IPC Handlers (NEW) ---
-
-  // Handle saving the user's selected theme preference
-  ipcMain.handle('theme:savePreference', async (event, theme) => {
-    try {
-      store.set('theme', theme);
-      // Optional: console.log(`Theme preference saved: ${theme}`);
-    } catch (error) {
-      console.error('Failed to save theme preference:', error);
-      throw error; // Re-throw to inform renderer if something went wrong
-    }
-  });
-
-  // Handle loading the user's selected theme preference
-  ipcMain.handle('theme:loadPreference', async () => {
-    try {
-      return store.get('theme');
-    } catch (error) {
-      console.error('Failed to load theme preference:', error);
-      // Return null or default in case of error, to avoid crashing the renderer
-      return null;
-    }
-  });
-
-  // Handle saving the user's system theme active status
-  ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
-    try {
-      store.set('isSystemThemeActive', isActive);
-      // Optional: console.log(`System theme active status saved: ${isActive}`);
-    } catch (error) {
-      console.error('Failed to save system theme active status:', error);
-      throw error;
-    }
-  });
-
-  // Handle loading the user's system theme active status
-  ipcMain.handle('theme:loadSystemPreference', async () => {
-    try {
-      return store.get('isSystemThemeActive');
-    } catch (error) {
-      console.error('Failed to load system theme active status:', error);
-      // Return null or default in case of error
-      return null;
-    }
-  });
-}
-
-app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  } catch (error) {
+    console.error('Error creating BrowserWindow:', error);
+    // If window creation itself fails, quit the app
+    dialog.showErrorBox('Application Error', `Failed to create application window. This might be due to system resources or invalid window options.\n\nError: ${error.message}`);
     app.quit();
   }
+}
+
+// --- App Lifecycle Events and Error Handling ---
+
+// This method will be called when Electron has finished
+// initialization and is ready to create browser windows.
+// Some APIs can only be used after this event occurs.
+app.whenReady().then(createWindow).catch(error => {
+  console.error('Electron app failed to become ready:', error);
+  // Ensure app quits if it can't even become ready
+  dialog.showErrorBox('Application Startup Error', `Electron failed to initialize correctly. The application cannot start.\n\nError: ${error.message}`);
+  app.quit();
+});
+
+// Quit when all windows are closed.
+// This will now quit on macOS as well, which is often the desired behavior for cross-platform apps.
+app.on('window-all-closed', () => {
+  app.quit();
 });
 
 app.on('activate', () => {
+  // On macOS it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  }
+});
+
+// Catch unhandled exceptions in the main process
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception in Main Process:', error);
+  // Show a dialog to the user before quitting for critical errors
+  dialog.showErrorBox('Critical Application Error', `An unexpected error occurred and the application must close.\n\nError: ${error.message}\n\nPlease report this issue.`);
+  app.quit(); // Force quit the application gracefully if an unhandled error occurs
+});
+
+// --- Set up IPC Main Handlers ---
+// Each handler corresponds to an API call from your frontend
+
+// Connection Management
+ipcMain.handle('connections:getConnections', async () => {
+  try {
+    return await backend.getConnections();
+  } catch (error) {
+    console.error('IPC error (getConnections):', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('connections:addConnection', async (event, newConnection) => {
+  try {
+    return await backend.addConnection(newConnection);
+  } catch (error) {
+    console.error('IPC error (addConnection):', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('connections:updateConnection', async (event, id, updatedConnection) => {
+  try {
+    return await backend.updateConnection(id, updatedConnection);
+  }
+  catch (error) {
+    console.error('IPC error (updateConnection):', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('connections:deleteConnection', async (event, id) => {
+  try {
+    return await backend.deleteConnection(id);
+  } catch (error) {
+    console.error('IPC error (deleteConnection):', error);
+    throw error;
+  }
+});
+
+// MongoDB Connection
+ipcMain.handle('mongo:connect', async (event, connectionId) => {
+  try {
+    return await backend.connectToMongo(connectionId);
+  } catch (error) {
+    console.error('IPC error (mongo:connect):', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('mongo:disconnect', async () => {
+  try {
+    return await backend.disconnectFromMongo();
+  } catch (error) {
+    console.error('IPC error (mongo:disconnect):', error);
+    throw error;
+  }
+});
+
+// Database Browse
+ipcMain.handle('database:getCollections', async () => {
+  try {
+    return await backend.getDatabaseCollections();
+  } catch (error) {
+    console.error('IPC error (database:getCollections):', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('database:getDocuments', async (event, collectionName, limit, skip, query) => {
+  try {
+    return await backend.getCollectionDocuments(collectionName, limit, skip, query);
+  } catch (error) {
+    console.error('IPC error (database:getDocuments):', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('database:exportDocuments', async (event, collectionName, query) => {
+  try {
+    return await backend.exportCollectionDocuments(collectionName, query);
+  } catch (error) {
+    console.error('IPC error (database:exportDocuments):', error);
+    throw error;
+  }
+});
+
+// IPC handler for saving files
+ipcMain.handle('file:save', async (event, defaultFilename, content) => {
+  try {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultFilename,
+      filters: [
+        { name: 'JSON Lines', extensions: ['jsonl'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (canceled || !filePath) {
+      return { success: false, filePath: undefined };
+    }
+
+    await fs.writeFile(filePath, content);
+    return { success: true, filePath: filePath };
+  } catch (error) {
+    console.error('IPC error (file:save):', error);
+    return { success: false, filePath: undefined, error: error.message || 'Unknown error during file save.' };
+  }
+});
+
+// Theme Management IPC Handlers
+ipcMain.handle('theme:savePreference', async (event, theme) => {
+  try {
+    store.set('theme', theme);
+  } catch (error) {
+    console.error('Failed to save theme preference:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('theme:loadPreference', async () => {
+  try {
+    return store.get('theme');
+  } catch (error) {
+    console.error('Failed to load theme preference:', error);
+    return null; // Return null or default in case of error
+  }
+});
+
+ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
+  try {
+    store.set('isSystemThemeActive', isActive);
+  } catch (error) {
+    console.error('Failed to save system theme active status:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('theme:loadSystemPreference', async () => {
+  try {
+    return store.get('isSystemThemeActive');
+  } catch (error) {
+    console.error('Failed to load system theme active status:', error);
+    return null; // Return null or default in case of error
   }
 });

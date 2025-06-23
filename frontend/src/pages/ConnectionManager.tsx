@@ -427,8 +427,8 @@ export const ConnectionManager: React.FC = () => {
       ) : (
         // Disconnected View: Connection Management Forms
         <>
-          <h3>Add New Connection</h3>
           <form onSubmit={handleAddConnection} className="connection-form">
+            <h3>Add New Connection</h3>
             <input
               type="text"
               name="name"
