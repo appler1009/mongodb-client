@@ -69,4 +69,4 @@ tmp/
 
 # Project specific
 backend/connections.json
-
+release/

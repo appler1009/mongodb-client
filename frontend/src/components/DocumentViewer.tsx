@@ -7,7 +7,7 @@ import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 
 // Import light and dark themes from highlight.js styles
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { ThemeContext, Theme } from '../context/ThemeContext';
+import { ThemeContext } from '../context/ThemeContext';
 
 
 interface DocumentViewerProps {
