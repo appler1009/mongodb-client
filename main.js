@@ -2,7 +2,7 @@
 const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
-const Store = require('electron-store');
+const { default: Store } = require('electron-store');
 
 // Initialize electron-store for user preferences
 // It will automatically save/load from a JSON file in the user's config directory
