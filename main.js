@@ -36,7 +36,7 @@ function createWindow() {
 
     // Load the React app (from its build output)
     const startUrl = app.isPackaged
-      ? `file://${path.join(__dirname, 'frontend/build/index.html')}`
+      ? `file://${path.join(__dirname, 'frontend/dist/index.html')}`
       : 'http://localhost:5173';
 
     mainWindow.loadURL(startUrl)
