@@ -472,7 +472,11 @@ export const ConnectionManager: React.FC = () => {
 
           <h3>Saved Connections</h3>
           {connections.length === 0 ? (
-            <p>No connections saved yet.</p>
+            <ul className="connection-list">
+              <li key="empty-connection-item" className="connection-item">
+                <p>No connections saved yet.</p>
+              </li>
+            </ul>
           ) : (
             <ul className="connection-list">
               {connections.map((conn) => (
