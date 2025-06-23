@@ -1,5 +1,5 @@
 // my-mongo-client/main.js
-const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
 const { default: Store } = require('electron-store');
@@ -7,7 +7,7 @@ const { default: Store } = require('electron-store');
 // Initialize electron-store for user preferences
 const store = new Store({
   defaults: {
-    theme: 'light',          // Default theme preference
+    theme: 'light',           // Default theme preference
     isSystemThemeActive: false, // Default to not using system theme
   },
 });
@@ -31,7 +31,7 @@ function createWindow() {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
         contextIsolation: true,
-        devTools: !app.isPackaged  // Disable DevTools in production
+        devTools: !app.isPackaged // Disable DevTools in production
       },
     });
 
@@ -43,7 +43,7 @@ function createWindow() {
     mainWindow.loadURL(startUrl)
       .then(() => {
         console.log('Window loaded successfully:', startUrl);
-        // Open the DevTools.
+        // Open the DevTools only in development
         if (!app.isPackaged) {
           mainWindow.webContents.openDevTools();
         }
@@ -68,12 +68,126 @@ function createWindow() {
   }
 }
 
+// --- Menu Customization ---
+function createApplicationMenu() {
+  const isMac = process.platform === 'darwin';
+
+  const template = [
+    // macOS App Menu (e.g., "MongoDB Client" menu)
+    ...(isMac ? [{
+      label: app.name, // Will automatically use productName from package.json
+      submenu: [
+        { role: 'about' }, // This uses productName for "About MongoDB Client"
+        { type: 'separator' },
+        { role: 'services' }, // Standard macOS Services menu
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+
+    // File Menu
+    {
+      label: 'File',
+      submenu: [
+        // No custom "Open File", "Save File" here, as your app uses a dialog handler
+        isMac ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+
+    // Edit Menu (Standard, usually good to keep these for user expectation)
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { role: 'selectAll' }
+      ]
+    },
+
+    // View Menu (Stripped down from default Electron, no reload/dev tools)
+    {
+      label: 'View',
+      submenu: [
+        // Removed: reload, forceReload, toggleDevTools
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+
+    // Window Menu (Standard)
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'windowMenu' } // This role adds default macOS window management items
+        ] : [
+          { role: 'close' }
+        ])
+      ]
+    },
+
+    // Help Menu
+    {
+      role: 'help', // Automatically sets label to "Help" and some platform-specific behaviors
+      submenu: [
+        {
+          label: 'Learn More',
+          click: async () => {
+            await shell.openExternal('https://github.com/appler1009/mongodb-client');
+          }
+        },
+        ...(!isMac ? [
+          { type: 'separator' },
+          {
+            label: `About ${app.name}`,
+            click: () => {
+              // app.showAboutPanel() is the recommended way to show the standard Electron about box.
+              // You can configure its content using app.setAboutPanelOptions() in package.json/build config.
+              app.showAboutPanel();
+            }
+          }
+        ] : [])
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
+
 // --- App Lifecycle Events and Error Handling ---
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(createWindow).catch(error => {
+app.whenReady().then(() => {
+  createWindow();
+  createApplicationMenu(); // Call the menu creation function here
+
+  dialog.showMessageBox(mainWindow, {
+    title: 'Debug App Name',
+    message: `app.name: "${app.name}"\nIs Packaged: ${app.isPackaged}`,
+    buttons: ['OK']
+  });
+}).catch(error => {
   console.error('Electron app failed to become ready:', error);
   // Ensure app quits if it can't even become ready
   dialog.showErrorBox('Application Startup Error', `Electron failed to initialize correctly. The application cannot start.\n\nError: ${error.message}`);
