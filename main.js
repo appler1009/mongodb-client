@@ -3,6 +3,26 @@ const { app, BrowserWindow, ipcMain, screen, dialog, Menu, shell } = require('el
 const path = require('path');
 const fs = require('fs/promises');
 const { default: Store } = require('electron-store');
+const pino = require('pino');
+
+// Initialize pino logger
+let logger;
+if (process.env.NODE_ENV !== 'production') {
+  // Use pino-pretty for human-readable logs in development
+  logger = pino({
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'SYS:HH:MM:ss',
+        ignore: 'pid,hostname',
+      },
+    },
+  });
+} else {
+  // In production, use standard JSON logging
+  logger = pino();
+}
 
 // Utility function to debounce saves
 function debounce(func, delay) {
@@ -42,7 +62,7 @@ function createWindow() {
 
     // Load the last known window state
     let windowState = store.get('windowState');
-    console.log(`Loaded window state: ${JSON.stringify(windowState)}`);
+    logger.info(`Loaded window state: ${JSON.stringify(windowState)}`);
 
     // --- Logic to ensure window appears on an active screen ---
     let x = windowState.x;
@@ -75,7 +95,7 @@ function createWindow() {
 
     if (!foundOnActiveDisplay) {
       // If the saved position is off-screen or undefined, center it on the primary display
-      console.log('Window position not found on active display, centering.');
+      logger.info('Window position not found on active display, centering.');
       x = Math.max(0, Math.round((screenWidth - initialWidth) / 2));
       y = Math.max(0, Math.round((screenHeight - initialHeight) / 2));
     }
@@ -110,14 +130,14 @@ function createWindow() {
 
     mainWindow.loadURL(startUrl)
       .then(() => {
-        console.log('Window loaded successfully:', startUrl);
+        logger.info(`Window loaded successfully: ${startUrl}`);
         // Open the DevTools only in development
         if (!app.isPackaged) {
           mainWindow.webContents.openDevTools();
         }
       })
       .catch(error => {
-        console.error('Failed to load URL:', startUrl, error);
+        logger.error({ url: startUrl, error: error.message, stack: error.stack }, 'Failed to load URL');
         // If URL loading fails, also quit the app
         dialog.showErrorBox('Application Error', `Failed to load the application. Please ensure the development server is running or the app is correctly packaged.\n\nError: ${error.message}`);
         app.quit();
@@ -126,6 +146,7 @@ function createWindow() {
     // Emitted when the window is closed.
     mainWindow.on('closed', () => {
       mainWindow = null; // Dereference the window object to allow garbage collection
+      logger.info('Main window closed, dereferenced.');
     });
 
     // --- Add event listeners for the mainWindow to save state ---
@@ -138,7 +159,7 @@ function createWindow() {
         store.set('windowState.height', bounds.height);
         store.set('windowState.x', bounds.x);
         store.set('windowState.y', bounds.y);
-        console.log('Saved window bounds:', bounds);
+        logger.info({ bounds }, 'Saved window bounds');
       }
     }, 500); // Debounce by 500ms
 
@@ -149,7 +170,7 @@ function createWindow() {
     mainWindow.on('maximize', () => {
       store.set('windowState.isMaximized', true);
       store.set('windowState.isFullScreen', false); // Cannot be both
-      console.log('Window maximized, state saved.');
+      logger.info('Window maximized, state saved.');
     });
     mainWindow.on('unmaximize', () => {
       store.set('windowState.isMaximized', false);
@@ -159,14 +180,14 @@ function createWindow() {
       store.set('windowState.height', bounds.height);
       store.set('windowState.x', bounds.x);
       store.set('windowState.y', bounds.y);
-      console.log('Window unmaximized, state saved and bounds updated.');
+      logger.info({ bounds }, 'Window unmaximized, state saved and bounds updated.');
     });
 
     // Save fullscreen state
     mainWindow.on('enter-full-screen', () => {
       store.set('windowState.isFullScreen', true);
       store.set('windowState.isMaximized', false); // Cannot be both
-      console.log('Window entered full screen, state saved.');
+      logger.info('Window entered full screen, state saved.');
     });
     mainWindow.on('leave-full-screen', () => {
       store.set('windowState.isFullScreen', false);
@@ -176,7 +197,7 @@ function createWindow() {
       store.set('windowState.height', bounds.height);
       store.set('windowState.x', bounds.x);
       store.set('windowState.y', bounds.y);
-      console.log('Window left full screen, state saved and bounds updated.');
+      logger.info({ bounds }, 'Window left full screen, state saved and bounds updated.');
     });
 
     // On close, ensure final state is saved (especially if closed from maximized/fullscreen)
@@ -192,18 +213,18 @@ function createWindow() {
                 isMaximized: mainWindow.isMaximized(),
                 isFullScreen: mainWindow.isFullScreen(),
             });
-            console.log('Window closing, final state saved.');
+            logger.info('Window closing, final state saved.');
         } else if (mainWindow && mainWindow.isMinimized()) {
             // If minimized, just save the maximized/fullscreen status if it was active
             // and don't touch the size/position which would be from before minimization.
             store.set('windowState.isMaximized', mainWindow.isMaximized());
             store.set('windowState.isFullScreen', mainWindow.isFullScreen());
-            console.log('Window closing from minimized state, only maximized/fullscreen status updated.');
+            logger.info('Window closing from minimized state, only maximized/fullscreen status updated.');
         }
     });
 
   } catch (error) {
-    console.error('Error creating BrowserWindow:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Error creating BrowserWindow');
     // If window creation itself fails, quit the app
     dialog.showErrorBox('Application Error', `Failed to create application window. This might be due to system resources or invalid window options.\n\nError: ${error.message}`);
     app.quit();
@@ -235,7 +256,6 @@ function createApplicationMenu() {
     {
       label: 'File',
       submenu: [
-        // No custom "Open File", "Save File" here, as your app uses a dialog handler
         isMac ? { role: 'close' } : { role: 'quit' }
       ]
     },
@@ -259,7 +279,6 @@ function createApplicationMenu() {
     {
       label: 'View',
       submenu: [
-        // Removed: reload, forceReload, toggleDevTools
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
@@ -319,10 +338,10 @@ function createApplicationMenu() {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  createWindow();
   createApplicationMenu();
+  createWindow();
 }).catch(error => {
-  console.error('Electron app failed to become ready:', error);
+  logger.error({ error: error.message, stack: error.stack }, 'Electron app failed to become ready');
   // Ensure app quits if it can't even become ready
   dialog.showErrorBox('Application Startup Error', `Electron failed to initialize correctly. The application cannot start.\n\nError: ${error.message}`);
   app.quit();
@@ -331,6 +350,7 @@ app.whenReady().then(() => {
 // Quit when all windows are closed.
 // This will now quit on macOS as well, which is often the desired behavior for cross-platform apps.
 app.on('window-all-closed', () => {
+  logger.info('All windows closed, quitting application.');
   app.quit();
 });
 
@@ -338,13 +358,14 @@ app.on('activate', () => {
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
+    logger.info('App activated with no open windows, creating new window.');
     createWindow();
   }
 });
 
 // Catch unhandled exceptions in the main process
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception in Main Process:', error);
+  logger.error({ error: error.message, stack: error.stack }, 'Uncaught Exception in Main Process');
   // Show a dialog to the user before quitting for critical errors
   dialog.showErrorBox('Critical Application Error', `An unexpected error occurred and the application must close.\n\nError: ${error.message}\n\nPlease report this issue.`);
   app.quit(); // Force quit the application gracefully if an unhandled error occurs
@@ -358,7 +379,7 @@ ipcMain.handle('connections:getConnections', async () => {
   try {
     return await backend.getConnections();
   } catch (error) {
-    console.error('IPC error (getConnections):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (getConnections)');
     throw error;
   }
 });
@@ -367,7 +388,7 @@ ipcMain.handle('connections:addConnection', async (event, newConnection) => {
   try {
     return await backend.addConnection(newConnection);
   } catch (error) {
-    console.error('IPC error (addConnection):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (addConnection)');
     throw error;
   }
 });
@@ -377,7 +398,7 @@ ipcMain.handle('connections:updateConnection', async (event, id, updatedConnecti
     return await backend.updateConnection(id, updatedConnection);
   }
   catch (error) {
-    console.error('IPC error (updateConnection):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (updateConnection)');
     throw error;
   }
 });
@@ -386,7 +407,7 @@ ipcMain.handle('connections:deleteConnection', async (event, id) => {
   try {
     return await backend.deleteConnection(id);
   } catch (error) {
-    console.error('IPC error (deleteConnection):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (deleteConnection)');
     throw error;
   }
 });
@@ -396,7 +417,7 @@ ipcMain.handle('mongo:connect', async (event, connectionId) => {
   try {
     return await backend.connectToMongo(connectionId);
   } catch (error) {
-    console.error('IPC error (mongo:connect):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (mongo:connect)');
     throw error;
   }
 });
@@ -405,7 +426,7 @@ ipcMain.handle('mongo:disconnect', async () => {
   try {
     return await backend.disconnectFromMongo();
   } catch (error) {
-    console.error('IPC error (mongo:disconnect):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (mongo:disconnect)');
     throw error;
   }
 });
@@ -415,7 +436,7 @@ ipcMain.handle('database:getCollections', async () => {
   try {
     return await backend.getDatabaseCollections();
   } catch (error) {
-    console.error('IPC error (database:getCollections):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (database:getCollections)');
     throw error;
   }
 });
@@ -424,7 +445,7 @@ ipcMain.handle('database:getDocuments', async (event, collectionName, limit, ski
   try {
     return await backend.getCollectionDocuments(collectionName, limit, skip, query);
   } catch (error) {
-    console.error('IPC error (database:getDocuments):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (database:getDocuments)');
     throw error;
   }
 });
@@ -433,7 +454,7 @@ ipcMain.handle('database:exportDocuments', async (event, collectionName, query) 
   try {
     return await backend.exportCollectionDocuments(collectionName, query);
   } catch (error) {
-    console.error('IPC error (database:exportDocuments):', error);
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (database:exportDocuments)');
     throw error;
   }
 });
@@ -450,13 +471,15 @@ ipcMain.handle('file:save', async (event, defaultFilename, content) => {
     });
 
     if (canceled || !filePath) {
+      logger.info('File save dialog cancelled or no path selected.');
       return { success: false, filePath: undefined };
     }
 
     await fs.writeFile(filePath, content);
+    logger.info(`File saved successfully to: ${filePath}`);
     return { success: true, filePath: filePath };
   } catch (error) {
-    console.error('IPC error (file:save):', error);
+    logger.error({ error: error.message, stack: error.stack, defaultFilename }, 'IPC error (file:save)');
     return { success: false, filePath: undefined, error: error.message || 'Unknown error during file save.' };
   }
 });
@@ -465,17 +488,20 @@ ipcMain.handle('file:save', async (event, defaultFilename, content) => {
 ipcMain.handle('theme:savePreference', async (event, theme) => {
   try {
     store.set('theme', theme);
+    logger.info(`Theme preference saved: ${theme}`);
   } catch (error) {
-    console.error('Failed to save theme preference:', error);
+    logger.error({ error: error.message, stack: error.stack, theme }, 'Failed to save theme preference');
     throw error;
   }
 });
 
 ipcMain.handle('theme:loadPreference', async () => {
   try {
-    return store.get('theme');
+    const theme = store.get('theme');
+    logger.info(`Theme preference loaded: ${theme}`);
+    return theme;
   } catch (error) {
-    console.error('Failed to load theme preference:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Failed to load theme preference');
     return null; // Return null or default in case of error
   }
 });
@@ -483,17 +509,20 @@ ipcMain.handle('theme:loadPreference', async () => {
 ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
   try {
     store.set('isSystemThemeActive', isActive);
+    logger.info(`System theme active status saved: ${isActive}`);
   } catch (error) {
-    console.error('Failed to save system theme active status:', error);
+    logger.error({ error: error.message, stack: error.stack, isActive }, 'Failed to save system theme active status');
     throw error;
   }
 });
 
 ipcMain.handle('theme:loadSystemPreference', async () => {
   try {
-    return store.get('isSystemThemeActive');
+    const isActive = store.get('isSystemThemeActive');
+    logger.info(`System theme active status loaded: ${isActive}`);
+    return isActive;
   } catch (error) {
-    console.error('Failed to load system theme active status:', error);
+    logger.error({ error: error.message, stack: error.stack }, 'Failed to load system theme active status');
     return null; // Return null or default in case of error
   }
 });
