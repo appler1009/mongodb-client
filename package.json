@@ -44,7 +44,7 @@
       "preload.js",
       "package.json",
       "backend/dist/**/*",
-      "frontend/build/**/*",
+      "frontend/dist/**/*",
       "node_modules/**/*"
     ],
     "extraFiles": [],
