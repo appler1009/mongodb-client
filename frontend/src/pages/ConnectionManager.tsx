@@ -23,9 +23,6 @@ import { AppHeader } from '../components/AppHeader';
 const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
   name: '',
   uri: '',
-  database: '',
-  username: '',
-  password: '',
 };
 
 export const ConnectionManager: React.FC = () => {
@@ -45,7 +42,10 @@ export const ConnectionManager: React.FC = () => {
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [documentsPerPage, setDocumentsPerPage] = useState<number>(25); // Default items per page
-  const [totalDocuments, setTotalDocuments] = useState<number>(0);
+  // totalDocuments is derived from selectedCollection's documentCount
+  const totalDocuments = selectedCollection
+    ? collections.find(c => c.name === selectedCollection)?.documentCount || 0
+    : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   // --- Query Editor State ---
@@ -61,7 +61,6 @@ export const ConnectionManager: React.FC = () => {
     setCollections([]);
     setSelectedCollection(null);
     setDocuments([]);
-    setTotalDocuments(0);
     setCurrentPage(1);
     setQueryText('{}');
     setParsedQuery({});
@@ -95,7 +94,6 @@ export const ConnectionManager: React.FC = () => {
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
 
       setDocuments([]);
-      setTotalDocuments(0);
       setCurrentPage(1);
       setQueryText('{}');
       setParsedQuery({});
@@ -123,7 +121,6 @@ export const ConnectionManager: React.FC = () => {
   const fetchDocuments = useCallback(async () => {
     if (!selectedCollection) {
       setDocuments([]);
-      setTotalDocuments(0);
       return;
     }
     setDocumentsLoading(true);
@@ -132,11 +129,9 @@ export const ConnectionManager: React.FC = () => {
       const skip = (currentPage - 1) * documentsPerPage;
       const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedQuery);
       setDocuments(response.documents);
-      setTotalDocuments(response.totalDocuments);
     } catch (err: any) {
       setError(`Failed to fetch documents for ${selectedCollection}: ${err.message}`);
       setDocuments([]);
-      setTotalDocuments(0);
     } finally {
       setDocumentsLoading(false);
     }
@@ -170,15 +165,35 @@ export const ConnectionManager: React.FC = () => {
 
 
   // --- Form Handlers ---
-  const handleNewConnectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Generic handler for both input and textarea
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewConnection((prev) => ({ ...prev, [name]: value }));
+    if (e.target instanceof HTMLInputElement) {
+        // If it's an input element, call the specific handler for new/editing
+        if (name === "name" || name === "uri") { // Only these two fields
+            setNewConnection((prev) => ({ ...prev, [name]: value }));
+        }
+    } else if (e.target instanceof HTMLTextAreaElement) {
+        // If it's a textarea, specifically for 'uri'
+        if (name === "uri") {
+            setNewConnection((prev) => ({ ...prev, [name]: value }));
+        }
+    }
   };
 
-  const handleEditConnectionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setEditingConnection((prev) => (prev ? { ...prev, [name]: value } : null));
+    if (e.target instanceof HTMLInputElement) {
+        if (name === "name" || name === "uri") {
+            setEditingConnection((prev) => (prev ? { ...prev, [name]: value } : null));
+        }
+    } else if (e.target instanceof HTMLTextAreaElement) {
+        if (name === "uri") {
+            setEditingConnection((prev) => (prev ? { ...prev, [name]: value } : null));
+        }
+    }
   };
+
 
   const handleAddConnection = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,7 +247,6 @@ export const ConnectionManager: React.FC = () => {
       const status = await connectToMongo(id);
       setCurrentStatus(status);
       setNotificationMessage(`Connected to ${status.database || 'MongoDB'}!`);
-      // When connecting, immediately try to fetch collections
       // The useEffect for currentStatus.database will handle triggering fetchCollections
     } catch (err: any) {
       setCurrentStatus(null);
@@ -265,18 +279,19 @@ export const ConnectionManager: React.FC = () => {
     // Keep these specific resets as they're tied to collection selection
     setCurrentPage(1);
     setDocuments([]);
-    setTotalDocuments(0);
     setQueryText('{}');
     setParsedQuery({});
     setQueryError(null);
   };
 
   const handlePrevPage = () => {
-    setCurrentPage(prev => Math.max(1, prev - 1));
+    const newPage = Math.max(1, currentPage - 1);
+    setCurrentPage(newPage);
   };
 
   const handleNextPage = () => {
-    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+    const newPage = Math.min(totalPages, currentPage + 1);
+    setCurrentPage(newPage);
   };
 
   const handleDocumentsPerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -296,7 +311,7 @@ export const ConnectionManager: React.FC = () => {
       setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
       setCurrentPage(1); // Reset to first page for new query
       setQueryError(null);
-    } catch (e) {
+    } catch (e: any) {
       setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
     }
   };
@@ -310,25 +325,19 @@ export const ConnectionManager: React.FC = () => {
     setError(null); // Clear any previous error
     setDocumentsLoading(true); // Indicate loading state for export operation
     try {
-      // Destructure the expected return values: success and filePath
-      // The `exportCollectionDocuments` function (in `backend.ts`) will now return this structure
       const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, parsedQuery);
 
       if (success && filePath) {
         setNotificationMessage(`Exported to: ${filePath}`);
       } else if (!success && exportError) {
-        // If it failed and an error message was returned from backend
         setNotificationMessage(`Export failed: ${exportError}`);
-        setError(`Export failed: ${exportError}`); // Optionally set error state for more prominent display
+        setError(`Export failed: ${exportError}`);
       } else {
-        // This covers the user cancellation case where success is false and no specific error
         setNotificationMessage('Export cancelled or failed.');
       }
     } catch (err: any) {
-      // This catch block would primarily handle unexpected errors *before* the API call
-      // or if the `exportCollectionDocuments` function itself threw an uncaught error
       setError(`An unexpected error occurred during export: ${err.message}`);
-      setNotificationMessage(`An unexpected error occurred: ${err.message}`); // Show notification too
+      setNotificationMessage(`An unexpected error occurred: ${err.message}`);
     } finally {
       setDocumentsLoading(false); // Always reset loading flag
     }
@@ -434,38 +443,16 @@ export const ConnectionManager: React.FC = () => {
               name="name"
               placeholder="Connection Name"
               value={newConnection.name}
-              onChange={handleNewConnectionChange}
+              onChange={handleChange}
               required
             />
-            <input
-              type="text"
+            <textarea
               name="uri"
-              placeholder="MongoDB URI (e.g., mongodb://user:pass@host:port/)"
+              placeholder="MongoDB URI (e.g., mongodb://user:pass@host:port/database?replicaSet=mySet)"
               value={newConnection.uri}
-              onChange={handleNewConnectionChange}
+              onChange={handleChange}
+              rows={3}
               required
-            />
-            <input
-              type="text"
-              name="database"
-              placeholder="Default Database Name"
-              value={newConnection.database}
-              onChange={handleNewConnectionChange}
-              required
-            />
-            <input
-              type="text"
-              name="username"
-              placeholder="Username (optional)"
-              value={newConnection.username || ''}
-              onChange={handleNewConnectionChange}
-            />
-            <input
-              type="password"
-              name="password"
-              placeholder="Password (optional)"
-              value={newConnection.password || ''}
-              onChange={handleNewConnectionChange}
             />
             <button type="submit">Add Connection</button>
           </form>
@@ -483,11 +470,14 @@ export const ConnectionManager: React.FC = () => {
                 <li key={conn.id} className="connection-item">
                   {editingConnection && editingConnection.id === conn.id ? (
                     <form onSubmit={handleUpdateConnection} className="edit-form">
-                      <input type="text" name="name" value={editingConnection.name} onChange={handleEditConnectionChange} required />
-                      <input type="text" name="uri" value={editingConnection.uri} onChange={handleEditConnectionChange} required />
-                      <input type="text" name="database" value={editingConnection.database} onChange={handleEditConnectionChange} required />
-                      <input type="text" name="username" value={editingConnection.username || ''} onChange={handleEditConnectionChange} />
-                      <input type="password" name="password" value={editingConnection.password || ''} onChange={handleEditConnectionChange} />
+                      <input type="text" name="name" value={editingConnection.name} onChange={handleEditChange} required />
+                      <textarea
+                        name="uri"
+                        value={editingConnection.uri}
+                        onChange={handleEditChange}
+                        rows={3}
+                        required
+                      />
                       <button type="submit">Save</button>
                       <button type="button" onClick={() => setEditingConnection(null)}>Cancel</button>
                     </form>
@@ -495,7 +485,6 @@ export const ConnectionManager: React.FC = () => {
                     <div className="connection-details">
                       <h4>{conn.name}</h4>
                       <p>URI: {conn.uri}</p>
-                      <p>Database: {conn.database}</p>
                       <div className="connection-actions">
                         <button onClick={() => handleConnect(conn.id)} disabled={currentStatus !== null}>
                           Connect
