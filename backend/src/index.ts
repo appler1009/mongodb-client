@@ -157,15 +157,42 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
 
     logger.info(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
     const client = new MongoClient(connectionConfig.uri);
-    await client.connect();
+    await client.connect(); // Connects to the MongoDB server
+
+    let dbNameFromUri: string | undefined;
+    try {
+        // Parse the URI to extract the database name from the path component
+        const uriObj = new URL(connectionConfig.uri);
+        // Pathname starts with a '/', so we slice it off.
+        // Example: mongodb://localhost:27017/myDatabase -> pathname: /myDatabase -> dbNameFromUri: myDatabase
+        if (uriObj.pathname && uriObj.pathname.length > 1) {
+            dbNameFromUri = uriObj.pathname.substring(1);
+        }
+    } catch (e) {
+        logger.warn({ uri: connectionConfig.uri, error: e }, 'Failed to parse URI to extract database name. This might be normal if URI doesn\'t specify a database path.');
+    }
+
+    if (!dbNameFromUri) {
+        // If the URI does not contain a database name in its path,
+        // you must explicitly select a database using client.db('dbName').
+        // A common default is 'admin' or you could mandate the URI specifies it.
+        // For this application, let's assume if not explicitly in URI path,
+        // the user expects to connect to 'admin' or the default database the driver selects.
+        // The MongoDB driver's `client.db()` without an argument will connect to the database specified in the URI,
+        // or fall back to 'admin' if none is specified or the URI is invalid.
+        // To be explicit, we can try to get the database name from the client after connection.
+        dbNameFromUri = client.db().databaseName; // Get the default database name from the connected client
+        logger.info(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
+    }
+
     activeMongoClient = client;
-    activeDb = client.db(connectionConfig.database);
+    activeDb = client.db(dbNameFromUri); // Use the extracted/derived database name
     activeConnectionId = id;
-    activeDatabaseName = connectionConfig.database;
+    activeDatabaseName = dbNameFromUri; // Store the actual database name connected to
 
     databaseService.setActiveDb(activeDb); // Set active DB in DatabaseService
 
-    logger.info(`IPC: Successfully connected to MongoDB: ${connectionConfig.name}`);
+    logger.info(`IPC: Successfully connected to MongoDB: ${connectionConfig.name} on database: ${activeDatabaseName}`);
     return {
       message: 'Successfully connected to MongoDB.',
       connectionId: activeConnectionId,
@@ -173,6 +200,8 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     };
   } catch (error: any) {
     logger.error({ error, connectionId: id }, 'IPC: Failed to connect to MongoDB');
+    // Ensure the connection is fully reset if an error occurs during connection
+    await disconnectMongoInternal();
     throw new Error(`Failed to connect to MongoDB: ${error.message}`);
   }
 };

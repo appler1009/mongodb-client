@@ -62,9 +62,9 @@ export class ConnectionService {
     if (!newConnection.id) {
       newConnection.id = uuidv4(); // Assign a unique ID
     }
-    // Basic validation
-    if (!newConnection.name || !newConnection.uri || !newConnection.database) {
-        throw new Error('Connection name, URI, and database are required.');
+    // Basic validation: Only name and URI are required, as database/user/pass are now part of URI
+    if (!newConnection.name || !newConnection.uri) {
+        throw new Error('Connection name and URI are required.');
     }
     if (connections.some(conn => conn.id === newConnection.id)) {
         throw new Error(`Connection with ID ${newConnection.id} already exists.`);
@@ -82,9 +82,9 @@ export class ConnectionService {
     if (index !== -1) {
       // Ensure the ID in the body matches the path ID
       updatedConnection.id = id;
-      // Basic validation
-      if (!updatedConnection.name || !updatedConnection.uri || !updatedConnection.database) {
-          throw new Error('Connection name, URI, and database are required.');
+      // Basic validation: Only name and URI are required, as database/user/pass are now part of URI
+      if (!updatedConnection.name || !updatedConnection.uri) {
+          throw new Error('Connection name and URI are required.');
       }
       connections[index] = updatedConnection;
       await this.writeConnections(connections);

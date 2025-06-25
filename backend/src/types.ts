@@ -4,9 +4,6 @@ export interface ConnectionConfig {
   id: string;
   name: string;
   uri: string;
-  database: string;
-  username?: string;
-  password?: string;
 }
 
 export interface ConnectionStatus {
