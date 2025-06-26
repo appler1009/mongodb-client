@@ -42,9 +42,9 @@ export class ConnectionService {
   private async writeConnections(connections: ConnectionConfig[]): Promise<void> {
     try {
       await writeFile(this.connectionsFilePath, JSON.stringify(connections, null, 2), { encoding: 'utf8' });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error({ error }, 'Failed to write to connections.json');
-      throw new Error('Failed to save connection data.');
+      throw new Error(`Failed to save connection data: ${error.message}`);
     }
   }
 
