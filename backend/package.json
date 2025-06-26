@@ -17,7 +17,11 @@
     "electron-store": "^8.2.0",
     "express": "^4.19.2",
     "mongodb": "^6.17.0",
-    "pino": "^9.7.0"
+    "pino": "^9.7.0",
+    "mongodb-wrapper-v3": "file:../packages/mongodb-wrapper-v3",
+    "mongodb-wrapper-v4": "file:../packages/mongodb-wrapper-v4",
+    "mongodb-wrapper-v5": "file:../packages/mongodb-wrapper-v5",
+    "mongodb-wrapper-v6": "file:../packages/mongodb-wrapper-v6"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

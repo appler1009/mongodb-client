@@ -1,0 +1,26 @@
+{
+  "name": "mongodb-wrapper-v4",
+  "version": "1.0.0",
+  "description": "A wrapper for MongoDB Node.js driver v4.x.x with wire version checks for MongoDB 3.6+.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "mongodb": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "mongodb",
+    "driver",
+    "wrapper",
+    "electron"
+  ],
+  "author": "Your Name",
+  "license": "ISC"
+}

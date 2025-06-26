@@ -1,5 +1,5 @@
 // backend/src/index.ts
-import { MongoClient, Db, ObjectId } from 'mongodb';
+import { connectWithDriverFallback, MongoClient, Db, ObjectId } from './services/mongoDriverChooser';
 import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
@@ -26,7 +26,8 @@ const logger = pino({
 let activeMongoClient: MongoClient | null = null;
 let activeDb: Db | null = null;
 let activeConnectionId: string | null = null;
-let activeDatabaseName: string | null = null;
+let activeDatabaseName: string | undefined = undefined;
+let activeDriverVersion: string | null = null;
 
 // Initialize services.
 // ConnectionService now takes the logger and will later receive the store.
@@ -69,7 +70,8 @@ async function disconnectMongoInternal() {
     activeMongoClient = null;
     activeDb = null;
     activeConnectionId = null;
-    activeDatabaseName = null;
+    activeDatabaseName = undefined;
+    activeDriverVersion = null;
     databaseService.setActiveDb(null); // Clear active DB in service
     logger.info('MongoDB connection closed.');
   }
@@ -190,7 +192,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     }
 
     logger.info(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
-    const client = new MongoClient(connectionConfig.uri);
+    const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri);
     await client.connect(); // Connects to the MongoDB server
 
     let dbNameFromUri: string | undefined;
@@ -212,10 +214,11 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     activeDb = client.db(dbNameFromUri);
     activeConnectionId = id;
     activeDatabaseName = dbNameFromUri;
+    activeDriverVersion = driverVersion;
 
     databaseService.setActiveDb(activeDb); // Set active DB in DatabaseService
 
-    logger.info(`IPC: Successfully connected to MongoDB: ${connectionConfig.name} on database: ${activeDatabaseName}`);
+    logger.info(`IPC: Successfully connected to MongoDB: ${connectionConfig.name} on database: ${activeDatabaseName} with driver ${activeDriverVersion}`);
     return {
       message: 'Successfully connected to MongoDB.',
       connectionId: activeConnectionId,

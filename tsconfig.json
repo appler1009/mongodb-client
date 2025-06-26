@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "es2018",                                /* Specify ECMAScript target version. Electron generally supports newer ES features. */
+    "module": "commonjs",                              /* For Node.js/Electron main process. */
+    "lib": ["es2018", "dom"],                          /* Include standard library definitions and DOM for renderer process if applicable. */
+    "allowJs": true,                                   /* Allow JavaScript files to be compiled. */
+    "checkJs": false,                                  /* Do not type check .js files. */
+    "jsx": "react",                                    /* If you use React/JSX in your renderer process. Change as needed. */
+    "strict": true,                                    /* Enable all strict type-checking options. */
+    "esModuleInterop": true,                           /* Enables emit interoperability between CommonJS and ES Modules. */
+    "skipLibCheck": true,                              /* Skip type checking of all declaration files (*.d.ts) to speed up compilation. */
+    "forceConsistentCasingInFileNames": true,          /* Disallow inconsistently-cased references to the same file. */
+    "sourceMap": true,                                 /* Generate .map files for debugging. */
+    "outDir": "dist",                                  /* Output directory for compiled JavaScript. Adjust if you have a different build setup. */
+    "rootDir": ".",                                    /* Root directory for input files. */
+    "resolveJsonModule": true,                         /* Allow importing .json files as modules. */
+    "moduleResolution": "node",                        /* How modules are resolved. "node" is standard for Node.js projects. */
+    "noImplicitAny": false                             /* You might want to set this to true for stricter typing, but false allows untyped code. */
+  },
+  "include": [
+    "src/**/*.ts",                                     /* Include all TypeScript files in a 'src' directory (common for Electron main process). */
+    "src/**/*.tsx",                                    /* If you use React/JSX in TypeScript. */
+    "**/*.d.ts",                                       /* Include any global declaration files. */
+    "./packages/**/*.ts",                              /* Important: Include TypeScript files within your local 'packages' if they are directly consumed as TS. */
+    "./packages/**/*.d.ts"                             /* Important: Also include any declaration files directly. */
+  ],
+  "exclude": [
+    "node_modules",                                    /* Exclude node_modules (except explicitly included declaration files) */
+    "dist"                                             /* Exclude the output directory */
+  ]
+}

@@ -1,5 +1,5 @@
 // backend/src/services/DatabaseService.ts
-import { Db, Collection, Document as MongoDocument } from 'mongodb';
+import { Db, Collection, Document as MongoDocument } from './mongoDriverChooser';
 import { CollectionInfo } from '../types';
 import { Logger } from 'pino';
 

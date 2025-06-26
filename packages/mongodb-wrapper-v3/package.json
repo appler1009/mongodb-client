@@ -1,0 +1,26 @@
+{
+  "name": "mongodb-wrapper-v3",
+  "version": "1.0.0",
+  "description": "A wrapper for MongoDB Node.js driver v3.x.x with wire version checks for MongoDB 3.0+ (USE WITH CAUTION).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "mongodb": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^14.0.0"
+  },
+  "keywords": [
+    "mongodb",
+    "driver",
+    "wrapper",
+    "electron"
+  ],
+  "author": "Your Name",
+  "license": "ISC"
+}
