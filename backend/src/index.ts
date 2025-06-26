@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { default as Store } from 'electron-store';
 
 dotenv.config(); // Still load .env for connection strings etc.
 
@@ -27,9 +28,38 @@ let activeDb: Db | null = null;
 let activeConnectionId: string | null = null;
 let activeDatabaseName: string | null = null;
 
-// Initialize services with the logger
+// Initialize services.
+// ConnectionService now takes the logger and will later receive the store.
 const connectionService = new ConnectionService(logger);
 const databaseService = new DatabaseService(logger);
+
+// --- Initialization function for the backend ---
+// This function will be called from main.js and injects the connectionsStore
+export function initialize(connectionsStore: Store<any>) {
+  if (!connectionsStore) {
+    logger.error('Connections store was not provided during backend initialization.');
+    throw new Error('Connections store is required for backend operations.');
+  }
+  // Pass the connectionsStore instance to the ConnectionService
+  // You'll need to add a `setStore` method to your ConnectionService.ts
+  connectionService.setStore(connectionsStore);
+  logger.info('Backend: ConnectionService initialized with electron-store.');
+
+  // Return all exported functions so main.js can access them
+  return {
+    getConnections,
+    addConnection,
+    updateConnection,
+    deleteConnection,
+    connectToMongo,
+    disconnectFromMongo,
+    getDatabaseCollections,
+    getCollectionDocuments,
+    exportCollectionDocuments,
+    // Add any other functions you export from this index.ts
+  };
+}
+
 
 // Helper function to disconnect
 async function disconnectMongoInternal() {
@@ -165,10 +195,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
 
     let dbNameFromUri: string | undefined;
     try {
-        // Parse the URI to extract the database name from the path component
         const uriObj = new URL(connectionConfig.uri);
-        // Pathname starts with a '/', so we slice it off.
-        // Example: mongodb://localhost:27017/myDatabase -> pathname: /myDatabase -> dbNameFromUri: myDatabase
         if (uriObj.pathname && uriObj.pathname.length > 1) {
             dbNameFromUri = uriObj.pathname.substring(1);
         }
@@ -177,22 +204,14 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     }
 
     if (!dbNameFromUri) {
-        // If the URI does not contain a database name in its path,
-        // you must explicitly select a database using client.db('dbName').
-        // A common default is 'admin' or you could mandate the URI specifies it.
-        // For this application, let's assume if not explicitly in URI path,
-        // the user expects to connect to 'admin' or the default database the driver selects.
-        // The MongoDB driver's `client.db()` without an argument will connect to the database specified in the URI,
-        // or fall back to 'admin' if none is specified or the URI is invalid.
-        // To be explicit, we can try to get the database name from the client after connection.
-        dbNameFromUri = client.db().databaseName; // Get the default database name from the connected client
+        dbNameFromUri = client.db().databaseName;
         logger.info(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
     }
 
     activeMongoClient = client;
-    activeDb = client.db(dbNameFromUri); // Use the extracted/derived database name
+    activeDb = client.db(dbNameFromUri);
     activeConnectionId = id;
-    activeDatabaseName = dbNameFromUri; // Store the actual database name connected to
+    activeDatabaseName = dbNameFromUri;
 
     databaseService.setActiveDb(activeDb); // Set active DB in DatabaseService
 

@@ -1,7 +1,10 @@
-// my-mongo-client/main.js
+// /main.js
 const { app, BrowserWindow, ipcMain, screen, dialog, Menu, shell } = require('electron');
 const path = require('path');
-const fs = require('fs/promises');
+// Corrected fs imports:
+const fs = require('fs'); // For fs.createWriteStream (used by pino in production)
+const fsPromises = require('fs/promises'); // For fs.promises.writeFile, fs.promises.rename
+const { ensureDirSync } = require('fs-extra'); // For ensuring log directory exists in production
 const { default: Store } = require('electron-store');
 const pino = require('pino');
 
@@ -20,8 +23,29 @@ if (process.env.NODE_ENV !== 'production') {
     },
   });
 } else {
-  // In production, use standard JSON logging
-  logger = pino();
+  // In production, log to a file in the standard OS log directory
+  const logDirectory = app.getPath('logs');
+  ensureDirSync(logDirectory); // Ensure the log directory exists
+  const logFilePath = path.join(logDirectory, app.getName() + '.log');
+  // Create a write stream for Pino, appending to the log file
+  const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+
+  logger = pino({
+    // Set the minimum log level for production (e.g., 'info', 'warn', 'error')
+    level: 'info',
+    // In production, we're streaming to a file, so pino-pretty is not needed here
+    // If you want pretty output in the file, use the transport config as in dev but with destination
+    // transport: {
+    //   target: 'pino-pretty',
+    //   options: {
+    //     colorize: false, // No color for file logs
+    //     translateTime: 'SYS:HH:MM:ss',
+    //     ignore: 'pid,hostname',
+    //     destination: logFilePath,
+    //     mkdir: true,
+    //   }
+    // }
+  }, logStream); // Direct the output to the file stream
 }
 
 // Utility function to debounce saves
@@ -35,9 +59,10 @@ function debounce(func, delay) {
 }
 
 // Initialize electron-store for user preferences
-const store = new Store({
+// Renamed 'store' to 'preferencesStore' for clarity, as we'll have another store
+const preferencesStore = new Store({
   defaults: {
-    theme: 'light',           // Default theme preference
+    theme: 'light',          // Default theme preference
     isSystemThemeActive: false, // Default to not using system theme
     windowState: {
       width: 1200,
@@ -50,8 +75,18 @@ const store = new Store({
   },
 });
 
-// Import the compiled backend module
-const backend = require('./backend/dist/index'); // Adjust if your compiled backend is elsewhere
+// NEW: Initialize electron-store for connection configurations
+const connectionsStore = new Store({
+  name: 'connections', // This will create 'connections.json' in user data dir
+  defaults: {
+    connections: [], // Array to hold ConnectionConfig objects
+  }
+});
+
+
+// Import and initialize the compiled backend module
+// The backend needs to be initialized with the connectionsStore
+let backend; // Declare backend globally so it can be assigned after initialization
 
 let mainWindow; // Declare mainWindow globally to be accessible for lifecycle events
 
@@ -61,7 +96,7 @@ function createWindow() {
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
     // Load the last known window state
-    let windowState = store.get('windowState');
+    let windowState = preferencesStore.get('windowState');
     logger.info(`Loaded window state: ${JSON.stringify(windowState)}`);
 
     // --- Logic to ensure window appears on an active screen ---
@@ -155,10 +190,10 @@ function createWindow() {
       // Only save position/size if not minimized, maximized, or fullscreen
       if (!mainWindow.isMinimized() && !mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
         const bounds = mainWindow.getBounds();
-        store.set('windowState.width', bounds.width);
-        store.set('windowState.height', bounds.height);
-        store.set('windowState.x', bounds.x);
-        store.set('windowState.y', bounds.y);
+        preferencesStore.set('windowState.width', bounds.width);
+        preferencesStore.set('windowState.height', bounds.height);
+        preferencesStore.set('windowState.x', bounds.x);
+        preferencesStore.set('windowState.y', bounds.y);
         logger.info({ bounds }, 'Saved window bounds');
       }
     }, 500); // Debounce by 500ms
@@ -168,35 +203,35 @@ function createWindow() {
 
     // Save maximized state
     mainWindow.on('maximize', () => {
-      store.set('windowState.isMaximized', true);
-      store.set('windowState.isFullScreen', false); // Cannot be both
+      preferencesStore.set('windowState.isMaximized', true);
+      preferencesStore.set('windowState.isFullScreen', false); // Cannot be both
       logger.info('Window maximized, state saved.');
     });
     mainWindow.on('unmaximize', () => {
-      store.set('windowState.isMaximized', false);
+      preferencesStore.set('windowState.isMaximized', false);
       // When unmaximized, save current non-maximized bounds immediately
       const bounds = mainWindow.getBounds();
-      store.set('windowState.width', bounds.width);
-      store.set('windowState.height', bounds.height);
-      store.set('windowState.x', bounds.x);
-      store.set('windowState.y', bounds.y);
+      preferencesStore.set('windowState.width', bounds.width);
+      preferencesStore.set('windowState.height', bounds.height);
+      preferencesStore.set('windowState.x', bounds.x);
+      preferencesStore.set('windowState.y', bounds.y);
       logger.info({ bounds }, 'Window unmaximized, state saved and bounds updated.');
     });
 
     // Save fullscreen state
     mainWindow.on('enter-full-screen', () => {
-      store.set('windowState.isFullScreen', true);
-      store.set('windowState.isMaximized', false); // Cannot be both
+      preferencesStore.set('windowState.isFullScreen', true);
+      preferencesStore.set('windowState.isMaximized', false); // Cannot be both
       logger.info('Window entered full screen, state saved.');
     });
     mainWindow.on('leave-full-screen', () => {
-      store.set('windowState.isFullScreen', false);
+      preferencesStore.set('windowState.isFullScreen', false);
       // When leaving fullscreen, save current non-fullscreen bounds
       const bounds = mainWindow.getBounds();
-      store.set('windowState.width', bounds.width);
-      store.set('windowState.height', bounds.height);
-      store.set('windowState.x', bounds.x);
-      store.set('windowState.y', bounds.y);
+      preferencesStore.set('windowState.width', bounds.width);
+      preferencesStore.set('windowState.height', bounds.height);
+      preferencesStore.set('windowState.x', bounds.x);
+      preferencesStore.set('windowState.y', bounds.y);
       logger.info({ bounds }, 'Window left full screen, state saved and bounds updated.');
     });
 
@@ -205,7 +240,7 @@ function createWindow() {
         // Only save state if not minimized (bounds are unreliable when minimized)
         if (mainWindow && !mainWindow.isMinimized()) {
             const bounds = mainWindow.getBounds();
-            store.set('windowState', {
+            preferencesStore.set('windowState', {
                 width: bounds.width,
                 height: bounds.height,
                 x: bounds.x,
@@ -217,8 +252,8 @@ function createWindow() {
         } else if (mainWindow && mainWindow.isMinimized()) {
             // If minimized, just save the maximized/fullscreen status if it was active
             // and don't touch the size/position which would be from before minimization.
-            store.set('windowState.isMaximized', mainWindow.isMaximized());
-            store.set('windowState.isFullScreen', mainWindow.isFullScreen());
+            preferencesStore.set('windowState.isMaximized', mainWindow.isMaximized());
+            preferencesStore.set('windowState.isFullScreen', mainWindow.isFullScreen());
             logger.info('Window closing from minimized state, only maximized/fullscreen status updated.');
         }
     });
@@ -338,6 +373,17 @@ function createApplicationMenu() {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Initialize the backend with the connectionsStore *after* app is ready
+  // Pass the connectionsStore instance to the backend's initialize function
+  backend = require('./backend/dist/index').initialize(connectionsStore);
+  if (!backend) {
+    logger.error('Backend initialization failed or returned undefined.');
+    dialog.showErrorBox('Application Error', 'Failed to initialize application backend.');
+    app.quit();
+    return;
+  }
+  logger.info('Backend module initialized with connections store.');
+
   createApplicationMenu();
   createWindow();
 }).catch(error => {
@@ -478,9 +524,9 @@ ipcMain.handle('file:save', async (event, defaultFilename, sourceFilePath) => {
     }
 
     // 2. Perform the move (rename) operation
-    // fs.rename will move the file from sourceFilePath to filePath
+    // fsPromises.rename will move the file from sourceFilePath to filePath
     // If filePath already exists, it will be overwritten.
-    await fs.rename(sourceFilePath, filePath); // Use fs.rename (from fs/promises)
+    await fsPromises.rename(sourceFilePath, filePath); // Corrected to use fsPromises
 
     logger.info(`File moved successfully from temp location to: ${filePath}`);
     return { success: true, filePath: filePath };
@@ -489,13 +535,26 @@ ipcMain.handle('file:save', async (event, defaultFilename, sourceFilePath) => {
     logger.error({ error: error.message, stack: error.stack, sourceFilePath, defaultFilename }, 'IPC error (file:save) during file move');
     // It's good practice to provide a more descriptive error message to the frontend
     return { success: false, filePath: undefined, error: `Failed to save file: ${error.message || 'Unknown error during file save.'}` };
+  } finally {
+      // Ensure that if the move operation failed (e.g., due to permissions),
+      // the original temporary file is still removed to prevent accumulation.
+      // This makes the cleanup more robust.
+      try {
+          if (sourceFilePath) {
+              // Check if the source file still exists (it shouldn't if rename succeeded)
+              await fsPromises.unlink(sourceFilePath);
+              logger.info(`Cleaned up residual temporary file: ${sourceFilePath}`);
+          }
+      } catch (cleanupError) {
+          logger.warn({ cleanupError }, `Failed to clean up temporary file: ${sourceFilePath}`);
+      }
   }
 });
 
 // Theme Management IPC Handlers
 ipcMain.handle('theme:savePreference', async (event, theme) => {
   try {
-    store.set('theme', theme);
+    preferencesStore.set('theme', theme);
     logger.info(`Theme preference saved: ${theme}`);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack, theme }, 'Failed to save theme preference');
@@ -505,7 +564,7 @@ ipcMain.handle('theme:savePreference', async (event, theme) => {
 
 ipcMain.handle('theme:loadPreference', async () => {
   try {
-    const theme = store.get('theme');
+    const theme = preferencesStore.get('theme');
     logger.info(`Theme preference loaded: ${theme}`);
     return theme;
   } catch (error) {
@@ -516,7 +575,7 @@ ipcMain.handle('theme:loadPreference', async () => {
 
 ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
   try {
-    store.set('isSystemThemeActive', isActive);
+    preferencesStore.set('isSystemThemeActive', isActive);
     logger.info(`System theme active status saved: ${isActive}`);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack, isActive }, 'Failed to save system theme active status');
@@ -526,7 +585,7 @@ ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
 
 ipcMain.handle('theme:loadSystemPreference', async () => {
   try {
-    const isActive = store.get('isSystemThemeActive');
+    const isActive = preferencesStore.get('isSystemThemeActive');
     logger.info(`System theme active status loaded: ${isActive}`);
     return isActive;
   } catch (error) {

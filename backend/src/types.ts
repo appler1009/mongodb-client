@@ -25,3 +25,8 @@ export interface DocumentsResponse {
   documents: Document[];
   totalDocuments: number;
 }
+
+// Schema for the connections electron-store
+export interface ConnectionsStoreSchema {
+    connections: ConnectionConfig[]; // This defines that the 'connections' key holds an array of ConnectionConfig
+}
