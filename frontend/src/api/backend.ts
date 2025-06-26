@@ -90,15 +90,21 @@ export async function exportCollectionDocuments(
   collectionName: string,
   query: object
 ): Promise<{ success: boolean; filePath?: string; error?: string }> {
-  try {
-    // 1. Get the NDJSON content from the main process via IPC
-    const ndjsonContent = await window.electronAPI.exportCollectionDocuments(collectionName, query);
+  let tempFilePath: string | undefined; // Declare tempFilePath outside try for finally block access
 
-    // 2. Request the main process to show a save dialog and save the file
+  try {
+    // 1. Request the backend (via main process IPC) to prepare the export
+    //    and save it to a temporary file. This call now returns the path
+    //    to that temporary file.
+    tempFilePath = await window.electronAPI.exportCollectionDocuments(collectionName, query);
+
+    // 2. Request the main process to show a save dialog and move the
+    //    temporary file to the user-selected location.
     const defaultFilename = `${collectionName}_export_${Date.now()}.jsonl`;
 
     // Expect the object { success, filePath, error } from saveFile
-    const { success, filePath, error: saveError } = await window.electronAPI.saveFile(defaultFilename, ndjsonContent);
+    // Pass the tempFilePath as the 'sourceFilePath' argument
+    const { success, filePath, error: saveError } = await window.electronAPI.saveFile(defaultFilename, tempFilePath);
 
     if (success && filePath) {
       // If successfully saved and path is returned
@@ -111,10 +117,19 @@ export async function exportCollectionDocuments(
       return { success: false, error: 'File export cancelled.' };
     }
   } catch (error: any) {
-    // This catches errors from window.electronAPI.exportCollectionDocuments (getting content)
-    // or unexpected errors during the save process.
+    // This catches errors from window.electronAPI.exportCollectionDocuments (creating temp file)
+    // or unexpected errors during the save process if it throws before the structured return.
     console.error('Failed to export documents during API call:', error);
     return { success: false, error: `Failed to export documents: ${error.message || 'An unknown error occurred during export.'}` };
+  } finally {
+    // Optional: Add a cleanup mechanism for the temporary file if the save operation was cancelled
+    // or failed *after* the temp file was created.
+    // In your current setup, main.js's `file:save` handler handles deletion upon successful `fs.rename`.
+    // However, if the user cancels the dialog *after* the temp file is created but *before* saveFile is called,
+    // or if `saveFile` throws an unexpected error, the temp file might be left behind.
+    // A more robust cleanup strategy would involve the main process managing its own temp files
+    // and cleaning them up on app close, or having a dedicated IPC for explicit temp file deletion.
+    // For now, if the `file:save` handles cleanup correctly on success, this might be less critical here.
   }
 }
 

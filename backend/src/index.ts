@@ -4,7 +4,11 @@ import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
 import dotenv from 'dotenv';
-import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus } from './types'; // Import necessary types
+import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus } from './types';
+import { promises as fs } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config(); // Still load .env for connection strings etc.
 
@@ -268,9 +272,20 @@ export const exportCollectionDocuments = async (collectionName: string, query: o
 
     // Format documents as newline-delimited JSON (NDJSON)
     const ndjsonContent = transformedDocuments.map(doc => JSON.stringify(doc)).join('\n');
-    return ndjsonContent;
+
+    // --- Store content into a temporary file ---
+    const tempDir = os.tmpdir(); // Get the system's temporary directory
+    // Generate a unique filename to avoid conflicts
+    const tempFileName = `export_${collectionName}_${uuidv4()}.jsonl`;
+    const tempFilePath = path.join(tempDir, tempFileName);
+
+    await fs.writeFile(tempFilePath, ndjsonContent, { encoding: 'utf8' });
+    logger.info(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+
+    return tempFilePath; // Return the path to the temporary file
   } catch (error: any) {
-    logger.error({ error, collectionName }, 'IPC: Failed to export documents from collection');
-    throw new Error(`Failed to export documents from collection ${collectionName}: ${error.message}`);
+    logger.error({ error, collectionName }, 'Backend: Failed to export documents to temp file');
+    // Ensure the error message sent back is clear and actionable
+    throw new Error(`Failed to export documents to temporary file for collection ${collectionName}: ${error.message}`);
   }
 };

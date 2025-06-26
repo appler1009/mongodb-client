@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportCollectionDocuments: (collectionName, query) => ipcRenderer.invoke('database:exportDocuments', collectionName, query),
 
   // File system interaction
-  saveFile: (filename, content) => ipcRenderer.invoke('file:save', filename, content),
+  saveFile: (defaultFilename, sourceFilePath) => ipcRenderer.invoke('file:save', defaultFilename, sourceFilePath),
 
   // --- Theme Management IPC calls ---
   // These will be handled by ipcMain in main.js to save/load user preferences

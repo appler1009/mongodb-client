@@ -460,10 +460,11 @@ ipcMain.handle('database:exportDocuments', async (event, collectionName, query) 
 });
 
 // IPC handler for saving files
-ipcMain.handle('file:save', async (event, defaultFilename, content) => {
+ipcMain.handle('file:save', async (event, defaultFilename, sourceFilePath) => {
   try {
+    // 1. Show the save dialog to get the destination path from the user
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: defaultFilename,
+      defaultPath: defaultFilename, // Suggests a filename based on content type
       filters: [
         { name: 'JSON Lines', extensions: ['jsonl'] },
         { name: 'All Files', extensions: ['*'] }
@@ -472,15 +473,22 @@ ipcMain.handle('file:save', async (event, defaultFilename, content) => {
 
     if (canceled || !filePath) {
       logger.info('File save dialog cancelled or no path selected.');
-      return { success: false, filePath: undefined };
+      // Return a structured object with success: false and an error message for frontend
+      return { success: false, filePath: undefined, error: 'User cancelled file save.' };
     }
 
-    await fs.writeFile(filePath, content);
-    logger.info(`File saved successfully to: ${filePath}`);
+    // 2. Perform the move (rename) operation
+    // fs.rename will move the file from sourceFilePath to filePath
+    // If filePath already exists, it will be overwritten.
+    await fs.rename(sourceFilePath, filePath); // Use fs.rename (from fs/promises)
+
+    logger.info(`File moved successfully from temp location to: ${filePath}`);
     return { success: true, filePath: filePath };
+
   } catch (error) {
-    logger.error({ error: error.message, stack: error.stack, defaultFilename }, 'IPC error (file:save)');
-    return { success: false, filePath: undefined, error: error.message || 'Unknown error during file save.' };
+    logger.error({ error: error.message, stack: error.stack, sourceFilePath, defaultFilename }, 'IPC error (file:save) during file move');
+    // It's good practice to provide a more descriptive error message to the frontend
+    return { success: false, filePath: undefined, error: `Failed to save file: ${error.message || 'Unknown error during file save.'}` };
   }
 });
 
