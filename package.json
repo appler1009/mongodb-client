@@ -69,13 +69,14 @@
     "dotenv": "^16.5.0",
     "electron-store": "^10.1.0",
     "fs-extra": "^11.3.0",
+    "jsbn": "^1.1.0",
     "mongodb": "^6.17.0",
-    "pino": "^9.7.0",
-    "pino-pretty": "^13.0.0",
-    "uuid": "^11.1.0",
     "mongodb-wrapper-v3": "file:./packages/mongodb-wrapper-v3",
     "mongodb-wrapper-v4": "file:./packages/mongodb-wrapper-v4",
     "mongodb-wrapper-v5": "file:./packages/mongodb-wrapper-v5",
-    "mongodb-wrapper-v6": "file:./packages/mongodb-wrapper-v6"
+    "mongodb-wrapper-v6": "file:./packages/mongodb-wrapper-v6",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.0.0",
+    "uuid": "^11.1.0"
   }
 }
