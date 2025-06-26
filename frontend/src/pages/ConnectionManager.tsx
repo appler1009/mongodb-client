@@ -52,6 +52,8 @@ export const ConnectionManager: React.FC = () => {
   const [queryText, setQueryText] = useState<string>('{}'); // Default to an empty object for "find all"
   const [parsedQuery, setParsedQuery] = useState<object>({}); // The actual parsed query object to be used for fetching
   const [queryError, setQueryError] = useState<string | null>(null);
+  const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
+
 
   // --- Notification State ---
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
@@ -65,6 +67,7 @@ export const ConnectionManager: React.FC = () => {
     setQueryText('{}');
     setParsedQuery({});
     setQueryError(null);
+    setHasQueryBeenExecuted(false);
   }, []);
 
   // --- Data Fetching ---
@@ -98,6 +101,7 @@ export const ConnectionManager: React.FC = () => {
       setQueryText('{}');
       setParsedQuery({});
       setQueryError(null);
+      setHasQueryBeenExecuted(false);
 
       setCollections(fetchedCollections);
 
@@ -151,8 +155,17 @@ export const ConnectionManager: React.FC = () => {
   }, [currentStatus?.database, fetchCollections, resetBrowserState]);
 
   useEffect(() => {
-    fetchDocuments();
-  }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, fetchDocuments]);
+    // Only attempt to fetch documents if a collection is selected AND
+    // the user has explicitly triggered a query (or pagination/per-page change after a query).
+    if (selectedCollection && hasQueryBeenExecuted) {
+      fetchDocuments();
+    } else if (selectedCollection && !hasQueryBeenExecuted) {
+        // If a collection is selected but no query has been executed yet,
+        // ensure documents are cleared. This handles the state when a new
+        // collection is selected and we're waiting for the first "Run Query".
+        setDocuments([]);
+    }
+  }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, hasQueryBeenExecuted, fetchDocuments]);
 
   useEffect(() => {
     if (notificationMessage) {
@@ -282,6 +295,7 @@ export const ConnectionManager: React.FC = () => {
     setQueryText('{}');
     setParsedQuery({});
     setQueryError(null);
+    setHasQueryBeenExecuted(false);
   };
 
   const handlePrevPage = () => {
@@ -311,6 +325,7 @@ export const ConnectionManager: React.FC = () => {
       setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
       setCurrentPage(1); // Reset to first page for new query
       setQueryError(null);
+      setHasQueryBeenExecuted(true);
     } catch (e: any) {
       setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
     }

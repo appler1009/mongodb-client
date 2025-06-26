@@ -64,7 +64,7 @@ const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionNam
   if (documents.length === 0) {
     return (
       <div className="json-viewer-container">
-        <p>No documents found to display as JSON.</p>
+        <p>Empty</p>
       </div>
     );
   }
@@ -156,7 +156,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return (
       <div className="document-viewer">
         <h4>Documents in "{collectionName}" (0)</h4>
-        <p>No documents found to display.</p>
+        <p>Empty</p>
       </div>
     );
   }
