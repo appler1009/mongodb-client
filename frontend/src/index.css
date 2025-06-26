@@ -101,7 +101,6 @@ code {
   border-radius: 8px;
   padding: 0;
   margin-top: 0;
-  max-height: calc(100vh - 250px); /* Adjust max-height as needed for scroll within your layout */
   overflow: auto; /* Enable scrolling for large JSON content */
   box-shadow: var(--shadow); /* Optional subtle shadow */
 }
@@ -114,69 +113,6 @@ code {
   white-space: pre-wrap; /* Preserve whitespace and wrap long lines */
   word-wrap: break-word; /* Allow long words to break */
   margin: 0; /* Remove default pre margin */
-}
-
-/* --- Existing Table Styles (review for compatibility/improvements) --- */
-.document-table-container {
-  /* Ensure this container has a defined max-height and overflow if you expect many rows */
-  max-height: calc(100vh - 250px); /* Example, adjust based on your layout and header/footer heights */
-  overflow-y: auto; /* Enable vertical scrolling if content overflows */
-  border: 1px solid var(--border-color); /* Add a border around the table */
-  border-radius: 8px; /* Match container border radius */
-  overflow-x: auto; /* Allow horizontal scrolling for wide tables */
-}
-
-.document-table {
-  width: 100%;
-  border-collapse: collapse; /* For clean borders */
-  table-layout: auto; /* Or 'fixed' if you want explicit column widths */
-}
-
-.document-table th,
-.document-table td {
-  border: 1px solid var(--table-border-color, var(--border-color)); /* Consistent border */
-  padding: 10px 12px;
-  text-align: left;
-  vertical-align: top;
-  color: var(--text-color);
-  background-color: var(--bg-color-primary); /* Default cell background */
-}
-
-.document-table thead th {
-  background-color: var(--header-bg); /* Header background */
-  font-weight: bold;
-  position: sticky; /* Make headers sticky for scrolling tables */
-  top: 0;
-  z-index: 1; /* Ensure headers stay above content when scrolling */
-}
-
-.document-table tbody tr:nth-child(even) {
-  background-color: var(--bg-color-even-row);
-}
-
-.document-table tbody tr:nth-child(odd) {
-  background-color: var(--bg-color-odd-row);
-}
-
-.document-table tbody tr:hover {
-  background-color: var(--bg-color-hover-row); /* Hover effect for rows */
-}
-
-.index-column-header, .document-index-cell {
-  width: 50px; /* Fixed width for the index column */
-  min-width: 50px;
-  text-align: center;
-  background-color: var(--header-bg); /* Match header background */
-  font-weight: bold;
-}
-
-.document-data-cell {
-  /* Consider soft wrapping for long text, or limiting width */
-  white-space: pre-wrap; /* Allows text to wrap naturally */
-  word-wrap: break-word; /* Breaks long words if necessary */
-  max-width: 300px; /* Example max width, adjust as needed */
-  overflow: hidden; /* Hide anything that still overflows */
-  text-overflow: ellipsis; /* Add ellipsis if text is truncated */
 }
 
 .nested-data-indicator {
