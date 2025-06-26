@@ -95,8 +95,13 @@ const prepareDocumentForFrontend = (doc: any): any => {
     if (Object.prototype.hasOwnProperty.call(doc, key)) {
       const value = doc[key];
 
-      // Convert ObjectId instances to their hexadecimal string
-      if (value instanceof ObjectId) {
+      // Prioritize checking for the _bsontype property for robustness
+      if (value && typeof value === 'object' && value._bsontype === 'ObjectID') {
+        newDoc[key] = value.toHexString(); // Convert to hex string
+      }
+      // Keep the instanceof check as a fallback or for consistency,
+      // although the _bsontype check is more reliable in this scenario.
+      else if (value instanceof ObjectId) {
         newDoc[key] = value.toHexString();
       }
       // Date objects are generally handled well by JSON.stringify to ISO strings,
