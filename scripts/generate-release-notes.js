@@ -1,6 +1,5 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
-const fetch = require('node-fetch');
 
 const API_URL = 'https://api.x.ai/v1/chat/completions';
 const API_KEY = process.env.XAI_API_KEY;
@@ -13,7 +12,7 @@ async function generateReleaseNotes() {
   // Prepare prompt for Grok
   const prompt = `Summarize the following commit messages into concise, professional release notes in Markdown format, grouping by features, bug fixes, and chores:\n\n${commits}`;
 
-  // Call Grok API
+  // Call Grok API using the native global fetch API (available in Node.js 18+)
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -27,6 +26,11 @@ async function generateReleaseNotes() {
       temperature: 0.7,
     }),
   });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorBody}`);
+  }
 
   const data = await response.json();
   const releaseNotes = data.choices[0]?.message?.content || 'No release notes generated.';
