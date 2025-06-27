@@ -144,12 +144,8 @@ function createWindow() {
       y: y, // Apply loaded Y position
       minWidth: 800,
       minHeight: 600,
-      fullscreen: windowState.isFullScreen, // Apply loaded fullscreen state directly
-      // Explicitly set fullScreenable to true to ensure the macOS green button
-      // enables true full-screen mode, not just maximize.
-      fullScreenable: true,
-      titleBarStyle: 'default',
-      frame: true,
+      fullscreen: windowState.isFullScreen, // Apply loaded fullscreen state
+      fullscreenable: true,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
