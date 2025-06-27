@@ -63,8 +63,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      # This ensures their 'dist' directories (containing .d.ts files) exist
+      # before the main 'npm ci' and 'npm run package' steps.
+      - name: Install and Build MongoDB Wrappers
+        run: |
+          for dir in packages/mongodb-wrapper-v*; do
+            echo "Installing and building in $dir"
+            (cd "$dir" && npm ci && npm run build)
+          done
+
+      - name: Install root dependencies
+        run: npm ci # This will now symlink already-built wrappers
 
       - name: Build and package
         run: npm run package
