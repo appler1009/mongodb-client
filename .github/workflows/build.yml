@@ -67,7 +67,7 @@ jobs:
         run: npm ci
 
       - name: Build and package
-        run: npm run build
+        run: npm run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -75,4 +75,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-dist
-          path: dist/
+          path: release/
