@@ -1,18 +1,14 @@
 // frontend/src/App.tsx
-
+import React from 'react';
+import { HomePage } from './pages/HomePage';
 import './App.css';
-import { ConnectionManager } from './pages/ConnectionManager';
-import { ThemeProvider } from './context/ThemeContext';
 
-function App() {
+const App: React.FC = () => {
   return (
-    // Wrap the entire application with the ThemeProvider
-    <ThemeProvider>
-      <div className="App">
-        <ConnectionManager />
-      </div>
-    </ThemeProvider>
+    <div className="app-container">
+      <HomePage />
+    </div>
   );
-}
+};
 
 export default App;
