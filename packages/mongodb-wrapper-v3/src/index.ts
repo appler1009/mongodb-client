@@ -1,9 +1,15 @@
 // packages/mongodb-wrapper-v3/src/index.ts
-import { MongoClient, MongoClientOptions, Db, Collection, Document, ObjectId } from 'mongodb'; // Import types for internal use
+import { MongoClient, MongoClientOptions, Db, Collection, ObjectId } from 'mongodb';
+
+// Define a type for a generic MongoDB document for v3.x.x.
+// In MongoDB driver v3, documents are generally treated as plain objects.
+// If you need more specific BSON types, you might import from 'bson' package,
+// but for a general wrapper, this 'Record<string, any>' is usually sufficient.
+export type MongoDBDocumentV3 = Record<string, any>;
 
 // Re-export common classes and types from the underlying 'mongodb' driver v3.x.x
-export { MongoClient }; // MongoClient in v3 is typically a class
-export { MongoClientOptions, Db, Collection, Document, ObjectId }; // Types for v3
+// Removed 'Document' from here as well.
+export { MongoClient, MongoClientOptions, Db, Collection, ObjectId, MongoDBDocumentV3 as Document };
 
 export class MongoDBWrapperV3 {
   private client: MongoClient | null = null;
@@ -29,7 +35,12 @@ export class MongoDBWrapperV3 {
         return this.connect();
       }
     } else {
-      this.client = new MongoClient(this.uri, this.options);
+      // Create a new MongoClient instance if none exists
+      this.client = new MongoClient(this.uri, {
+        ...this.options, // Spread any provided options
+        useNewUrlParser: true, // Required for v3.x.x driver
+        useUnifiedTopology: true, // Required for v3.x.x driver
+      });
       await this.client.connect();
     }
 
