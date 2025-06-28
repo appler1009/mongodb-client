@@ -63,12 +63,24 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install and Build MongoDB Wrappers
+      - name: Install and Build MongoDB Wrappers (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           for dir in packages/mongodb-wrapper-v*; do
             echo "Installing and building in $dir"
             (cd "$dir" && npm install && npm run build)
           done
+
+      - name: Install and Build MongoDB Wrappers (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Get-ChildItem -Path packages -Directory -Filter "mongodb-wrapper-v*" | ForEach-Object {
+            Write-Host "Installing and building in $($_.Name)"
+            Push-Location $_.FullName
+            npm install
+            npm run build
+            Pop-Location
+          }
 
       - name: Install root dependencies
         run: npm install
