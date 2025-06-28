@@ -1,0 +1,99 @@
+/* frontend/src/styles/ConnectionManager.css */
+
+/* Connection Management Forms & Inputs */
+.connection-manager-view { /* This is the main wrapper for the ConnectionManager component */
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 0; /* Padding will be added to child elements like forms/lists */
+    color: var(--text-color);
+    margin-top: 0;
+    flex-grow: 1; /* Allows it to take available space in HomePage */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center content horizontally */
+    width: 100%; /* Take full width of its parent */
+    max-width: 800px; /* Max width for readability */
+    margin: 20px auto; /* Center the component and provide vertical spacing */
+}
+
+
+.connection-form, .edit-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    margin: 20px; /* Adjusted margin for standalone component */
+    background-color: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    width: calc(100% - 40px); /* Adjust for padding/margin */
+}
+
+.connection-form input,
+.edit-form input,
+.connection-form textarea,
+.edit-form textarea {
+    padding: 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 5px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 1em;
+}
+
+.connection-form input::placeholder,
+.edit-form input::placeholder,
+.connection-form textarea::placeholder,
+.edit-form textarea::placeholder {
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.connection-form textarea,
+.edit-form textarea {
+    min-height: 80px;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.9em;
+}
+
+/* Connection List */
+.connection-list {
+    list-style: none;
+    padding: 0;
+    width: calc(100% - 40px); /* Match form width */
+    margin: 0 20px 20px 20px;
+}
+
+.connection-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.connection-item:last-child {
+    margin-bottom: 0; /* No margin after the last item */
+}
+
+.connection-item h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: var(--header-color);
+    text-align: left; /* Align to left within the item */
+}
+
+.connection-item p {
+    margin: 5px 0;
+    color: var(--text-color);
+}
+
+.connection-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}

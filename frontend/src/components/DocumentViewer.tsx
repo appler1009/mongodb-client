@@ -9,6 +9,8 @@ import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { ThemeContext } from '../context/ThemeContext';
 
+import '../styles/DocumentViewer.css';
+
 
 interface DocumentViewerProps {
   collectionName: string | null;

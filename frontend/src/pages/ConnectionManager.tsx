@@ -11,6 +11,8 @@ import {
 
 import { Dialog } from '../components/Dialog';
 
+import '../styles/ConnectionManager.css';
+
 // Define props for the refactored ConnectionManager
 interface ConnectionManagerProps {
   currentStatus: ConnectionStatus | null;

@@ -1,0 +1,353 @@
+/* frontend/src/styles/App.css */
+
+/* Define CSS Variables for Theming */
+:root {
+    /* Light Theme Defaults */
+    --primary-color: #007bff; /* Main accent color (blue) */
+    --secondary-color: #6c757d; /* Secondary text/muted color */
+    --bg-color: #f8f9fa; /* Overall page background */
+    --card-bg: #ffffff; /* Background for cards, containers, forms */
+    --text-color: #343a40; /* Main text color */
+    --header-color: #0056b3; /* Darker blue for headings */
+    --error-color: #dc3545; /* Red for error messages */
+    --success-color: #28a745; /* Green for success messages */
+    --button-bg: var(--primary-color); /* Button background */
+    --button-text: #ffffff; /* Button text color */
+    --button-hover-bg: #0056b3; /* Button hover background */
+    --input-border: #ced4da; /* Input field borders */
+    --border-color: #e9ecef; /* General border color */
+    --selected-item-bg: #e2f2ff; /* Background for selected list items */
+    --selected-item-border: var(--primary-color); /* Border/text for selected list items */
+    --table-header-bg: #e9ecef; /* Table header background */
+    --table-row-hover-bg: #f2f2f2; /* Table row hover background */
+    --pagination-text-color: #5a5a5a; /* Text color for pagination info */
+    --header-bg-color: #e9ecef; /* Background for the new app header */
+
+    --view-toggle-button-bg: #e9ecef; /* Light grey for non-active toggle buttons */
+    --view-toggle-button-text: var(--text-color); /* Default text color for toggle buttons */
+    --view-toggle-button-hover-bg: #dee2e6; /* Slightly darker on hover */
+
+    /* For Dialog Component */
+    --dialog-overlay-bg: rgba(0, 0, 0, 0.5); /* Semi-transparent black overlay */
+    --dialog-bg: var(--card-bg);
+    --dialog-border: var(--border-color);
+    --dialog-title-color: var(--header-color);
+    --dialog-message-color: var(--text-color);
+    --dialog-button-confirm-bg: var(--primary-color);
+    --dialog-button-confirm-hover-bg: var(--button-hover-bg);
+    --dialog-button-cancel-bg: var(--secondary-color);
+    --dialog-button-cancel-hover-bg: #5a6268; /* Darker grey hover */
+}
+
+/* Dark Theme Variables */
+[data-theme='dark'] {
+    --primary-color: #20c997; /* Teal for dark theme accents */
+    --secondary-color: #adb5bd;
+    --bg-color: #212529; /* Dark background */
+    --card-bg: #343a40; /* Darker card background */
+    --text-color: #f8f9fa; /* Light text color */
+    --header-color: #17a2b8; /* Cyan for dark theme headings */
+    --error-color: #dc3545; /* Red still prominent for errors */
+    --success-color: #90ee90; /* Light green for success */
+    --button-bg: var(--primary-color);
+    --button-hover-bg: #17a2b8; /* Darker teal/cyan hover */
+    --button-text: #ffffff;
+    --input-border: #495057;
+    --border-color: #495057;
+    --selected-item-bg: #1e5e54; /* Darker teal for selected item */
+    --selected-item-border: var(--primary-color);
+    --table-header-bg: #495057;
+    --table-row-hover-bg: #4d535b;
+    --pagination-text-color: #ced4da;
+    --header-bg-color: #343a40; /* Darker background for the new app header */
+
+    --view-toggle-button-bg: #495057; /* Darker grey for non-active toggle buttons */
+    --view-toggle-button-text: var(--text-color);
+    --view-toggle-button-hover-bg: #5a6068; /* Slightly lighter on hover */
+
+    /* For Dialog Component - dark theme adjustments */
+    --dialog-overlay-bg: rgba(0, 0, 0, 0.7);
+    --dialog-bg: #2d3238;
+    --dialog-border: #444a50;
+    --dialog-title-color: var(--primary-color);
+    --dialog-message-color: var(--text-color);
+    --dialog-button-confirm-bg: var(--primary-color);
+    --dialog-button-confirm-hover-bg: var(--button-hover-bg);
+    --dialog-button-cancel-bg: #5a6268;
+    --dialog-button-cancel-hover-bg: #6c757d;
+}
+
+/* Base Styles */
+body {
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* General Layout */
+.app-container { /* Renamed from .App to avoid conflict and align with HomePage */
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* App Header/Toolbar Styles */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--border-color);
+    margin: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    color: var(--text-color);
+    flex-shrink: 0;
+}
+
+.app-title {
+    margin: 0;
+    font-size: 1.8em;
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.status-indicators {
+    display: flex;
+    gap: 15px;
+    font-size: 0.9em;
+    color: var(--secondary-color);
+    flex-wrap: wrap;
+}
+
+.health-status-header span {
+    font-weight: bold;
+}
+
+.connection-status-header .connected-db-name {
+    font-weight: bold;
+    color: var(--header-color);
+}
+
+.header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.disconnect-button {
+    background-color: var(--error-color);
+    color: var(--button-text);
+    padding: 8px 12px;
+    font-size: 0.9em;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    margin-right: 0;
+}
+
+.disconnect-button:hover {
+    background-color: color-mix(in srgb, var(--error-color) 85%, black);
+}
+
+h2, h3, h4 {
+    color: var(--header-color);
+    text-align: center;
+    margin-bottom: 25px; /* General margin for headings */
+}
+
+.error-message {
+    background-color: var(--error-color);
+    color: var(--button-text);
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    text-align: center;
+    margin: 15px auto; /* Centered, with space above and below */
+    width: fit-content;
+    max-width: 80%;
+}
+
+/* General Buttons (not specific to ConnectionManager or DatabaseBrowser) */
+button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    margin-right: 10px; /* Default margin for buttons */
+}
+
+button:last-child {
+    margin-right: 0;
+}
+
+button:hover:not(:disabled) {
+    background-color: var(--button-hover-bg);
+    transform: translateY(-1px);
+}
+
+button:disabled {
+    background-color: var(--input-border);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* General Code/Font */
+code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* Notification Message */
+.notification-message {
+    background-color: color-mix(in srgb, var(--primary-color) 15%, transparent); /* Light background using primary color */
+    color: var(--primary-color); /* Text color using primary color */
+    border: 1px solid var(--primary-color);
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 15px auto; /* Centered, with space above and below */
+    width: fit-content; /* Shrink to content width */
+    max-width: 80%; /* Don't get too wide */
+    text-align: center;
+    font-weight: bold;
+    opacity: 1;
+    transition: opacity 0.3s ease-in-out;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Dialog Component Styles (could be moved to Dialog.css later) */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--dialog-overlay-bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Ensure it's on top */
+}
+
+.dialog-content {
+    background-color: var(--dialog-bg);
+    border: 1px solid var(--dialog-border);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    padding: 30px;
+    width: 90%;
+    max-width: 450px;
+    text-align: center;
+    color: var(--dialog-message-color);
+}
+
+.dialog-title {
+    color: var(--dialog-title-color);
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+}
+
+.dialog-message {
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.dialog-button {
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    margin-right: 0; /* Override general button margin */
+}
+
+.dialog-button.confirm-button {
+    background-color: var(--dialog-button-confirm-bg);
+    color: var(--button-text);
+}
+
+.dialog-button.confirm-button:hover {
+    background-color: var(--dialog-button-confirm-hover-bg);
+}
+
+.dialog-button.cancel-button {
+    background-color: var(--dialog-button-cancel-bg);
+    color: var(--button-text);
+}
+
+.dialog-button.cancel-button:hover {
+    background-color: var(--dialog-button-cancel-hover-bg);
+}
+
+
+/* Theme Toggle Button Styles (from App.css) */
+.theme-toggle-container {
+    /* Ensure this is displayed if it was hidden before, or hide if it's not needed globally */
+    /* Example: display: flex; if you place it somewhere in the App.tsx directly */
+}
+
+.theme-toggle-button {
+    background-color: var(--view-toggle-button-bg); /* Use theme vars for consistency */
+    color: var(--view-toggle-button-text);
+    border: 1px solid var(--border-color); /* Use border-color for a subtle border */
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-toggle-button:hover:not(:disabled) {
+    background-color: var(--view-toggle-button-hover-bg);
+    transform: scale(1.05);
+}
+
+.theme-toggle-button.system-toggle.active {
+    background-color: var(--primary-color) !important; /* Brighter background */
+    border-color: var(--primary-color) !important; /* Distinct border */
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); /* Subtle glow, using a fallback blue for rgb if primary-color-rgb isn't defined */
+}
+
+.theme-toggle-button:disabled {
+    background-color: var(--input-border) !important; /* Stronger disabled background */
+    color: var(--secondary-color) !important; /* Dimmed text/icon color */
+    cursor: not-allowed !important;
+    opacity: 0.6 !important; /* Dim the button */
+    pointer-events: none; /* Ensures no click events are processed */
+    border-color: transparent !important; /* No border for disabled state */
+}
+
+.theme-toggle-button:disabled .theme-icon {
+    filter: grayscale(100%) brightness(1.5); /* Example: desaturate and brighten slightly for disabled look */
+    opacity: 0.7;
+}
+.theme-icon {
+    width: 24px;
+    height: 24px;
+    filter: var(--theme-icon-filter, none);
+}

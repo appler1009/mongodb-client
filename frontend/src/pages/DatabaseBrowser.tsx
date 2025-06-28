@@ -9,8 +9,10 @@ import {
 } from '../api/backend';
 
 // imports for components that DatabaseBrowser uses
-import { CollectionBrowser } from '../components/CollectionBrowser'; // Still in components
-import { DocumentViewer } from '../components/DocumentViewer';     // Still in components
+import { CollectionBrowser } from '../components/CollectionBrowser';
+import { DocumentViewer } from '../components/DocumentViewer';
+
+import '../styles/DatabaseBrowser.css';
 
 interface DatabaseBrowserProps {
   currentStatus: ConnectionStatus | null;
