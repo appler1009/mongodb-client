@@ -37,16 +37,6 @@ jobs:
           name: release-notes
           path: RELEASE_NOTES.md
 
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.run_number }}
-          release_name: Release v${{ github.run_number }}
-          body_path: RELEASE_NOTES.md
-          draft: false
-
   build:
     needs: release-notes
     strategy:
@@ -93,5 +83,60 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-dist
-          path: release/
+          # Use a consistent pattern for artifact names to easily download them later
+          name: ${{ matrix.os }}-release-build
+          path: release/ # Path to your electron-builder output directory
+
+  release:
+    # This job depends on the 'release-notes' job for the body content
+    # AND all instances of the 'build' job to ensure binaries are ready.
+    needs: [release-notes, build]
+    runs-on: ubuntu-latest # Run this on a single OS as it's just coordinating
+    permissions:
+      contents: write # Necessary to create and upload assets to a release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Needed to access RELEASE_NOTES.md if it's not an artifact
+
+      - name: Download release notes artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: . # Download to current directory
+
+      # Download all platform-specific build artifacts
+      - name: Download all release builds
+        uses: actions/download-artifact@v4
+        with:
+          # This downloads ALL artifacts that match the pattern,
+          # placing them in subdirectories named after the artifact names (e.g., ubuntu-latest-release-build/, windows-latest-release-build/)
+          # The '*' matches the 'name' given in the upload step for each OS.
+          pattern: '*-release-build'
+          path: ./release-builds-download
+
+      - name: List downloaded artifacts (for debugging)
+        run: ls -R ./release-builds-download
+
+      - name: Create GitHub Release
+        id: create_release # Give this step an ID to reference its outputs
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }} # Use the same tag as before
+          release_name: Release v${{ github.run_number }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false # Set to true if you want draft/pre-release
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1 # A better action for uploading multiple assets
+        if: success() # Only run if release creation was successful
+        with:
+          files: |
+            ./release-builds-download/**/* # Upload all files from the downloaded directories
+          tag_name: v${{ github.run_number }} # Match the tag created by the previous step
+          # You can add a name for each asset if you want to be more specific,
+          # but for multiple files, a wildcard is easier.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
