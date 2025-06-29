@@ -1,6 +1,7 @@
-// frontend/src/components/CollectionBrowser.tsx
 import React from 'react';
+import { ListGroup } from 'react-bootstrap';
 import type { CollectionInfo } from '../types';
+import '../styles/CollectionBrowser.css';
 
 interface CollectionBrowserProps {
   collections: CollectionInfo[];
@@ -17,19 +18,20 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
     <div className="collection-browser">
       <h4>Collections ({collections.length})</h4>
       {collections.length === 0 ? (
-        <p>No collections found in this database.</p>
+        <p className="text-muted">No collections found in this database.</p>
       ) : (
-        <ul>
+        <ListGroup>
           {collections.map((col) => (
-            <li
+            <ListGroup.Item
               key={col.name}
-              className={col.name === selectedCollection ? 'selected' : ''}
+              active={col.name === selectedCollection}
               onClick={() => onSelectCollection(col.name)}
+              action
             >
               {col.name}
-            </li>
+            </ListGroup.Item>
           ))}
-        </ul>
+        </ListGroup>
       )}
     </div>
   );

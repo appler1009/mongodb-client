@@ -1,6 +1,5 @@
-// frontend/src/pages/ConnectionManager.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import type { ChangeEvent } from 'react';
+import { Container, Form, Button, ListGroup, InputGroup, Alert } from 'react-bootstrap';
 import type { ConnectionConfig, ConnectionStatus } from '../types';
 import {
   getConnections,
@@ -8,26 +7,21 @@ import {
   updateConnection,
   deleteConnection,
 } from '../api/backend';
-
 import { Dialog } from '../components/Dialog';
-
 import '../styles/ConnectionManager.css';
 
-// Define props for the refactored ConnectionManager
 interface ConnectionManagerProps {
   currentStatus: ConnectionStatus | null;
-  onConnect: (id: string) => Promise<void>; // Passed from HomePage
-  setNotificationMessage: (message: string | null) => void; // Passed from HomePage
-  setError: (message: string | null) => void; // Passed from HomePage
+  onConnect: (id: string) => Promise<void>;
+  setNotificationMessage: (message: string | null) => void;
+  setError: (message: string | null) => void;
 }
 
-// Initial state for a new connection form
 const initialNewConnection: Omit<ConnectionConfig, 'id'> = {
   name: '',
   uri: '',
 };
 
-// Refactored ConnectionManager component
 export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   currentStatus,
   onConnect,
@@ -38,11 +32,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   const [newConnection, setNewConnection] = useState<Omit<ConnectionConfig, 'id'>>(initialNewConnection);
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-
   const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = useState<boolean>(false);
   const [connectionToDeleteId, setConnectionToDeleteId] = useState<string | null>(null);
 
-  // --- Data Fetching ---
   const fetchConnections = async () => {
     setLoading(true);
     setError(null);
@@ -56,12 +48,10 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     }
   };
 
-  // --- Initial Load of Connections ---
   useEffect(() => {
     fetchConnections();
-  }, []); // Empty dependency array means run once on mount
+  }, []);
 
-  // --- Form Handlers ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewConnection((prev) => ({ ...prev, [name]: value }));
@@ -101,23 +91,20 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     }
   };
 
-  // Handler for delete confirmation dialog
   const confirmDeleteConnection = useCallback((id: string) => {
     setConnectionToDeleteId(id);
     setShowConfirmDeleteDialog(true);
   }, []);
 
   const handleDeleteConnection = useCallback(async () => {
-    setShowConfirmDeleteDialog(false); // Close dialog
-    setError(null); // This setError comes from props
+    setShowConfirmDeleteDialog(false);
+    setError(null);
     if (!connectionToDeleteId) return;
 
     try {
       await deleteConnection(connectionToDeleteId);
       setConnections((prev) => prev.filter((conn) => conn.id !== connectionToDeleteId));
       if (currentStatus?.connectionId === connectionToDeleteId) {
-        // If the deleted connection was the active one, trigger a disconnect
-        // which will be handled by HomePage's `handleDisconnect` via state change.
       }
       setNotificationMessage('Connection deleted successfully!');
     } catch (err: any) {
@@ -125,82 +112,112 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     } finally {
       setConnectionToDeleteId(null);
     }
-  }, [connectionToDeleteId, currentStatus, setNotificationMessage, setError]); // Dependencies for useCallback
+  }, [connectionToDeleteId, currentStatus, setNotificationMessage, setError]);
 
   const handleCancelDelete = useCallback(() => {
     setShowConfirmDeleteDialog(false);
     setConnectionToDeleteId(null);
   }, []);
 
-
-  // --- Rendering ---
   if (loading) {
-    return <div className="loading">Loading connections...</div>;
+    return <div className="text-center mt-4">Loading connections...</div>;
   }
 
   return (
-    <div className="connection-manager-view">
-      <form onSubmit={handleAddConnection} className="connection-form">
-        <h3>Add New Connection</h3>
-        <input
-          type="text"
-          name="name"
-          placeholder="Connection Name"
-          value={newConnection.name}
-          onChange={handleChange}
-          required
-        />
-        <textarea
-          name="uri"
-          placeholder="MongoDB URI (e.g., mongodb://user:pass@host:port/database?replicaSet=mySet)"
-          value={newConnection.uri}
-          onChange={handleChange}
-          rows={3}
-          required
-        />
-        <button type="submit">Add Connection</button>
-      </form>
+    <Container className="py-4">
+      <h3>Add New Connection</h3>
+      <Form onSubmit={handleAddConnection} className="mb-4">
+        <Form.Group className="mb-3">
+          <Form.Label>Connection Name</Form.Label>
+          <Form.Control
+            type="text"
+            name="name"
+            placeholder="Connection Name"
+            value={newConnection.name}
+            onChange={handleChange}
+            required
+          />
+        </Form.Group>
+        <Form.Group className="mb-3">
+          <Form.Label>MongoDB URI</Form.Label>
+          <Form.Control
+            as="textarea"
+            name="uri"
+            placeholder="MongoDB URI (e.g., mongodb://user:pass@host:port/database?replicaSet=mySet)"
+            value={newConnection.uri}
+            onChange={handleChange}
+            rows={3}
+            required
+          />
+        </Form.Group>
+        <Button type="submit" variant="primary">Add Connection</Button>
+      </Form>
 
       <h3>Saved Connections</h3>
       {connections.length === 0 ? (
-        <ul className="connection-list">
-          <li key="empty-connection-item" className="connection-item">
-            <p>No connections saved yet.</p>
-          </li>
-        </ul>
+        <Alert variant="info">No connections saved yet.</Alert>
       ) : (
-        <ul className="connection-list">
+        <ListGroup>
           {connections.map((conn) => (
-            <li key={conn.id} className="connection-item">
+            <ListGroup.Item key={conn.id}>
               {editingConnection && editingConnection.id === conn.id ? (
-                <form onSubmit={handleUpdateConnection} className="edit-form">
-                  <input type="text" name="name" value={editingConnection.name} onChange={handleEditChange} required />
-                  <textarea
-                    name="uri"
-                    value={editingConnection.uri}
-                    onChange={handleEditChange}
-                    rows={3}
-                    required
-                  />
-                  <button type="submit">Save</button>
-                  <button type="button" onClick={() => setEditingConnection(null)}>Cancel</button>
-                </form>
+                <Form onSubmit={handleUpdateConnection}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Connection Name</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="name"
+                      value={editingConnection.name}
+                      onChange={handleEditChange}
+                      required
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-3">
+                    <Form.Label>MongoDB URI</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      name="uri"
+                      value={editingConnection.uri}
+                      onChange={handleEditChange}
+                      rows={3}
+                      required
+                    />
+                  </Form.Group>
+                  <InputGroup>
+                    <Button type="submit" variant="success" className="me-2">Save</Button>
+                    <Button variant="secondary" onClick={() => setEditingConnection(null)}>Cancel</Button>
+                  </InputGroup>
+                </Form>
               ) : (
                 <div className="connection-details">
                   <h4>{conn.name}</h4>
-                  <p>URI: {conn.uri}</p>
-                  <div className="connection-actions">
-                    <button onClick={() => onConnect(conn.id)} disabled={currentStatus !== null}>
+                  <p className="connection-uri">URI: {conn.uri}</p>
+                  <InputGroup>
+                    <Button
+                      variant="primary"
+                      onClick={() => onConnect(conn.id)}
+                      disabled={currentStatus !== null}
+                    >
                       Connect
-                    </button>
-                    <button onClick={() => setEditingConnection(conn)}>Edit</button>
-                    <button onClick={() => confirmDeleteConnection(conn.id)}>Delete</button>
-                  </div>
+                    </Button>
+                    <Button
+                      variant="outline-warning"
+                      onClick={() => setEditingConnection(conn)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline-danger"
+                      onClick={() => confirmDeleteConnection(conn.id)}
+                    >
+                      Delete
+                    </Button>
+                  </InputGroup>
                 </div>
               )}
-            </li>
+            </ListGroup.Item>
           ))}
-        </ul>
+        </ListGroup>
       )}
 
       {showConfirmDeleteDialog && (
@@ -211,6 +228,6 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
           onCancel={handleCancelDelete}
         />
       )}
-    </div>
+    </Container>
   );
 };

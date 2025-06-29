@@ -1,9 +1,7 @@
-// frontend/src/pages/HomePage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
+import { Container, Alert } from 'react-bootstrap';
 import type { ConnectionStatus } from '../types';
 import { connectToMongo, disconnectFromMongo } from '../api/backend';
-
-// Imports for components that HomePage will orchestrate
 import { AppHeader } from '../components/AppHeader';
 import { ConnectionManager } from './ConnectionManager';
 import { DatabaseBrowser } from './DatabaseBrowser';
@@ -13,7 +11,6 @@ export const HomePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
 
-  // --- Notification Message Effect ---
   useEffect(() => {
     if (notificationMessage) {
       const timer = setTimeout(() => {
@@ -23,7 +20,6 @@ export const HomePage: React.FC = () => {
     }
   }, [notificationMessage]);
 
-  // --- Connection/Disconnection Handlers (managed by HomePage) ---
   const handleConnect = useCallback(async (id: string) => {
     setError(null);
     try {
@@ -52,23 +48,28 @@ export const HomePage: React.FC = () => {
   }, [currentStatus]);
 
   return (
-    <div className="home-page-container">
+    <Container fluid className="home-page-container py-3">
       <AppHeader
         currentStatus={currentStatus}
         onDisconnect={handleDisconnect}
       />
-
-      {error && <div className="error-message">{error}</div>}
-
+      {error && (
+        <Alert variant="danger" className="mt-3 text-center">
+          {error}
+        </Alert>
+      )}
+      {notificationMessage && (
+        <Alert variant="primary" className="mt-3 text-center">
+          {notificationMessage}
+        </Alert>
+      )}
       {currentStatus?.database ? (
-        // Render DatabaseBrowser when connected
         <DatabaseBrowser
           currentStatus={currentStatus}
           setNotificationMessage={setNotificationMessage}
           setError={setError}
         />
       ) : (
-        // Render ConnectionManager when disconnected
         <ConnectionManager
           currentStatus={currentStatus}
           onConnect={handleConnect}
@@ -76,6 +77,6 @@ export const HomePage: React.FC = () => {
           setError={setError}
         />
       )}
-    </div>
+    </Container>
   );
 };

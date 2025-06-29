@@ -1,5 +1,5 @@
-// frontend/src/components/Dialog.tsx
 import React from 'react';
+import { Modal, Button } from 'react-bootstrap';
 
 interface DialogProps {
   title: string;
@@ -19,20 +19,19 @@ export const Dialog: React.FC<DialogProps> = ({
   cancelText = 'Cancel',
 }) => {
   return (
-    // Overlay for the dialog to prevent interaction with background content
-    <div className="dialog-overlay">
-      <div className="dialog-content">
-        <h3 className="dialog-title">{title}</h3>
-        <p className="dialog-message">{message}</p>
-        <div className="dialog-actions">
-          <button className="dialog-button cancel-button" onClick={onCancel}>
-            {cancelText}
-          </button>
-          <button className="dialog-button confirm-button" onClick={onConfirm}>
-            {confirmText}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal show={true} onHide={onCancel} centered>
+      <Modal.Header closeButton>
+        <Modal.Title>{title}</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>{message}</Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onCancel}>
+          {cancelText}
+        </Button>
+        <Button variant="primary" onClick={onConfirm}>
+          {confirmText}
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 };

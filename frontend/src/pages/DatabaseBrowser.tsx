@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, ChangeEvent, KeyboardEvent } from 'react';
+import { Container, Row, Col, Form, Button, Alert, InputGroup, FormCheck } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo, Document } from '../types';
 import {
   getDatabaseCollections,
@@ -8,7 +9,6 @@ import {
   generateAIQuery,
 } from '../api/backend';
 
-// imports for components that DatabaseBrowser uses
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 
@@ -298,15 +298,15 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   };
 
   if (!currentStatus?.database) {
-    return <p>Select a connection to browse databases.</p>;
+    return <p className="text-center mt-4">Select a connection to browse databases.</p>;
   }
 
   return (
-    <div className="database-browser-section">
-      <div className="browser-content">
-        <div className="collections-pane">
+    <Container fluid className="database-browser-section py-4">
+      <Row>
+        <Col md={3} className="collections-pane">
           {collectionsLoading ? (
-            <p>Loading collections...</p>
+            <p className="text-center mt-3">Loading collections...</p>
           ) : (
             <CollectionBrowser
               collections={collections}
@@ -314,44 +314,49 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               onSelectCollection={handleCollectionSelect}
             />
           )}
-        </div>
-        <div className="document-panel-right">
-          {queryError && <div className="query-error-message">{queryError}</div>}
+        </Col>
+        <Col md={9} className="document-panel-right">
+          {queryError && (
+            <Alert variant="danger" className="mt-3">
+              {queryError}
+            </Alert>
+          )}
 
-          <div className="query-editor-container">
+          <div className="query-editor-container mb-4">
             <h4>Query Helper</h4>
-            <textarea
-              className="prompt-editor"
+            <Form.Control
+              as="textarea"
+              className="prompt-editor mb-2"
               value={promptText}
               onChange={handlePromptTextChange}
               onKeyDown={handlePromptKeyDown}
-              placeholder='Enter natural language prompt (e.g., "find users older than 30")'
+              placeholder="Enter natural language prompt (e.g., 'find users older than 30')"
               rows={3}
               disabled={documentsLoading || aiLoading}
             />
-            <div className="query-helper-controls">
-              <label className="auto-run-checkbox">
-                <input
-                  type="checkbox"
-                  checked={autoRunGeneratedQuery}
-                  onChange={handleAutoRunCheckboxChange}
-                  disabled={aiLoading}
-                />
-                Auto-run
-              </label>
-              <button
+            <InputGroup className="mb-3">
+              <FormCheck
+                type="checkbox"
+                label="Auto-run"
+                checked={autoRunGeneratedQuery}
+                onChange={handleAutoRunCheckboxChange}
+                disabled={aiLoading}
+                className="me-2"
+              />
+              <Button
+                variant="primary"
                 onClick={handleGenerateAIQuery}
                 disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
-                className="query-helper-generate-button"
                 title="Generate MongoDB query using Query Helper based on your natural language prompt"
               >
                 {aiLoading ? 'Generating Query...' : 'Generate Query'}
-              </button>
-            </div>
+              </Button>
+            </InputGroup>
 
             <h4>Find Query (JSON)</h4>
-            <textarea
-              className="query-editor"
+            <Form.Control
+              as="textarea"
+              className="query-editor mb-2"
               value={queryText}
               onChange={handleQueryTextChange}
               onKeyDown={handleQueryKeyDown}
@@ -359,45 +364,62 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               rows={5}
               disabled={documentsLoading || aiLoading}
             />
-            <div className="query-controls">
-              <button
+            <InputGroup>
+              <Button
+                variant="secondary"
                 onClick={handleExport}
                 disabled={!selectedCollection || documentsLoading || aiLoading}
-                className="export-button"
                 title="Export all documents matching the current query to a JSON Lines file"
               >
                 Export
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="success"
                 onClick={handleExecuteManualQuery}
                 disabled={documentsLoading || aiLoading || !selectedCollection}
               >
                 Run Query
-              </button>
-            </div>
+              </Button>
+            </InputGroup>
           </div>
 
           {selectedCollection && (
-            <div className="pagination-controls">
-              <span>
-                Documents per page:
-                <select value={documentsPerPage} onChange={handleDocumentsPerPageChange} disabled={documentsLoading || aiLoading}>
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </span>
-              <span>
+            <InputGroup className="pagination-controls mb-3">
+              <Form.Select
+                value={documentsPerPage}
+                onChange={handleDocumentsPerPageChange}
+                disabled={documentsLoading || aiLoading}
+                className="me-2"
+                style={{ width: 'auto' }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </Form.Select>
+              <Form.Text className="me-2">
                 Page {currentPage} of {totalPages} (Total: {totalDocuments} documents)
-              </span>
-              <button onClick={handlePrevPage} disabled={currentPage === 1 || documentsLoading || aiLoading}>Previous</button>
-              <button onClick={handleNextPage} disabled={currentPage === totalPages || documentsLoading || aiLoading}>Next</button>
-            </div>
+              </Form.Text>
+              <Button
+                variant="outline-primary"
+                onClick={handlePrevPage}
+                disabled={currentPage === 1 || documentsLoading || aiLoading}
+                className="me-2"
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline-primary"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages || documentsLoading || aiLoading}
+              >
+                Next
+              </Button>
+            </InputGroup>
           )}
 
           {documentsLoading ? (
-            <p>Loading documents...</p>
+            <p className="text-center mt-3">Loading documents...</p>
           ) : (
             <DocumentViewer
               collectionName={selectedCollection}
@@ -406,8 +428,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               documentsPerPage={documentsPerPage}
             />
           )}
-        </div>
-      </div>
-    </div>
+        </Col>
+      </Row>
+    </Container>
   );
 };

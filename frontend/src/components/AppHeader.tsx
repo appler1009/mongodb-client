@@ -1,13 +1,10 @@
-// frontend/src/components/AppHeader.tsx
-
 import React, { useContext } from 'react';
+import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import type { ConnectionStatus } from '../types';
 import { ThemeContext } from '../context/ThemeContext';
-
 import SunIcon from '../assets/icons/sun-icon.svg';
 import MoonIcon from '../assets/icons/moon-icon.svg';
 import SystemIcon from '../assets/icons/system-icon.svg';
-
 
 interface AppHeaderProps {
   currentStatus: ConnectionStatus | null;
@@ -23,58 +20,57 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     throw new Error('AppHeader must be used within a ThemeProvider');
   }
 
-  // Destructure values from the ThemeContext
-  // We'll use the `toggleTheme` function provided by the context directly.
   const { theme, toggleTheme, isSystemThemeActive, setIsSystemThemeActive } = themeContext;
 
-  // Toggle for system theme preference
   const handleToggleSystemTheme = () => {
-    setIsSystemThemeActive(prev => !prev);
+    setIsSystemThemeActive((prev) => !prev);
   };
 
   return (
-    <header className="app-header">
-      <div className="header-left">
-        <h1 className="app-title">MongoDB Client</h1>
-        <div className="status-indicators">
+    <Navbar expand="lg" className="app-header mb-3">
+      <Container fluid>
+        <Navbar.Brand className="app-title">MongoDB Client</Navbar.Brand>
+        <Nav className="me-auto status-indicators">
           {currentStatus && (
-            <>
-              <span className="connection-status-header">
-                Connected to: <strong className="connected-db-name">{currentStatus.database}</strong>
-              </span>
-              <button
-                onClick={onDisconnect}
-                className="disconnect-button"
-                title="Disconnect from current database"
-              >Disconnect</button>
-            </>
+            <Nav.Item className="connection-status-header">
+              Connected to: <strong className="connected-db-name">{currentStatus.database}</strong>
+            </Nav.Item>
           )}
-        </div>
-      </div>
-      <div className="header-right">
-        {/* System theme toggle button */}
-        <button
-          onClick={handleToggleSystemTheme} // Use the new handler name
-          className={`theme-toggle-button system-toggle ${isSystemThemeActive ? 'active' : ''}`}
-          title={isSystemThemeActive ? 'Using System Theme (Click to switch to manual mode)' : 'Switch to System Theme'}
-        >
-          <img src={SystemIcon} alt="System Theme Icon" className="theme-icon" />
-        </button>
-
-        {/* Manual theme toggle button - disabled when system theme is active */}
-        <button
-          onClick={toggleTheme} // Use the `toggleTheme` from context directly
-          className="theme-toggle-button manual-toggle"
-          title={isSystemThemeActive ? 'Disabled (System theme is active)' : `Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-          disabled={isSystemThemeActive} // Disable if system theme is active
-        >
-          {theme === 'light' ? (
-            <img src={MoonIcon} alt="Moon icon for Dark Mode" className="theme-icon" />
-          ) : (
-            <img src={SunIcon} alt="Sun icon for Light Mode" className="theme-icon" />
+        </Nav>
+        <Nav className="ms-auto">
+          {currentStatus && (
+            <Button
+              variant="danger"
+              onClick={onDisconnect}
+              className="me-2"
+              title="Disconnect from current database"
+            >
+              Disconnect
+            </Button>
           )}
-        </button>
-      </div>
-    </header>
+          <Button
+            variant={isSystemThemeActive ? 'primary' : 'outline-secondary'}
+            onClick={handleToggleSystemTheme}
+            className="theme-toggle-button system-toggle me-2"
+            title={isSystemThemeActive ? 'Using System Theme (Click to switch to manual mode)' : 'Switch to System Theme'}
+          >
+            <img src={SystemIcon} alt="System Theme Icon" className="theme-icon" />
+          </Button>
+          <Button
+            variant={theme === 'dark' ? 'outline-light' : 'outline-dark'}
+            onClick={toggleTheme}
+            className="theme-toggle-button manual-toggle"
+            title={isSystemThemeActive ? 'Disabled (System theme is active)' : `Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+            disabled={isSystemThemeActive}
+          >
+            <img
+              src={theme === 'light' ? MoonIcon : SunIcon}
+              alt={theme === 'light' ? 'Moon icon for Dark Mode' : 'Sun icon for Light Mode'}
+              className="theme-icon"
+            />
+          </Button>
+        </Nav>
+      </Container>
+    </Navbar>
   );
 };
