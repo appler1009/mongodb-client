@@ -21,9 +21,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFile: (defaultFilename, sourceFilePath) => ipcRenderer.invoke('file:save', defaultFilename, sourceFilePath),
 
   // --- Theme Management IPC calls ---
-  // These will be handled by ipcMain in main.js to save/load user preferences
   saveThemePreference: (theme) => ipcRenderer.invoke('theme:savePreference', theme),
   loadThemePreference: () => ipcRenderer.invoke('theme:loadPreference'),
   saveSystemThemePreference: (isActive) => ipcRenderer.invoke('theme:saveSystemPreference', isActive),
   loadSystemThemePreference: () => ipcRenderer.invoke('theme:loadSystemPreference'),
+
+  // --- AI Query Generation IPC calls ---
+  getCollectionSchemaAndSampleDocuments: (collectionName, sampleCount) => ipcRenderer.invoke('ai:getCollectionSchemaAndSampleDocuments', collectionName, sampleCount),
+  generateAIQuery: (userPrompt, collectionName, schemaSummary, sampleDocuments) => ipcRenderer.invoke('ai:generateQuery', userPrompt, collectionName, schemaSummary, sampleDocuments),
 });

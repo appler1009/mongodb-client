@@ -71,3 +71,5 @@ tmp/
 backend/connections.json
 release/
 packages/*/dist/
+query-helper-lambda-proxy/*.zip
+query-helper-lambda-proxy/node_modules

@@ -1,5 +1,5 @@
 // frontend/src/api/backend.ts
-import type { ConnectionConfig, ConnectionStatus, CollectionInfo, DocumentsResponse } from '../types';
+import type { ConnectionConfig, ConnectionStatus, CollectionInfo, DocumentsResponse, Document } from '../types';
 import type { Theme } from '../context/ThemeContext';
 
 // Declare the Electron API on the Window object
@@ -21,17 +21,21 @@ declare global {
       // Database Browse IPC calls
       getDatabaseCollections: () => Promise<CollectionInfo[]>;
       getCollectionDocuments: (collectionName: string, limit: number, skip: number, query: object) => Promise<DocumentsResponse>;
-      exportCollectionDocuments: (collectionName: string, query: object) => Promise<string>; // Backend returns NDJSON string
+      exportCollectionDocuments: (collectionName: string, query: object) => Promise<string>;
 
       // File system interaction (via Main Process for security)
-      saveFile: (defaultFilename: string, content: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      // Note: saveFile now expects the sourceFilePath to be moved, not content
+      saveFile: (defaultFilename: string, sourceFilePath: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
 
       // --- Theme Management IPC calls ---
-      // These will be used by ThemeContext to persist preferences
-      saveThemePreference: (theme: Theme) => Promise<void>; // Saves the 'light'/'dark' preference
-      loadThemePreference: () => Promise<Theme | null>; // Loads the saved theme preference
-      saveSystemThemePreference: (isActive: boolean) => Promise<void>; // Saves if 'use system theme' is active
-      loadSystemThemePreference: () => Promise<boolean | null>; // Loads if 'use system theme' is active
+      saveThemePreference: (theme: Theme) => Promise<void>;
+      loadThemePreference: () => Promise<Theme | null>;
+      saveSystemThemePreference: (isActive: boolean) => Promise<void>;
+      loadSystemThemePreference: () => Promise<boolean | null>;
+
+      // --- AI Query Generation IPC calls ---
+      getCollectionSchemaAndSampleDocuments: (collectionName: string, sampleCount?: number) => Promise<{ sampleDocuments: Document[]; schemaSummary: string }>;
+      generateAIQuery: (userPrompt: string, collectionName: string, schemaSummary: string, sampleDocuments: Document[]) => Promise<{ generatedQuery?: string; error?: string }>;
     };
   }
 }
@@ -122,16 +126,35 @@ export async function exportCollectionDocuments(
     console.error('Failed to export documents during API call:', error);
     return { success: false, error: `Failed to export documents: ${error.message || 'An unknown error occurred during export.'}` };
   } finally {
-    // Optional: Add a cleanup mechanism for the temporary file if the save operation was cancelled
-    // or failed *after* the temp file was created.
-    // In your current setup, main.js's `file:save` handler handles deletion upon successful `fs.rename`.
-    // However, if the user cancels the dialog *after* the temp file is created but *before* saveFile is called,
-    // or if `saveFile` throws an unexpected error, the temp file might be left behind.
-    // A more robust cleanup strategy would involve the main process managing its own temp files
-    // and cleaning them up on app close, or having a dedicated IPC for explicit temp file deletion.
-    // For now, if the `file:save` handles cleanup correctly on success, this might be less critical here.
+    // The `file:save` IPC handler in main.js now handles the cleanup of the temporary
+    // file, whether the save was successful or cancelled by the user after the temp
+    // file was generated.
   }
 }
+
+// --- AI Query Generation API Calls ---
+
+/**
+ * Calls the backend to fetch schema summary and sample documents for AI query context.
+ * @param collectionName The name of the collection.
+ * @param sampleCount The number of sample documents to retrieve (default: 5).
+ * @returns An object containing sample documents and schema summary.
+ */
+export const getCollectionSchemaAndSampleDocuments = (collectionName: string, sampleCount?: number) => {
+  return window.electronAPI.getCollectionSchemaAndSampleDocuments(collectionName, sampleCount);
+};
+
+/**
+ * Calls the backend to generate a MongoDB query using an AI model.
+ * @param userPrompt The natural language prompt from the user.
+ * @param collectionName The name of the collection.
+ * @param schemaSummary The inferred schema of the collection.
+ * @param sampleDocuments Sample documents from the collection.
+ * @returns An object containing the generated query string or an error message.
+ */
+export const generateAIQuery = (userPrompt: string, collectionName: string, schemaSummary: string, sampleDocuments: Document[]) => {
+  return window.electronAPI.generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+};
 
 // NOTE: You don't need to export these theme functions from backend.ts
 // because ThemeContext directly accesses them via window.electronAPI.

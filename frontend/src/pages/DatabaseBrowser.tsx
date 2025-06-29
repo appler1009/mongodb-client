@@ -6,6 +6,8 @@ import {
   getDatabaseCollections,
   getCollectionDocuments,
   exportCollectionDocuments,
+  getCollectionSchemaAndSampleDocuments,
+  generateAIQuery,
 } from '../api/backend';
 
 // imports for components that DatabaseBrowser uses
@@ -30,6 +32,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [documents, setDocuments] = useState<Document[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
   const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
 
   // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -57,6 +60,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setParsedQuery({});
     setQueryError(null);
     setHasQueryBeenExecuted(false);
+    setAiLoading(false);
   }, []);
 
   // Fetch collections for the currently active database
@@ -173,16 +177,89 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   };
 
   const handleRunQuery = () => {
-    try {
-      const newQuery = JSON.parse(queryText);
-      setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
-      setCurrentPage(1); // Reset to first page for new query
-      setQueryError(null);
-      setHasQueryBeenExecuted(true);
-    } catch (e: any) {
-      setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
+    if (aiLoading) {
+        // Prevent running query if AI is still processing
+        setQueryError("AI is currently generating a query. Please wait.");
+        return;
+    }
+
+    if (queryText.startsWith('/')) {
+        // If it's an AI prompt, handle it with the AI generation logic
+        handleAIQueryGeneration(queryText.substring(1).trim()); // Remove '/' prefix
+    } else {
+        // Otherwise, it's a manual JSON query
+        try {
+            const newQuery = JSON.parse(queryText);
+            setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
+            setCurrentPage(1); // Reset to first page for new query
+            setQueryError(null);
+            setHasQueryBeenExecuted(true);
+        } catch (e: any) {
+            setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
+            setHasQueryBeenExecuted(false); // Don't run query if invalid
+        }
     }
   };
+
+  // --- AI Query Generation Handler ---
+  const handleAIQueryGeneration = useCallback(async (userPrompt: string) => {
+    if (!selectedCollection) {
+      setNotificationMessage('Please select a collection before asking AI to generate a query.');
+      return;
+    }
+    if (!userPrompt) {
+        setQueryError('Please provide a description for the AI query helper (e.g., "/find users older than 30").');
+        return;
+    }
+
+    setAiLoading(true);
+    setQueryError(null);
+    setNotificationMessage('Generating query with AI...');
+
+    try {
+      // 1. Get schema and sample documents for AI context
+      const { sampleDocuments, schemaSummary } = await getCollectionSchemaAndSampleDocuments(selectedCollection, 5); // Fetch 5 samples
+
+      // 2. Call the AI backend to generate the query
+      const { generatedQuery, error: aiError } = await generateAIQuery(
+        userPrompt,
+        selectedCollection,
+        schemaSummary,
+        sampleDocuments
+      );
+
+      if (aiError) {
+        setQueryError(`AI Error: ${aiError}`);
+        setNotificationMessage(`AI query generation failed: ${aiError}`);
+      } else if (generatedQuery) {
+        // Set the AI-generated query to the query editor
+        setQueryText(generatedQuery);
+        // Attempt to parse and run it immediately
+        try {
+          const parsedAiQuery = JSON.parse(generatedQuery);
+          setParsedQuery(parsedAiQuery);
+          setCurrentPage(1); // Reset to first page for new AI query
+          setHasQueryBeenExecuted(true); // Mark as executed
+          setNotificationMessage('AI generated and executed query successfully!');
+        } catch (parseError: any) {
+          setQueryError(`AI generated invalid JSON: ${parseError.message}. Please check the AI's output.`);
+          setNotificationMessage('AI generated invalid JSON. Manual correction might be needed.');
+          setHasQueryBeenExecuted(false); // Don't execute if parsing fails
+        }
+      } else {
+        setQueryError('AI did not return a query. Please try rephrasing your request.');
+        setNotificationMessage('AI query generation failed: No query returned.');
+      }
+
+    } catch (err: any) {
+      console.error('Frontend error during AI query generation:', err);
+      setError(`Failed to communicate with AI helper: ${err.message}`);
+      setNotificationMessage('Failed to communicate with AI helper.');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [selectedCollection, setNotificationMessage, setError]);
+
 
   // --- Export Handler ---
   const handleExport = async () => {
@@ -238,21 +315,24 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               className="query-editor"
               value={queryText}
               onChange={handleQueryTextChange}
-              placeholder='e.g., {"name": "Alice", "age": {"$gt": 30}}'
+              placeholder='Enter MongoDB query JSON or type "/" for AI helper (e.g., /find users older than 30)'
               rows={5}
-              disabled={documentsLoading}
+              disabled={documentsLoading || aiLoading} // Disable when documents loading OR AI loading
             />
             <div className="query-controls">
               <button
                 onClick={handleExport}
-                disabled={!selectedCollection || documentsLoading}
+                disabled={!selectedCollection || documentsLoading || aiLoading}
                 className="export-button"
                 title="Export all documents matching the current query to a JSON Lines file"
               >
                 Export
               </button>
-              <button onClick={handleRunQuery} disabled={documentsLoading}>
-                Run Query
+              <button
+                onClick={handleRunQuery}
+                disabled={documentsLoading || aiLoading || !selectedCollection} // Disable Run Query if AI is loading or no collection selected
+              >
+                {aiLoading ? 'Generating...' : 'Run Query'} {/* Change button text during AI loading */}
               </button>
             </div>
           </div>
@@ -261,7 +341,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
             <div className="pagination-controls">
               <span>
                 Documents per page:
-                <select value={documentsPerPage} onChange={handleDocumentsPerPageChange} disabled={documentsLoading}>
+                <select value={documentsPerPage} onChange={handleDocumentsPerPageChange} disabled={documentsLoading || aiLoading}>
                   <option value={10}>10</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
@@ -271,12 +351,12 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               <span>
                 Page {currentPage} of {totalPages} (Total: {totalDocuments} documents)
               </span>
-              <button onClick={handlePrevPage} disabled={currentPage === 1 || documentsLoading}>Previous</button>
-              <button onClick={handleNextPage} disabled={currentPage === totalPages || documentsLoading}>Next</button>
+              <button onClick={handlePrevPage} disabled={currentPage === 1 || documentsLoading || aiLoading}>Previous</button>
+              <button onClick={handleNextPage} disabled={currentPage === totalPages || documentsLoading || aiLoading}>Next</button>
             </div>
           )}
 
-          {documentsLoading && !setNotificationMessage ? ( // Changed condition to match new component prop usage
+          {documentsLoading ? (
             <p>Loading documents...</p>
           ) : (
             <DocumentViewer

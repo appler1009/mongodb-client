@@ -33,18 +33,6 @@ if (process.env.NODE_ENV !== 'production') {
   logger = pino({
     // Set the minimum log level for production (e.g., 'info', 'warn', 'error')
     level: 'info',
-    // In production, we're streaming to a file, so pino-pretty is not needed here
-    // If you want pretty output in the file, use the transport config as in dev but with destination
-    // transport: {
-    //   target: 'pino-pretty',
-    //   options: {
-    //     colorize: false, // No color for file logs
-    //     translateTime: 'SYS:HH:MM:ss',
-    //     ignore: 'pid,hostname',
-    //     destination: logFilePath,
-    //     mkdir: true,
-    //   }
-    // }
   }, logStream); // Direct the output to the file stream
 }
 
@@ -59,10 +47,9 @@ function debounce(func, delay) {
 }
 
 // Initialize electron-store for user preferences
-// Renamed 'store' to 'preferencesStore' for clarity, as we'll have another store
 const preferencesStore = new Store({
   defaults: {
-    theme: 'light',          // Default theme preference
+    theme: 'light',
     isSystemThemeActive: false, // Default to not using system theme
     windowState: {
       width: 1200,
@@ -75,7 +62,7 @@ const preferencesStore = new Store({
   },
 });
 
-// NEW: Initialize electron-store for connection configurations
+// Initialize electron-store for connection configurations
 const connectionsStore = new Store({
   name: 'connections', // This will create 'connections.json' in user data dir
   defaults: {
@@ -85,7 +72,6 @@ const connectionsStore = new Store({
 
 
 // Import and initialize the compiled backend module
-// The backend needs to be initialized with the connectionsStore
 let backend; // Declare backend globally so it can be assigned after initialization
 
 let mainWindow; // Declare mainWindow globally to be accessible for lifecycle events
@@ -119,7 +105,6 @@ function createWindow() {
         const { x: displayX, y: displayY, width: displayWidth, height: displayHeight } = display.bounds;
         // Check if a significant portion of the window is within this display's bounds
         // (e.g., top-left corner or center of the window)
-        // A more robust check might be to see if at least 10% of window width/height is on screen
         if (x + initialWidth * 0.1 > displayX && x < displayX + displayWidth - initialWidth * 0.1 &&
             y + initialHeight * 0.1 > displayY && y < displayY + displayHeight - initialHeight * 0.1) {
           foundOnActiveDisplay = true;
@@ -591,5 +576,26 @@ ipcMain.handle('theme:loadSystemPreference', async () => {
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Failed to load system theme active status');
     return null; // Return null or default in case of error
+  }
+});
+
+// --- AI Query Generation IPC Handlers ---
+ipcMain.handle('ai:getCollectionSchemaAndSampleDocuments', async (event, collectionName, sampleCount) => {
+  try {
+    // Assuming backend.getCollectionSchemaAndSampleDocuments is now available
+    return await backend.getCollectionSchemaAndSampleDocuments(collectionName, sampleCount);
+  } catch (error) {
+    logger.error({ error: error.message, stack: error.stack, collectionName, sampleCount }, 'IPC error (ai:getCollectionSchemaAndSampleDocuments)');
+    throw error;
+  }
+});
+
+ipcMain.handle('ai:generateQuery', async (event, userPrompt, collectionName, schemaSummary, sampleDocuments) => {
+  try {
+    // Assuming backend.generateAIQuery is now available
+    return await backend.generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+  } catch (error) {
+    logger.error({ error: error.message, stack: error.stack, userPrompt, collectionName }, 'IPC error (ai:generateQuery)');
+    throw error;
   }
 });

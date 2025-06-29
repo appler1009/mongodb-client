@@ -4,7 +4,7 @@ import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
 import dotenv from 'dotenv';
-import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus } from './types';
+import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus, Document } from './types'; // Import Document type
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -42,7 +42,6 @@ export function initialize(connectionsStore: Store<any>) {
     throw new Error('Connections store is required for backend operations.');
   }
   // Pass the connectionsStore instance to the ConnectionService
-  // You'll need to add a `setStore` method to your ConnectionService.ts
   connectionService.setStore(connectionsStore);
   logger.info('Backend: ConnectionService initialized with electron-store.');
 
@@ -57,7 +56,8 @@ export function initialize(connectionsStore: Store<any>) {
     getDatabaseCollections,
     getCollectionDocuments,
     exportCollectionDocuments,
-    // Add any other functions you export from this index.ts
+    getCollectionSchemaAndSampleDocuments,
+    generateAIQuery,
   };
 }
 
@@ -314,5 +314,134 @@ export const exportCollectionDocuments = async (collectionName: string, query: o
     logger.error({ error, collectionName }, 'Backend: Failed to export documents to temp file');
     // Ensure the error message sent back is clear and actionable
     throw new Error(`Failed to export documents to temporary file for collection ${collectionName}: ${error.message}`);
+  }
+};
+
+
+// --- AI Query Generation Functions ---
+
+/**
+ * Fetches sample documents and schema summary for a given collection.
+ * This is used to provide context to the AI model.
+ * @param {string} collectionName - The name of the collection.
+ * @param {number} sampleCount - The number of sample documents to fetch.
+ * @returns {Promise<{ sampleDocuments: Document[]; schemaSummary: string }>} Sample documents and schema summary.
+ */
+export const getCollectionSchemaAndSampleDocuments = async (
+  collectionName: string,
+  sampleCount: number = 2
+): Promise<{ sampleDocuments: Document[]; schemaSummary: string }> => {
+  try {
+    if (!databaseService.isDbActive()) {
+      throw new Error('No active database connection to get schema and samples.');
+    }
+    const { sampleDocuments, schemaSummary } = await databaseService.getCollectionSchemaAndSampleDocuments(collectionName, sampleCount);
+    // Ensure sample documents are prepared for frontend if they contain special BSON types
+    const transformedSampleDocuments = sampleDocuments.map(prepareDocumentForFrontend);
+    logger.info({ collectionName, sampleCount, schemaSummaryLength: schemaSummary.length }, 'IPC: Fetched schema and sample documents.');
+    return { sampleDocuments: transformedSampleDocuments, schemaSummary };
+  } catch (error: any) {
+    logger.error({ error, collectionName }, 'IPC: Failed to get schema and sample documents');
+    throw new Error(`Failed to get schema and sample documents: ${error.message}`);
+  }
+};
+
+/**
+ * Generates a MongoDB query using the x.ai Grok-3-mini model based on a natural language prompt.
+ * @param {string} userPrompt - The natural language request from the user.
+ * @param {string} collectionName - The name of the collection for context.
+ * @param {string} schemaSummary - A summary of the collection's schema.
+ * @param {Document[]} sampleDocuments - A few sample documents from the collection.
+ * @returns {Promise<{ generatedQuery?: string; error?: string }>} The AI-generated query or an error.
+ */
+export const generateAIQuery = async (
+  userPrompt: string,
+  collectionName: string,
+  schemaSummary: string,
+  sampleDocuments: Document[]
+): Promise<{ generatedQuery?: string; error?: string }> => {
+  try {
+    const grokModel = "grok-3-mini";
+    const apiUrl = `https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions`;
+
+    const formattedSampleDocs = JSON.stringify(sampleDocuments, null, 2);
+
+    const systemInstruction = `You are an expert MongoDB query generator.
+Your task is to convert natural language descriptions into valid MongoDB 'find' query JSON objects.
+Do NOT include aggregation pipeline stages like $match, $lookup, $group, etc.
+Respond ONLY with the raw JSON object. Do not include any other text, explanations, or markdown fences.`;
+
+    const prompt = `Given the following MongoDB collection information:
+
+Collection Name: "${collectionName}"
+
+${schemaSummary}
+
+Document Examples (first ${sampleDocuments.length} documents):
+\`\`\`json
+${formattedSampleDocs}
+\`\`\`
+
+Based on this context, generate a MongoDB 'find' query JSON object for the following natural language request:
+
+"${userPrompt}"`;
+
+    // Construct the messages array for x.ai chat completions API
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: prompt }
+    ];
+
+    const payload = {
+      messages: messages,
+      model: grokModel,
+      stream: false,
+      temperature: 0,
+      max_tokens: 5000,
+    };
+
+    logger.info({ collectionName, userPromptLength: userPrompt.length, sampleDocCount: sampleDocuments.length, model: payload.model },
+      `Sending request to x.ai ${grokModel} AI...`);
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'identity',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      logger.error({ status: response.status, errorData }, 'x.ai API Error Response');
+      return { error: `x.ai API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}` };
+    }
+
+    const result = await response.json();
+    // The x.ai chat completions API returns choices[0].message.content
+    if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
+      const generatedText = result.choices[0].message.content;
+      logger.info({ generatedTextLength: generatedText.length }, `x.ai ${grokModel} returned a response.`);
+
+      try {
+          const parsedJson = JSON.parse(generatedText); // Parse to validate
+          // Ensure it's a valid object before returning
+          if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
+              throw new Error('AI response was not a JSON object.');
+          }
+          return { generatedQuery: JSON.stringify(parsedJson, null, 2) }; // Re-stringify for pretty print
+      } catch (parseError: any) {
+          logger.error({ parseError, generatedText }, 'Failed to parse AI generated JSON from x.ai');
+          return { error: 'AI generated invalid JSON. Please try again with a clearer prompt.' };
+      }
+    } else {
+      logger.warn({ result }, `x.ai ${grokModel} did not return a valid response structure.`);
+      return { error: `AI did not return a valid response structure from x.ai.` };
+    }
+  } catch (error: any) {
+    logger.error({ error }, `Error during x.ai query generation`);
+    return { error: `Internal error during AI query generation: ${error.message}` };
   }
 };
