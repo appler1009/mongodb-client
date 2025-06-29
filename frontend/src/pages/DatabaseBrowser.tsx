@@ -44,8 +44,9 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   // --- Query Editor State ---
-  const [queryText, setQueryText] = useState<string>('{}'); // Default to an empty object for "find all"
-  const [parsedQuery, setParsedQuery] = useState<object>({}); // The actual parsed query object to be used for fetching
+  const [promptText, setPromptText] = useState<string>(''); // AI prompt input
+  const [queryText, setQueryText] = useState<string>('{}'); // MongoDB query JSON
+  const [parsedQuery, setParsedQuery] = useState<object>({}); // Parsed query object
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
 
@@ -56,6 +57,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setSelectedCollection(null);
     setDocuments([]);
     setCurrentPage(1);
+    setPromptText('');
     setQueryText('{}');
     setParsedQuery({});
     setQueryError(null);
@@ -78,6 +80,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       // Reset document-specific states when collections are re-fetched
       setDocuments([]);
       setCurrentPage(1);
+      setPromptText('');
       setQueryText('{}');
       setParsedQuery({});
       setQueryError(null);
@@ -90,7 +93,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       } else {
         setSelectedCollection(null);
       }
-
     } catch (err: any) {
       setError(`Failed to fetch collections: ${err.message}`);
       setCollections([]);
@@ -101,7 +103,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [currentStatus?.database, resetBrowserState, setError]);
 
-  // Fetch documents for the currently selected collection with the current parsedQuery
+  // Fetch documents for the selected collection with the current parsedQuery
   const fetchDocuments = useCallback(async () => {
     if (!selectedCollection) {
       setDocuments([]);
@@ -131,24 +133,19 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   }, [currentStatus?.database, fetchCollections, resetBrowserState]);
 
   useEffect(() => {
-    // Only attempt to fetch documents if a collection is selected AND
-    // the user has explicitly triggered a query (or pagination/per-page change after a query).
     if (selectedCollection && hasQueryBeenExecuted) {
       fetchDocuments();
     } else if (selectedCollection && !hasQueryBeenExecuted) {
-        // If a collection is selected but no query has been executed yet,
-        // ensure documents are cleared. This handles the state when a new
-        // collection is selected and we're waiting for the first "Run Query".
-        setDocuments([]);
+      setDocuments([]);
     }
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, hasQueryBeenExecuted, fetchDocuments]);
 
   // --- Pagination Handlers ---
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);
-    // Keep these specific resets as they're tied to collection selection
     setCurrentPage(1);
     setDocuments([]);
+    setPromptText('');
     setQueryText('{}');
     setParsedQuery({});
     setQueryError(null);
@@ -171,44 +168,25 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   };
 
   // --- Query Editor Handlers ---
+  const handlePromptTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setPromptText(e.target.value);
+    setQueryError(null); // Clear previous query errors on new input
+  };
+
   const handleQueryTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setQueryText(e.target.value);
     setQueryError(null);
   };
 
-  const handleRunQuery = () => {
-    if (aiLoading) {
-        // Prevent running query if AI is still processing
-        setQueryError("AI is currently generating a query. Please wait.");
-        return;
-    }
-
-    if (queryText.startsWith('/')) {
-        // If it's an AI prompt, handle it with the AI generation logic
-        handleAIQueryGeneration(queryText.substring(1).trim()); // Remove '/' prefix
-    } else {
-        // Otherwise, it's a manual JSON query
-        try {
-            const newQuery = JSON.parse(queryText);
-            setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
-            setCurrentPage(1); // Reset to first page for new query
-            setQueryError(null);
-            setHasQueryBeenExecuted(true);
-        } catch (e: any) {
-            setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
-            setHasQueryBeenExecuted(false); // Don't run query if invalid
-        }
-    }
-  };
-
-  // --- AI Query Generation Handler ---
-  const handleAIQueryGeneration = useCallback(async (userPrompt: string) => {
+  // Handles triggering AI query generation
+  const handleGenerateAIQuery = useCallback(async () => {
     if (!selectedCollection) {
       setNotificationMessage('Please select a collection before asking AI to generate a query.');
       return;
     }
+    const userPrompt = promptText.trim(); // Use promptText state directly
     if (!userPrompt) {
-        setQueryError('Please provide a description for the AI query helper (e.g., "/find users older than 30").');
+        setQueryError('Please provide a description for the AI query helper (e.g., "find users older than 30").');
         return;
     }
 
@@ -258,8 +236,25 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     } finally {
       setAiLoading(false);
     }
-  }, [selectedCollection, setNotificationMessage, setError]);
+  }, [selectedCollection, promptText, setNotificationMessage, setError]);
 
+  // Handles execution of a manually typed JSON query
+  const handleExecuteManualQuery = () => {
+    if (documentsLoading || aiLoading) { // Disable if data or AI is loading
+        setQueryError("System is busy. Please wait for current operations to complete.");
+        return;
+    }
+    try {
+        const newQuery = JSON.parse(queryText);
+        setParsedQuery(newQuery); // This will trigger fetchDocuments via useEffect
+        setCurrentPage(1); // Reset to first page for new query
+        setQueryError(null);
+        setHasQueryBeenExecuted(true);
+    } catch (e: any) {
+        setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
+        setHasQueryBeenExecuted(false); // Don't run query if invalid
+    }
+  };
 
   // --- Export Handler ---
   const handleExport = async () => {
@@ -271,7 +266,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setDocumentsLoading(true); // Indicate loading state for export operation
     try {
       const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, parsedQuery);
-
       if (success && filePath) {
         setNotificationMessage(`Exported to: ${filePath}`);
       } else if (!success && exportError) {
@@ -310,12 +304,31 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
           {queryError && <div className="query-error-message">{queryError}</div>}
 
           <div className="query-editor-container">
+            <h4>Query Helper</h4>
+            <textarea
+              className="prompt-editor"
+              value={promptText}
+              onChange={handlePromptTextChange}
+              placeholder='Enter natural language prompt (e.g., "find users older than 30")'
+              rows={3}
+              disabled={documentsLoading || aiLoading}
+            />
+            {/* AI Generate Query Button below the prompt textarea */}
+            <button
+              onClick={handleGenerateAIQuery}
+              disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
+              className="ai-generate-button"
+              title="Generate MongoDB query using AI based on your natural language prompt"
+            >
+              {aiLoading ? 'Generating Query...' : 'Generate Query'}
+            </button>
+
             <h4>Find Query (JSON)</h4>
             <textarea
               className="query-editor"
               value={queryText}
               onChange={handleQueryTextChange}
-              placeholder='Enter MongoDB query JSON or type "/" for AI helper (e.g., /find users older than 30)'
+              placeholder='Enter MongoDB query JSON (e.g., {"age": {"$gt": 30}})'
               rows={5}
               disabled={documentsLoading || aiLoading} // Disable when documents loading OR AI loading
             />
@@ -328,11 +341,12 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               >
                 Export
               </button>
+              {/* The Run Query button, now exclusively for manual JSON execution */}
               <button
-                onClick={handleRunQuery}
+                onClick={handleExecuteManualQuery} // Changed to new handler
                 disabled={documentsLoading || aiLoading || !selectedCollection} // Disable Run Query if AI is loading or no collection selected
               >
-                {aiLoading ? 'Generating...' : 'Run Query'} {/* Change button text during AI loading */}
+                Run Query
               </button>
             </div>
           </div>
