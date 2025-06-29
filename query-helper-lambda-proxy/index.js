@@ -27,8 +27,8 @@ exports.handler = async (event) => {
     const parsedUrl = url.parse(apiUrl);
 
     // Prepare headers, adding Authorization and Host
-    const requestHeaders = { 
-      ...headers, 
+    const requestHeaders = {
+      ...headers,
       Authorization: `Bearer ${cachedApiKey}`,
       Host: 'api.x.ai'
     };
@@ -66,7 +66,7 @@ exports.handler = async (event) => {
       // Write body if present
       if (body) {
         const bodyData = typeof body === 'string' ? body : JSON.stringify(body);
-        console.log(`response body ${bodyData}`);
+        console.log(`request body ${bodyData}`);
         req.write(bodyData);
       }
 
