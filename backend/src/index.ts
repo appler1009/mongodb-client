@@ -318,11 +318,11 @@ export const exportCollectionDocuments = async (collectionName: string, query: o
 };
 
 
-// --- AI Query Generation Functions ---
+// --- Query Helper Functions ---
 
 /**
  * Fetches sample documents and schema summary for a given collection.
- * This is used to provide context to the AI model.
+ * This is used to provide context to the Query Helper model.
  * @param {string} collectionName - The name of the collection.
  * @param {number} sampleCount - The number of sample documents to fetch.
  * @returns {Promise<{ sampleDocuments: Document[]; schemaSummary: string }>} Sample documents and schema summary.
@@ -338,21 +338,21 @@ export const getCollectionSchemaAndSampleDocuments = async (
     const { sampleDocuments, schemaSummary } = await databaseService.getCollectionSchemaAndSampleDocuments(collectionName, sampleCount);
     // Ensure sample documents are prepared for frontend if they contain special BSON types
     const transformedSampleDocuments = sampleDocuments.map(prepareDocumentForFrontend);
-    logger.info({ collectionName, sampleCount, schemaSummaryLength: schemaSummary.length }, 'IPC: Fetched schema and sample documents.');
+    logger.info({ collectionName, sampleCount, schemaSummaryLength: schemaSummary.length }, 'IPC: Fetched schema and sample documents for Query Helper.');
     return { sampleDocuments: transformedSampleDocuments, schemaSummary };
   } catch (error: any) {
-    logger.error({ error, collectionName }, 'IPC: Failed to get schema and sample documents');
-    throw new Error(`Failed to get schema and sample documents: ${error.message}`);
+    logger.error({ error, collectionName }, 'IPC: Failed to get schema and sample documents for Query Helper');
+    throw new Error(`Failed to get schema and sample documents for Query Helper: ${error.message}`);
   }
 };
 
 /**
- * Generates a MongoDB query using the x.ai Grok-3-mini model based on a natural language prompt.
+ * Generates a MongoDB query using the Grok-3-mini model based on a natural language prompt.
  * @param {string} userPrompt - The natural language request from the user.
  * @param {string} collectionName - The name of the collection for context.
  * @param {string} schemaSummary - A summary of the collection's schema.
  * @param {Document[]} sampleDocuments - A few sample documents from the collection.
- * @returns {Promise<{ generatedQuery?: string; error?: string }>} The AI-generated query or an error.
+ * @returns {Promise<{ generatedQuery?: string; error?: string }>} The generated query or an error.
  */
 export const generateAIQuery = async (
   userPrompt: string,
@@ -401,7 +401,7 @@ Based on this context, generate a MongoDB 'find' query JSON object for the follo
     };
 
     logger.info({ collectionName, userPromptLength: userPrompt.length, sampleDocCount: sampleDocuments.length, model: payload.model },
-      `Sending request to x.ai ${grokModel} AI...`);
+      `Sending request to Query Helper (${grokModel})...`);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -415,33 +415,33 @@ Based on this context, generate a MongoDB 'find' query JSON object for the follo
 
     if (!response.ok) {
       const errorData = await response.json();
-      logger.error({ status: response.status, errorData }, 'x.ai API Error Response');
-      return { error: `x.ai API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}` };
+      logger.error({ status: response.status, errorData }, 'Query Helper API Error Response');
+      return { error: `Query Helper API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}` };
     }
 
     const result = await response.json();
-    // The x.ai chat completions API returns choices[0].message.content
+    // The chat completions API returns choices[0].message.content
     if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
       const generatedText = result.choices[0].message.content;
-      logger.info({ generatedTextLength: generatedText.length }, `x.ai ${grokModel} returned a response.`);
+      logger.info({ generatedTextLength: generatedText.length }, `Query Helper (${grokModel}) returned a response.`);
 
       try {
           const parsedJson = JSON.parse(generatedText); // Parse to validate
           // Ensure it's a valid object before returning
           if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
-              throw new Error('AI response was not a JSON object.');
+              throw new Error('Query Helper response was not a JSON object.');
           }
           return { generatedQuery: JSON.stringify(parsedJson, null, 2) }; // Re-stringify for pretty print
       } catch (parseError: any) {
-          logger.error({ parseError, generatedText }, 'Failed to parse AI generated JSON from x.ai');
-          return { error: 'AI generated invalid JSON. Please try again with a clearer prompt.' };
+          logger.error({ parseError, generatedText }, 'Failed to parse Query Helper generated JSON');
+          return { error: 'Query Helper generated invalid JSON. Please try again with a clearer prompt.' };
       }
     } else {
-      logger.warn({ result }, `x.ai ${grokModel} did not return a valid response structure.`);
-      return { error: `AI did not return a valid response structure from x.ai.` };
+      logger.warn({ result }, `Query Helper (${grokModel}) did not return a valid response structure.`);
+      return { error: `Query Helper did not return a valid response structure.` };
     }
   } catch (error: any) {
-    logger.error({ error }, `Error during x.ai query generation`);
-    return { error: `Internal error during AI query generation: ${error.message}` };
+    logger.error({ error }, `Error during Query Helper generation`);
+    return { error: `Internal error during Query Helper generation: ${error.message}` };
   }
 };

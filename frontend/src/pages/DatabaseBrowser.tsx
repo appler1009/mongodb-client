@@ -44,11 +44,12 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   // --- Query Editor State ---
-  const [promptText, setPromptText] = useState<string>(''); // AI prompt input
+  const [promptText, setPromptText] = useState<string>(''); // Query Helper prompt input
   const [queryText, setQueryText] = useState<string>('{}'); // MongoDB query JSON
   const [parsedQuery, setParsedQuery] = useState<object>({}); // Parsed query object
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
+  const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
 
 
   // --- Helper function to reset collection/document related states ---
@@ -63,6 +64,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setQueryError(null);
     setHasQueryBeenExecuted(false);
     setAiLoading(false);
+    setAutoRunGeneratedQuery(true); // Reset auto-run to default
   }, []);
 
   // Fetch collections for the currently active database
@@ -178,69 +180,80 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setQueryError(null);
   };
 
-  // Handles triggering AI query generation
+  // Handler for auto-run checkbox
+  const handleAutoRunCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setAutoRunGeneratedQuery(e.target.checked);
+  };
+
+  // Handles triggering Query Helper query generation
   const handleGenerateAIQuery = useCallback(async () => {
     if (!selectedCollection) {
-      setNotificationMessage('Please select a collection before asking AI to generate a query.');
+      setNotificationMessage('Please select a collection before asking Query Helper to generate a query.');
       return;
     }
     const userPrompt = promptText.trim(); // Use promptText state directly
     if (!userPrompt) {
-        setQueryError('Please provide a description for the AI query helper (e.g., "find users older than 30").');
+        setQueryError('Please provide a description for the Query Helper (e.g., "find users older than 30").');
         return;
     }
 
     setAiLoading(true);
     setQueryError(null);
-    setNotificationMessage('Generating query with AI...');
+    setNotificationMessage('Generating query...');
 
     try {
-      // 1. Get schema and sample documents for AI context
-      const { sampleDocuments, schemaSummary } = await getCollectionSchemaAndSampleDocuments(selectedCollection, 5); // Fetch 5 samples
+      // 1. Get schema and sample documents for Query Helper context
+      const { sampleDocuments, schemaSummary } = await getCollectionSchemaAndSampleDocuments(selectedCollection, 2); // Fetch 2 samples
 
-      // 2. Call the AI backend to generate the query
-      const { generatedQuery, error: aiError } = await generateAIQuery(
+      // 2. Call the backend to generate the query
+      const { generatedQuery, error: backendError } = await generateAIQuery(
         userPrompt,
         selectedCollection,
         schemaSummary,
         sampleDocuments
       );
 
-      if (aiError) {
-        setQueryError(`AI Error: ${aiError}`);
-        setNotificationMessage(`AI query generation failed: ${aiError}`);
+      if (backendError) {
+        setQueryError(`Query Helper Error: ${backendError}`);
+        setNotificationMessage(`Query Helper generation failed: ${backendError}`);
       } else if (generatedQuery) {
-        // Set the AI-generated query to the query editor
+        // Set the generated query to the query editor
         setQueryText(generatedQuery);
-        // Attempt to parse and run it immediately
-        try {
-          const parsedAiQuery = JSON.parse(generatedQuery);
-          setParsedQuery(parsedAiQuery);
-          setCurrentPage(1); // Reset to first page for new AI query
-          setHasQueryBeenExecuted(true); // Mark as executed
-          setNotificationMessage('AI generated and executed query successfully!');
-        } catch (parseError: any) {
-          setQueryError(`AI generated invalid JSON: ${parseError.message}. Please check the AI's output.`);
-          setNotificationMessage('AI generated invalid JSON. Manual correction might be needed.');
-          setHasQueryBeenExecuted(false); // Don't execute if parsing fails
+
+        // Conditional auto-run based on checkbox
+        if (autoRunGeneratedQuery) {
+          try {
+            const parsedQueryHelperQuery = JSON.parse(generatedQuery);
+            setParsedQuery(parsedQueryHelperQuery);
+            setCurrentPage(1); // Reset to first page for new query
+            setHasQueryBeenExecuted(true); // Mark as executed
+            setNotificationMessage('Query Helper generated and executed query successfully!');
+          } catch (parseError: any) {
+            setQueryError(`Query Helper generated invalid JSON: ${parseError.message}. Please check the Query Helper's output.`);
+            setNotificationMessage('Query Helper generated invalid JSON. Manual correction might be needed.');
+            setHasQueryBeenExecuted(false); // Don't execute if parsing fails
+          }
+        } else {
+          setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
+          setHasQueryBeenExecuted(false); // Ensure it's not marked as executed if not auto-run
         }
       } else {
-        setQueryError('AI did not return a query. Please try rephrasing your request.');
-        setNotificationMessage('AI query generation failed: No query returned.');
+        setQueryError('Query Helper did not return a query. Please try rephrasing your request.');
+        setNotificationMessage('Query Helper generation failed: No query returned.');
       }
 
     } catch (err: any) {
-      console.error('Frontend error during AI query generation:', err);
-      setError(`Failed to communicate with AI helper: ${err.message}`);
-      setNotificationMessage('Failed to communicate with AI helper.');
+      console.error('Frontend error during Query Helper generation:', err);
+      setError(`Failed to communicate with Query Helper: ${err.message}`);
+      setNotificationMessage('Failed to communicate with Query Helper.');
     } finally {
       setAiLoading(false);
     }
-  }, [selectedCollection, promptText, setNotificationMessage, setError]);
+  }, [selectedCollection, promptText, autoRunGeneratedQuery, setNotificationMessage, setError]);
 
   // Handles execution of a manually typed JSON query
   const handleExecuteManualQuery = () => {
-    if (documentsLoading || aiLoading) { // Disable if data or AI is loading
+    if (documentsLoading || aiLoading) {
         setQueryError("System is busy. Please wait for current operations to complete.");
         return;
     }
@@ -283,7 +296,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   };
 
   if (!currentStatus?.database) {
-    return <p>Select a connection to browse databases.</p>; // Should ideally not be reached if rendered conditionally
+    return <p>Select a connection to browse databases.</p>;
   }
 
   return (
@@ -313,15 +326,25 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               rows={3}
               disabled={documentsLoading || aiLoading}
             />
-            {/* AI Generate Query Button below the prompt textarea */}
-            <button
-              onClick={handleGenerateAIQuery}
-              disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
-              className="ai-generate-button"
-              title="Generate MongoDB query using AI based on your natural language prompt"
-            >
-              {aiLoading ? 'Generating Query...' : 'Generate Query'}
-            </button>
+            <div className="query-helper-controls">
+              <label className="auto-run-checkbox">
+                <input
+                  type="checkbox"
+                  checked={autoRunGeneratedQuery}
+                  onChange={handleAutoRunCheckboxChange}
+                  disabled={aiLoading}
+                />
+                Auto-run
+              </label>
+              <button
+                onClick={handleGenerateAIQuery}
+                disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
+                className="query-helper-generate-button"
+                title="Generate MongoDB query using Query Helper based on your natural language prompt"
+              >
+                {aiLoading ? 'Generating Query...' : 'Generate Query'}
+              </button>
+            </div>
 
             <h4>Find Query (JSON)</h4>
             <textarea
@@ -330,7 +353,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               onChange={handleQueryTextChange}
               placeholder='Enter MongoDB query JSON (e.g., {"age": {"$gt": 30}})'
               rows={5}
-              disabled={documentsLoading || aiLoading} // Disable when documents loading OR AI loading
+              disabled={documentsLoading || aiLoading}
             />
             <div className="query-controls">
               <button
@@ -341,10 +364,9 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               >
                 Export
               </button>
-              {/* The Run Query button, now exclusively for manual JSON execution */}
               <button
-                onClick={handleExecuteManualQuery} // Changed to new handler
-                disabled={documentsLoading || aiLoading || !selectedCollection} // Disable Run Query if AI is loading or no collection selected
+                onClick={handleExecuteManualQuery}
+                disabled={documentsLoading || aiLoading || !selectedCollection}
               >
                 Run Query
               </button>
