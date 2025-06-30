@@ -202,7 +202,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                 ) : (
                   <div className="connection-details">
                     <h4>{conn.name}</h4>
-                    <p className="connection-uri">URI: {conn.uri}</p>
+                    <p className="connection-uri">{conn.uri}</p>
                     <InputGroup>
                       <Button
                         variant="primary"
