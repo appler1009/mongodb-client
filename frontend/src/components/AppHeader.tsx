@@ -2,9 +2,6 @@ import React, { useContext } from 'react';
 import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import type { ConnectionStatus } from '../types';
 import { ThemeContext } from '../context/ThemeContext';
-import SunIcon from '../assets/icons/sun-icon.svg';
-import MoonIcon from '../assets/icons/moon-icon.svg';
-import SystemIcon from '../assets/icons/system-icon.svg';
 
 interface AppHeaderProps {
   currentStatus: ConnectionStatus | null;
@@ -54,7 +51,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             className="theme-toggle-button system-toggle me-2"
             title={isSystemThemeActive ? 'Using System Theme (Click to switch to manual mode)' : 'Switch to System Theme'}
           >
-            <img src={SystemIcon} alt="System Theme Icon" className="theme-icon" />
+            <i className="bi bi-display theme-icon"></i>
           </Button>
           <Button
             variant={theme === 'dark' ? 'outline-light' : 'outline-dark'}
@@ -63,11 +60,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             title={isSystemThemeActive ? 'Disabled (System theme is active)' : `Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
             disabled={isSystemThemeActive}
           >
-            <img
-              src={theme === 'light' ? MoonIcon : SunIcon}
-              alt={theme === 'light' ? 'Moon icon for Dark Mode' : 'Sun icon for Light Mode'}
-              className="theme-icon"
-            />
+            <i className={`bi ${theme === 'light' ? 'bi-moon-stars-fill' : 'bi-sun-fill'} theme-icon`}></i>
           </Button>
         </Nav>
       </Container>
