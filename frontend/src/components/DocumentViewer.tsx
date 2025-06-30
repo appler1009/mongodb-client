@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useContext, useCallback } from 'react';
 import type { Document } from '../types';
+import { Button, ButtonGroup, ToggleButton } from 'react-bootstrap';
 
 // Import SyntaxHighlighter component
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -166,13 +167,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           <div className="copy-json-container">
             {viewMode === 'json' && (
               <div className="json-actions">
-                <button
+                <Button
                   onClick={handleCopyJson}
-                  className="copy-json-button"
+                  variant="primary"
                   title="Copy formatted JSON to clipboard"
                 >
                   Copy JSON
-                </button>
+                </Button>
                 {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
               </div>
             )}
@@ -180,18 +181,26 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
           {/* 2. View Mode Toggles: JSON and Table aligned to the right */}
           <div className="view-toggle-container">
-            <div className="view-toggle">
-              <button
-                onClick={() => setViewMode('json')}
-                className={viewMode === 'json' ? 'active' : ''}
+            <ButtonGroup>
+              <ToggleButton
+                id="json-toggle"
+                type="radio"
+                variant={viewMode === 'json' ? 'success' : 'outline-success'}
+                value="json"
+                checked={viewMode === 'json'}
+                onChange={(e) => setViewMode('json')}
                 aria-pressed={viewMode === 'json'}
-              >JSON</button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={viewMode === 'table' ? 'active' : ''}
+              >JSON</ToggleButton>
+              <ToggleButton
+                id="table-toggle"
+                type="radio"
+                variant={viewMode === 'table' ? 'success' : 'outline-success'}
+                value="table"
+                checked={viewMode === 'table'}
+                onChange={(e) => setViewMode('table')}
                 aria-pressed={viewMode === 'table'}
-              >Table</button>
-            </div>
+              >Table</ToggleButton>
+            </ButtonGroup>
           </div>
         </div>
       </div>
