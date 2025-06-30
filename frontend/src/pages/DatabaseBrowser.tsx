@@ -314,27 +314,31 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               disabled={documentsLoading || aiLoading}
             />
             <div className="d-flex align-items-center mb-3">
-              <ToggleButton
-                id="auto-run-toggle"
-                type="checkbox"
-                variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
-                checked={autoRunGeneratedQuery}
-                value="1"
-                onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
-                disabled={aiLoading}
-                className="me-2"
-              >
-                <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
-                Auto-run
-              </ToggleButton>
-              <Button
-                variant="primary"
-                onClick={handleGenerateAIQuery}
-                disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
-                title="Generate MongoDB query using Query Helper based on your natural language prompt"
-              >
-                {aiLoading ? 'Generating Query...' : 'Generate Query'}
-              </Button>
+              <div className="me-auto">
+                <ToggleButton
+                  id="auto-run-toggle"
+                  type="checkbox"
+                  variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
+                  checked={autoRunGeneratedQuery}
+                  value="1"
+                  onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
+                  disabled={aiLoading}
+                  className="me-2"
+                >
+                  <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
+                  Auto-run
+                </ToggleButton>
+              </div>
+              <div className="d-flex">
+                <Button
+                  variant="primary"
+                  onClick={handleGenerateAIQuery}
+                  disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
+                  title="Generate MongoDB query using Query Helper based on your natural language prompt"
+                >
+                  {aiLoading ? 'Generating Query...' : 'Generate Query'}
+                </Button>
+              </div>
             </div>
             <h4>Find Query (JSON)</h4>
             <Form.Control
@@ -348,22 +352,26 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               disabled={documentsLoading || aiLoading}
             />
             <div className="d-flex">
-              <Button
-                variant="secondary"
-                onClick={handleExport}
-                disabled={!selectedCollection || documentsLoading || aiLoading}
-                title="Export all documents matching the current query to a JSON Lines file"
-                className="me-2"
-              >
-                Export
-              </Button>
-              <Button
-                variant="success"
-                onClick={handleExecuteManualQuery}
-                disabled={documentsLoading || aiLoading || !selectedCollection}
-              >
-                Run Query
-              </Button>
+              <div className="me-auto">
+                <Button
+                  variant="secondary"
+                  onClick={handleExport}
+                  disabled={!selectedCollection || documentsLoading || aiLoading}
+                  title="Export all documents matching the current query to a JSON Lines file"
+                  className="me-2"
+                >
+                  Export
+                </Button>
+              </div>
+              <div className="d-flex">
+                <Button
+                  variant="success"
+                  onClick={handleExecuteManualQuery}
+                  disabled={documentsLoading || aiLoading || !selectedCollection}
+                >
+                  Run Query
+                </Button>
+              </div>
             </div>
           </div>
           {selectedCollection && (
