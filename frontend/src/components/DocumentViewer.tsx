@@ -132,20 +132,36 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return JSON.stringify(documents, null, 2);
   }, [documents, collectionName]);
 
-  // Handle copying JSON content to clipboard
-  const handleCopyJson = useCallback(async () => {
-    if (jsonContent) {
+  // Generate CSV content for the table
+  const csvContent = useMemo(() => {
+    if (!collectionName || documents.length === 0 || columns.length === 0) {
+      return '';
+    }
+    const header = columns.join(',');
+    const rows = documents.map(doc =>
+      columns.map(col => {
+        const value = doc[col];
+        return `"${String(value).replace(/"/g, '""')}"`; // Escape double quotes
+      }).join(',')
+    );
+    return [header, ...rows].join('\n');
+  }, [documents, columns, collectionName]);
+
+  // Handle copying content to clipboard based on view mode
+  const handleCopy = useCallback(async () => {
+    const content = viewMode === 'json' ? jsonContent : csvContent;
+    if (content) {
       try {
-        await navigator.clipboard.writeText(jsonContent);
-        setCopyFeedback('Copied!');
-        setTimeout(() => setCopyFeedback(''), 2000); // Clear message after 2 seconds
+        await navigator.clipboard.writeText(content);
+        setCopyFeedback(`${viewMode === 'json' ? 'JSON' : 'CSV'} copied!`);
+        setTimeout(() => setCopyFeedback(''), 2000);
       } catch (err) {
-        console.error('Failed to copy JSON:', err);
+        console.error(`Failed to copy ${viewMode === 'json' ? 'JSON' : 'CSV'}:`, err);
         setCopyFeedback('Failed to copy!');
         setTimeout(() => setCopyFeedback(''), 2000);
       }
     }
-  }, [jsonContent]);
+  }, [viewMode, jsonContent, csvContent]);
 
   if (!collectionName) {
     return <div className="document-viewer"><p>Please select a collection to view documents.</p></div>;
@@ -163,20 +179,18 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     <div className="document-viewer">
       <div className="document-viewer-header">
         <div className="view-controls-group">
-          {/* 1. Copy JSON button aligned to the left */}
+          {/* 1. Copy button aligned to the left, always visible */}
           <div className="copy-json-container">
-            {viewMode === 'json' && (
-              <div className="json-actions">
-                <Button
-                  onClick={handleCopyJson}
-                  variant="primary"
-                  title="Copy formatted JSON to clipboard"
-                >
-                  Copy JSON
-                </Button>
-                {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
-              </div>
-            )}
+            <div className="json-actions">
+              <Button
+                onClick={handleCopy}
+                variant="primary"
+                title={viewMode === 'json' ? 'Copy formatted JSON to clipboard' : 'Copy CSV to clipboard'}
+              >
+                Copy
+              </Button>
+              {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
+            </div>
           </div>
 
           {/* 2. View Mode Toggles: JSON and Table aligned to the right */}
@@ -190,7 +204,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 checked={viewMode === 'json'}
                 onChange={(e) => setViewMode('json')}
                 aria-pressed={viewMode === 'json'}
-              >JSON</ToggleButton>
+              >
+                JSON
+              </ToggleButton>
               <ToggleButton
                 id="table-toggle"
                 type="radio"
@@ -199,7 +215,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 checked={viewMode === 'table'}
                 onChange={(e) => setViewMode('table')}
                 aria-pressed={viewMode === 'table'}
-              >Table</ToggleButton>
+              >
+                Table
+              </ToggleButton>
             </ButtonGroup>
           </div>
         </div>
