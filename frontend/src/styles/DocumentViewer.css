@@ -1,5 +1,3 @@
-/* frontend/src/styles/DocumentViewer.css */
-
 /* Main Document Viewer Container */
 .document-viewer {
     flex-grow: 1; /* Allows it to take available space in its parent (.document-panel-right) */
@@ -33,33 +31,14 @@
     display: flex;
     align-items: center;
     gap: 15px; /* Space between view toggles and copy button */
+    width: 100%; /* Ensure full width for space-between to work */
+    justify-content: space-between; /* Aligns children to opposite ends */
 }
 
-.view-toggle {
+.copy-json-container {
+    flex-shrink: 0; /* Prevents shrinking */
     display: flex;
-    border: 0; /* Remove default border from view-toggle */
-    overflow: hidden; /* Ensures border-radius applies to inner buttons */
-    border-radius: 5px; /* Apply border-radius to the group of buttons */
-}
-
-.view-toggle button {
-    background-color: var(--view-toggle-button-bg);
-    color: var(--view-toggle-button-text); /* Use theme variables for text color */
-    border: none;
-    padding: 8px 15px;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: background-color 0.2s ease, color 0.2s ease;
-    white-space: nowrap; /* Prevent button text from wrapping */
-}
-
-.view-toggle button:hover {
-    background-color: var(--view-toggle-button-hover-bg); /* Hover effect for non-active buttons */
-}
-
-.view-toggle button.active {
-    background-color: var(--primary-color); /* Highlight active button */
-    color: var(--button-text); /* Text color for active button */
+    align-items: center;
 }
 
 .json-actions {
@@ -89,6 +68,39 @@
     opacity: 1;
     transition: opacity 0.3s ease;
     white-space: nowrap;
+}
+
+.view-toggle-container {
+    flex-shrink: 0; /* Prevents shrinking */
+    display: flex;
+    align-items: center;
+}
+
+.view-toggle {
+    display: flex;
+    border: 0; /* Remove default border from view-toggle */
+    overflow: hidden; /* Ensures border-radius applies to inner buttons */
+    border-radius: 5px; /* Apply border-radius to the group of buttons */
+}
+
+.view-toggle button {
+    background-color: var(--view-toggle-button-bg);
+    color: var(--view-toggle-button-text); /* Use theme variables for text color */
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    white-space: nowrap; /* Prevent button text from wrapping */
+}
+
+.view-toggle button:hover {
+    background-color: var(--view-toggle-button-hover-bg); /* Hover effect for non-active buttons */
+}
+
+.view-toggle button.active {
+    background-color: var(--primary-color); /* Highlight active button */
+    color: var(--button-text); /* Text color for active button */
 }
 
 /* JSON Viewer Specific Styles */

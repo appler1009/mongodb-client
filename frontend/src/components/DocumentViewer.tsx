@@ -1,4 +1,3 @@
-// frontend/src/components/DocumentViewer.tsx
 import React, { useMemo, useState, useContext, useCallback } from 'react';
 import type { Document } from '../types';
 
@@ -10,7 +9,6 @@ import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { ThemeContext } from '../context/ThemeContext';
 
 import '../styles/DocumentViewer.css';
-
 
 interface DocumentViewerProps {
   collectionName: string | null;
@@ -97,7 +95,6 @@ const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionNam
 };
 // --- End JSON Component ---
 
-
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   collectionName,
   documents,
@@ -149,7 +146,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   }, [jsonContent]);
 
-
   if (!collectionName) {
     return <div className="document-viewer"><p>Please select a collection to view documents.</p></div>;
   }
@@ -165,34 +161,37 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   return (
     <div className="document-viewer">
       <div className="document-viewer-header">
-        <h4>Documents in "{collectionName}" (Showing {documents.length} records)</h4>
         <div className="view-controls-group">
-          {/* 1. Copy JSON button (conditionally rendered) */}
-          {viewMode === 'json' && (
-            <div className="json-actions">
-              <button
-                onClick={handleCopyJson}
-                className="copy-json-button"
-                title="Copy formatted JSON to clipboard"
-              >
-                Copy JSON
-              </button>
-              {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
-            </div>
-          )}
+          {/* 1. Copy JSON button aligned to the left */}
+          <div className="copy-json-container">
+            {viewMode === 'json' && (
+              <div className="json-actions">
+                <button
+                  onClick={handleCopyJson}
+                  className="copy-json-button"
+                  title="Copy formatted JSON to clipboard"
+                >
+                  Copy JSON
+                </button>
+                {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
+              </div>
+            )}
+          </div>
 
-          {/* 2. View Mode Toggles: JSON then Table */}
-          <div className="view-toggle">
-            <button
-              onClick={() => setViewMode('json')}
-              className={viewMode === 'json' ? 'active' : ''}
-              aria-pressed={viewMode === 'json'}
-            >JSON</button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={viewMode === 'table' ? 'active' : ''}
-              aria-pressed={viewMode === 'table'}
-            >Table</button>
+          {/* 2. View Mode Toggles: JSON and Table aligned to the right */}
+          <div className="view-toggle-container">
+            <div className="view-toggle">
+              <button
+                onClick={() => setViewMode('json')}
+                className={viewMode === 'json' ? 'active' : ''}
+                aria-pressed={viewMode === 'json'}
+              >JSON</button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={viewMode === 'table' ? 'active' : ''}
+                aria-pressed={viewMode === 'table'}
+              >Table</button>
+            </div>
           </div>
         </div>
       </div>
