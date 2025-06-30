@@ -81,44 +81,14 @@
 }
 
 /* Document Table Styles */
-.document-table-container {
-    border: 1px solid var(--border-color); /* Add a border around the table */
-    border-radius: 8px; /* Match container border radius */
-    overflow: auto; /* Enable scrolling for large tables */
-    flex-grow: 1; /* Allow table to fill remaining vertical space */
-}
-
-.document-table {
-    table-layout: auto; /* Columns adjust to content */
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
-    min-width: 600px; /* Minimum width to ensure horizontal scroll if content is wide */
-}
-
-.document-table th,
-.document-table td {
-    padding: 10px 12px;
-    border: 1px solid var(--border-color);
-    text-align: left;
-    white-space: nowrap; /* Prevent text wrapping */
-    text-overflow: ellipsis; /* Add ellipsis if content overflows */
-    overflow: hidden;
-    max-width: 200px; /* Max width for data cells */
-    vertical-align: top;
-    color: var(--text-color); /* Ensure text color is applied */
-}
-
-.document-table thead th {
+thead th {
     background-color: var(--table-header-bg); /* Use theme variable */
-    font-weight: bold;
     position: sticky; /* Make headers sticky for scrolling tables */
     top: 0;
     z-index: 10; /* Ensure headers stay on top when scrolling */
-}
-
-.document-table tbody tr:hover {
-    background-color: var(--table-row-hover-bg); /* Use theme variable for hover */
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85em;
+    font-weight: bold;
 }
 
 .index-column-header,
@@ -141,16 +111,7 @@
 .document-data-cell {
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
     font-size: 0.85em;
-    max-width: 250px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Zebra striping for table rows */
-.document-table tbody tr:nth-child(even) {
-    background-color: var(--bg-color); /* Use a variation of background for even rows */
-}
-
-.document-table tbody tr:nth-child(odd) {
-    background-color: var(--card-bg); /* Use card background for odd rows */
+    max-width: 350px; /* Sufficient for ObjectId and ISO8601 timestamp */
+    overflow: visible; /* Remove ellipsis and allow content to extend */
+    white-space: nowrap;
 }

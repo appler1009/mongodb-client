@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useContext, useCallback } from 'react';
 import type { Document } from '../types';
-import { Button, ButtonGroup, ToggleButton } from 'react-bootstrap';
+import { Button, ButtonGroup, ToggleButton, Table } from 'react-bootstrap';
 
 // Import SyntaxHighlighter component
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -207,7 +207,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
       {viewMode === 'table' ? (
         <div className="document-table-container">
-          <table className="document-table">
+          <Table striped bordered hover responsive>
             <thead>
               <tr>
                 <th className="index-column-header"></th>
@@ -232,7 +232,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </div>
       ) : (
         <JsonDocumentDisplay documents={documents} collectionName={collectionName} jsonContent={jsonContent} />
