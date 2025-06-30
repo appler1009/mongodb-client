@@ -367,36 +367,42 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
           </div>
           {selectedCollection && (
             <div className="pagination-controls d-flex align-items-center mb-3">
-              <Form.Select
-                value={documentsPerPage}
-                onChange={handleDocumentsPerPageChange}
-                disabled={documentsLoading || aiLoading}
-                className="me-2"
-                style={{ width: 'auto' }}
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </Form.Select>
-              <Form.Text className="me-2">
-                Page {currentPage} of {totalPages} (Total: {totalDocuments} documents)
-              </Form.Text>
-              <Button
-                variant="outline-primary"
-                onClick={handlePrevPage}
-                disabled={currentPage === 1 || documentsLoading || aiLoading}
-                className="me-2"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline-primary"
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages || documentsLoading || aiLoading}
-              >
-                Next
-              </Button>
+              <div className="me-auto">
+                <Form.Select
+                  value={documentsPerPage}
+                  onChange={handleDocumentsPerPageChange}
+                  disabled={documentsLoading || aiLoading}
+                  className="me-2"
+                  style={{ width: 'auto' }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </Form.Select>
+                <Form.Text className="me-2">
+                  Page {currentPage} of {totalPages} (Total: {totalDocuments} documents)
+                </Form.Text>
+              </div>
+              <div className="d-flex">
+                <Button
+                  variant="outline-primary"
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1 || documentsLoading || aiLoading}
+                  className="me-2"
+                >
+                  <i className="bi bi-arrow-left me-1"></i>
+                  Previous
+                </Button>
+                <Button
+                  variant="outline-primary"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages || documentsLoading || aiLoading}
+                >
+                  Next
+                  <i className="bi bi-arrow-right ms-1"></i>
+                </Button>
+              </div>
             </div>
           )}
           {documentsLoading ? (
