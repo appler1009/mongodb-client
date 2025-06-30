@@ -1,4 +1,3 @@
-// backend/src/services/DatabaseService.ts
 import { Db, Collection, Document as MongoDocument } from './mongoDriverChooser';
 import { CollectionInfo } from '../types';
 import { Logger } from 'pino';
@@ -39,8 +38,17 @@ export class DatabaseService {
     this.logger.info(`Fetching collections from database: ${this.activeDb.databaseName}`);
     try {
       const collections = await this.activeDb.listCollections().toArray();
-      // Map to our simpler CollectionInfo interface
-      return collections.map(c => ({ name: c.name }));
+      const result: CollectionInfo[] = [];
+      for (const c of collections) {
+        let documentCount = 0;
+        try {
+          documentCount = await this.getDocumentCount(c.name);
+        } catch (err: any) {
+          this.logger.warn(`Failed to get document count for ${c.name}: ${err.message}`);
+        }
+        result.push({ name: c.name, documentCount });
+      }
+      return result;
     } catch (error) {
       this.logger.error({ error }, 'Failed to list collections');
       throw error;
@@ -113,7 +121,6 @@ export class DatabaseService {
     this.logger.info(`Fetching ALL documents from collection: ${collectionName} with query: ${JSON.stringify(query)} for export`);
     try {
       const collection: Collection = this.activeDb.collection(collectionName);
-      // Fetch all documents matching the query, without skip/limit
       const documents = await collection.find(query).toArray();
       return documents;
     } catch (error) {
@@ -145,10 +152,9 @@ export class DatabaseService {
       const collection: Collection = this.activeDb.collection(collectionName);
 
       const sampleDocuments = (await collection.aggregate([
-        { $sample: { size: sampleCount } } // Get random sample documents
+        { $sample: { size: sampleCount } }
       ]).toArray()) as MongoDocument[];
 
-      // Simple schema inference: list unique top-level keys and their types from samples
       const schemaMap: Map<string, Set<string>> = new Map();
 
       sampleDocuments.forEach(doc => {

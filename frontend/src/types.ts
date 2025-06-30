@@ -19,7 +19,6 @@ export interface ConnectionStatus {
 export interface CollectionInfo {
   name: string;
   documentCount: number;
-  sizeInBytes: number;
 }
 
 // Generic interface for a MongoDB document

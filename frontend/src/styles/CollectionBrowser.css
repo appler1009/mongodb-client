@@ -19,3 +19,10 @@
 .connected-db-name {
   font-weight: bold;
 }
+
+.collection-badge {
+  font-size: 0.6rem;
+  padding: 0.2em 0.5em;
+  vertical-align: super;
+  line-height: 1;
+}

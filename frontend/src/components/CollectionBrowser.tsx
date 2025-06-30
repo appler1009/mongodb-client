@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListGroup, Button, Card } from 'react-bootstrap';
+import { ListGroup, Button, Card, Badge } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo } from '../types';
 import '../styles/CollectionBrowser.css';
 
@@ -23,7 +23,7 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
       {currentStatus?.database && (
         <Card className="connection-status-header mb-3">
           <Card.Body className="d-flex align-items-center p-2">
-            <Card.Title>{currentStatus.database}</Card.Title>
+            <Card.Title><strong className="connected-db-name">{currentStatus.database}</strong></Card.Title>
           </Card.Body>
           <Card.Footer className="text-muted">
             <Button
@@ -49,8 +49,12 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
               active={col.name === selectedCollection}
               onClick={() => onSelectCollection(col.name)}
               action
+              className="d-flex align-items-center"
             >
-              {col.name}
+              <span>{col.name}</span>
+              <Badge bg="secondary" className="ms-auto collection-badge">
+                {col.documentCount.toLocaleString()}
+              </Badge>
             </ListGroup.Item>
           ))}
         </ListGroup>

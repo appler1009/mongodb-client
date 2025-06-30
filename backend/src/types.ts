@@ -14,6 +14,7 @@ export interface ConnectionStatus {
 
 export interface CollectionInfo {
   name: string;
+  documentCount: number;
 }
 
 export interface Document extends Record<string, any> {
