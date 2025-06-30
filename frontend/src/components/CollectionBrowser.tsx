@@ -24,6 +24,8 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
         <Card className="connection-status-header mb-3">
           <Card.Body className="d-flex align-items-center p-2">
             <Card.Title>{currentStatus.database}</Card.Title>
+          </Card.Body>
+          <Card.Footer className="text-muted">
             <Button
               variant="danger"
               size="sm"
@@ -33,7 +35,7 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
             >
               Disconnect
             </Button>
-          </Card.Body>
+          </Card.Footer>
         </Card>
       )}
       <h5>Collections ({collections.length})</h5>
