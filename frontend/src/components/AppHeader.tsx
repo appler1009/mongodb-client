@@ -1,17 +1,11 @@
 import React, { useContext } from 'react';
 import { Navbar, Nav, Button, Container } from 'react-bootstrap';
-import type { ConnectionStatus } from '../types';
 import { ThemeContext } from '../context/ThemeContext';
 
 interface AppHeaderProps {
-  currentStatus: ConnectionStatus | null;
-  onDisconnect: () => void;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({
-  currentStatus,
-  onDisconnect,
-}) => {
+export const AppHeader: React.FC<AppHeaderProps> = () => {
   const themeContext = useContext(ThemeContext);
   if (!themeContext) {
     throw new Error('AppHeader must be used within a ThemeProvider');
@@ -27,24 +21,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     <Navbar expand="lg" className="app-header mb-3">
       <Container fluid>
         <Navbar.Brand className="app-title">MongoDB Client</Navbar.Brand>
-        <Nav className="me-auto status-indicators">
-          {currentStatus && (
-            <Nav.Item className="connection-status-header">
-              Connected to: <strong className="connected-db-name">{currentStatus.database}</strong>
-            </Nav.Item>
-          )}
-        </Nav>
         <Nav className="ms-auto">
-          {currentStatus && (
-            <Button
-              variant="danger"
-              onClick={onDisconnect}
-              className="me-2"
-              title="Disconnect from current database"
-            >
-              Disconnect
-            </Button>
-          )}
           <Button
             variant={isSystemThemeActive ? 'primary' : 'outline-secondary'}
             onClick={handleToggleSystemTheme}

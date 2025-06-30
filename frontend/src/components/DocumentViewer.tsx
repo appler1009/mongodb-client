@@ -157,7 +157,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   if (documents.length === 0) {
     return (
       <div className="document-viewer">
-        <h4>Documents in "{collectionName}" (0)</h4>
         <p>Empty</p>
       </div>
     );

@@ -5,3 +5,17 @@
 .collection-browser h4 {
   margin-bottom: 1rem;
 }
+
+.collection-browser .list-group-item {
+  cursor: pointer;
+}
+
+.connection-status-header {
+  font-size: 1rem;
+  border: none;
+  background-color: transparent;
+}
+
+.connected-db-name {
+  font-weight: bold;
+}

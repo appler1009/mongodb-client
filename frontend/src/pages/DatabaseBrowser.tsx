@@ -16,12 +16,14 @@ interface DatabaseBrowserProps {
   currentStatus: ConnectionStatus | null;
   setNotificationMessage: (message: string | null) => void;
   setError: (message: string | null) => void;
+  onDisconnect: () => void;
 }
 
 export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   currentStatus,
   setNotificationMessage,
   setError,
+  onDisconnect,
 }) => {
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
@@ -352,7 +354,9 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
             <CollectionBrowser
               collections={collections}
               selectedCollection={selectedCollection}
+              currentStatus={currentStatus}
               onSelectCollection={handleCollectionSelect}
+              onDisconnect={onDisconnect}
             />
           )}
         </Col>
@@ -363,7 +367,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
             </Alert>
           )}
           <div className="query-editor-container mb-4">
-            <h4>Query Helper</h4>
+            <h5>Query Helper</h5>
             <Form.Control
               as="textarea"
               className="prompt-editor mb-2"
@@ -382,7 +386,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                   variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
                   checked={autoRunGeneratedQuery}
                   value="1"
-                  onClick={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
+                  onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
                   disabled={aiLoading}
                   className="me-2"
                 >
@@ -401,7 +405,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                 </Button>
               </div>
             </div>
-            <h4>Find Query (JSON)</h4>
+            <h5>Find Query (JSON)</h5>
             <Form.Control
               as="textarea"
               className="query-editor mb-2"

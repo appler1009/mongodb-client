@@ -49,10 +49,7 @@ export const HomePage: React.FC = () => {
 
   return (
     <Container fluid className="home-page-container py-3">
-      <AppHeader
-        currentStatus={currentStatus}
-        onDisconnect={handleDisconnect}
-      />
+      <AppHeader />
       {error && (
         <Alert variant="danger" className="mt-3 text-center">
           {error}
@@ -68,6 +65,7 @@ export const HomePage: React.FC = () => {
           currentStatus={currentStatus}
           setNotificationMessage={setNotificationMessage}
           setError={setError}
+          onDisconnect={handleDisconnect}
         />
       ) : (
         <ConnectionManager
