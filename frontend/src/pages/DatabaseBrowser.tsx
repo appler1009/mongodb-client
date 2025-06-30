@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, ChangeEvent, KeyboardEvent } from 'react';
-import { Container, Row, Col, Form, Button, Alert, InputGroup, FormCheck } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Alert, ToggleButton } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo, Document } from '../types';
 import {
   getDatabaseCollections,
@@ -8,10 +8,8 @@ import {
   getCollectionSchemaAndSampleDocuments,
   generateAIQuery,
 } from '../api/backend';
-
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
-
 import '../styles/DatabaseBrowser.css';
 
 interface DatabaseBrowserProps {
@@ -31,16 +29,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
   const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
-
-  // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [documentsPerPage, setDocumentsPerPage] = useState<number>(25);
-  const totalDocuments = selectedCollection
-    ? collections.find(c => c.name === selectedCollection)?.documentCount || 0
-    : 0;
-  const totalPages = Math.ceil(totalDocuments / documentsPerPage);
-
-  // --- Query Editor State ---
   const [promptText, setPromptText] = useState<string>('');
   const [queryText, setQueryText] = useState<string>('{}');
   const [parsedQuery, setParsedQuery] = useState<object>({});
@@ -48,7 +38,11 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
 
-  // --- Helper function to reset collection/document related states ---
+  const totalDocuments = selectedCollection
+    ? collections.find((c) => c.name === selectedCollection)?.documentCount || 0
+    : 0;
+  const totalPages = Math.ceil(totalDocuments / documentsPerPage);
+
   const resetBrowserState = useCallback(() => {
     setCollections([]);
     setSelectedCollection(null);
@@ -63,7 +57,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setAutoRunGeneratedQuery(true);
   }, []);
 
-  // Fetch collections for the currently active database
   const fetchCollections = useCallback(async () => {
     if (!currentStatus?.database) {
       resetBrowserState();
@@ -74,7 +67,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     try {
       const fetchedCollections = await getDatabaseCollections();
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
-
       setDocuments([]);
       setCurrentPage(1);
       setPromptText('');
@@ -82,9 +74,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       setParsedQuery({});
       setQueryError(null);
       setHasQueryBeenExecuted(false);
-
       setCollections(fetchedCollections);
-
       if (fetchedCollections.length > 0) {
         setSelectedCollection(fetchedCollections[0].name);
       } else {
@@ -100,7 +90,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [currentStatus?.database, resetBrowserState, setError]);
 
-  // Fetch documents for the selected collection with the current parsedQuery
   const fetchDocuments = useCallback(async () => {
     if (!selectedCollection) {
       setDocuments([]);
@@ -120,7 +109,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, setError]);
 
-  // --- Effects for Data Loading ---
   useEffect(() => {
     if (currentStatus?.database) {
       fetchCollections();
@@ -137,7 +125,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, hasQueryBeenExecuted, fetchDocuments]);
 
-  // --- Pagination Handlers ---
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);
     setCurrentPage(1);
@@ -150,13 +137,11 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   };
 
   const handlePrevPage = () => {
-    const newPage = Math.max(1, currentPage - 1);
-    setCurrentPage(newPage);
+    setCurrentPage((prev) => Math.max(1, prev - 1));
   };
 
   const handleNextPage = () => {
-    const newPage = Math.min(totalPages, currentPage + 1);
-    setCurrentPage(newPage);
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
 
   const handleDocumentsPerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -164,7 +149,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setCurrentPage(1);
   };
 
-  // --- Query Editor Handlers ---
   const handlePromptTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setPromptText(e.target.value);
     setQueryError(null);
@@ -175,11 +159,10 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setQueryError(null);
   };
 
-  const handleAutoRunCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setAutoRunGeneratedQuery(e.target.checked);
+  const handleAutoRunToggleChange = (checked: boolean) => {
+    setAutoRunGeneratedQuery(checked);
   };
 
-  // --- Keydown Handlers ---
   const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -194,7 +177,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
-  // Handles triggering Query Helper query generation
   const handleGenerateAIQuery = useCallback(async () => {
     if (!selectedCollection) {
       setNotificationMessage('Please select a collection before asking Query Helper to generate a query.');
@@ -216,7 +198,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
         userPrompt,
         selectedCollection,
         schemaSummary,
-        sampleDocuments
+        sampleDocuments,
       );
 
       if (backendError) {
@@ -253,7 +235,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [selectedCollection, promptText, autoRunGeneratedQuery, setNotificationMessage, setError]);
 
-  // Handles execution of a manually typed JSON query
   const handleExecuteManualQuery = () => {
     if (documentsLoading || aiLoading) {
       setQueryError('System is busy. Please wait for current operations to complete.');
@@ -271,7 +252,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
-  // --- Export Handler ---
   const handleExport = async () => {
     if (!selectedCollection) {
       setNotificationMessage('Please select a collection to export.');
@@ -321,7 +301,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               {queryError}
             </Alert>
           )}
-
           <div className="query-editor-container mb-4">
             <h4>Query Helper</h4>
             <Form.Control
@@ -334,15 +313,19 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               rows={3}
               disabled={documentsLoading || aiLoading}
             />
-            <InputGroup className="mb-3">
-              <FormCheck
+            <div className="d-flex align-items-center mb-3">
+              <ToggleButton
+                id="auto-run-toggle"
                 type="checkbox"
-                label="Auto-run"
+                variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
                 checked={autoRunGeneratedQuery}
-                onChange={handleAutoRunCheckboxChange}
+                value="1"
+                onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
                 disabled={aiLoading}
                 className="me-2"
-              />
+              >
+                Auto-run
+              </ToggleButton>
               <Button
                 variant="primary"
                 onClick={handleGenerateAIQuery}
@@ -351,8 +334,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               >
                 {aiLoading ? 'Generating Query...' : 'Generate Query'}
               </Button>
-            </InputGroup>
-
+            </div>
             <h4>Find Query (JSON)</h4>
             <Form.Control
               as="textarea"
@@ -364,12 +346,13 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               rows={5}
               disabled={documentsLoading || aiLoading}
             />
-            <InputGroup>
+            <div className="d-flex">
               <Button
                 variant="secondary"
                 onClick={handleExport}
                 disabled={!selectedCollection || documentsLoading || aiLoading}
                 title="Export all documents matching the current query to a JSON Lines file"
+                className="me-2"
               >
                 Export
               </Button>
@@ -380,11 +363,10 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               >
                 Run Query
               </Button>
-            </InputGroup>
+            </div>
           </div>
-
           {selectedCollection && (
-            <InputGroup className="pagination-controls mb-3">
+            <div className="pagination-controls d-flex align-items-center mb-3">
               <Form.Select
                 value={documentsPerPage}
                 onChange={handleDocumentsPerPageChange}
@@ -415,9 +397,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               >
                 Next
               </Button>
-            </InputGroup>
+            </div>
           )}
-
           {documentsLoading ? (
             <p className="text-center mt-3">Loading documents...</p>
           ) : (

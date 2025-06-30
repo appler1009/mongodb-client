@@ -5,6 +5,18 @@
 }
 
 .database-browser-section {
-  /* Ensure container takes full height if needed */
   min-height: 100vh;
+}
+
+.toggle-checkbox {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+}
+
+.toggle-checkbox .form-check-input {
+  margin-right: 0.5rem;
+}
+
+.toggle-checkbox .form-check-label {
+  font-size: 0.9rem;
 }
