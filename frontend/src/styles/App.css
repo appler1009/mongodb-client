@@ -28,19 +28,3 @@ body {
 .connection-status-header .connected-db-name {
   font-weight: bold;
 }
-
-/* Theme Toggle Button Styles */
-.theme-toggle-button {
-  padding: 0;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.theme-icon {
-  width: 16px;
-  height: 16px;
-  stroke: var(--bs-body-color);
-}

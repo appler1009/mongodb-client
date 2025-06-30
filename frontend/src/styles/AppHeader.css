@@ -27,14 +27,24 @@
   color: inherit;
   background: none;
   border: none;
-  font-size: 1.2rem;
   cursor: pointer;
   padding: 0.25rem;
+  width: 40px;
+  height: 40px;
   transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .app-header .theme-toggle-button:hover {
   color: #e74c3c; /* Red hover effect for visibility */
+}
+
+.app-header .theme-toggle-button.active {
+  background-color: rgba(231, 76, 60, 0.2); /* Light red background when selected */
+  border: 2px solid; /* border for emphasis */
+  border-radius: 0.25rem; /* Slight rounding for button */
 }
 
 .app-header .theme-icon {

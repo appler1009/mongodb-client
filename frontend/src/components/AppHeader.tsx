@@ -43,6 +43,7 @@ export const AppHeader: React.FC<AppHeaderProps> = () => {
             onClick={handleToggleSystemTheme}
             className="theme-toggle-button system-toggle me-2"
             title={isSystemThemeActive ? 'Using System Theme (Click to switch to manual mode)' : 'Switch to System Theme'}
+            active={isSystemThemeActive}
           >
             <i className="bi bi-display theme-icon"></i>
           </Button>
