@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Alert } from 'react-bootstrap';
+import { Container, Toast, ToastContainer } from 'react-bootstrap';
 import type { ConnectionStatus } from '../types';
 import { connectToMongo, disconnectFromMongo } from '../api/backend';
 import { AppHeader } from '../components/AppHeader';
@@ -10,13 +10,18 @@ export const HomePage: React.FC = () => {
   const [currentStatus, setCurrentStatus] = useState<ConnectionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [showNotification, setShowNotification] = useState(false);
 
   useEffect(() => {
     if (notificationMessage) {
+      setShowNotification(true);
       const timer = setTimeout(() => {
+        setShowNotification(false);
         setNotificationMessage(null);
       }, 3000);
       return () => clearTimeout(timer);
+    } else {
+      setShowNotification(false);
     }
   }, [notificationMessage]);
 
@@ -50,16 +55,32 @@ export const HomePage: React.FC = () => {
   return (
     <Container fluid className="home-page-container py-3">
       <AppHeader />
-      {error && (
-        <Alert variant="danger" className="mt-3 text-center">
-          {error}
-        </Alert>
-      )}
-      {notificationMessage && (
-        <Alert variant="primary" className="mt-3 text-center">
-          {notificationMessage}
-        </Alert>
-      )}
+      <ToastContainer position="top-center" className="p-3">
+        {error && (
+          <Toast
+            show={!!error}
+            onClose={() => setError(null)}
+            delay={5000}
+            autohide
+          >
+            <Toast.Body className="bg-danger text-white text-center p-2">
+              {error}
+            </Toast.Body>
+          </Toast>
+        )}
+        {notificationMessage && (
+          <Toast
+            show={showNotification}
+            onClose={() => setShowNotification(false)}
+            delay={3000}
+            autohide
+          >
+            <Toast.Body className="bg-secondary text-white text-center p-2">
+              {notificationMessage}
+            </Toast.Body>
+          </Toast>
+        )}
+      </ToastContainer>
       {currentStatus?.database ? (
         <DatabaseBrowser
           currentStatus={currentStatus}
