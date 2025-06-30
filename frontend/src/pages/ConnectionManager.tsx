@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Form, Button, ListGroup, InputGroup, Alert, Accordion } from 'react-bootstrap';
+import { Container, Form, Button, InputGroup, Alert, Accordion, Card } from 'react-bootstrap';
 import type { ConnectionConfig, ConnectionStatus } from '../types';
 import {
   getConnections,
@@ -105,6 +105,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
       await deleteConnection(connectionToDeleteId);
       setConnections((prev) => prev.filter((conn) => conn.id !== connectionToDeleteId));
       if (currentStatus?.connectionId === connectionToDeleteId) {
+        // Optionally handle disconnection if the deleted connection is active
       }
       setNotificationMessage('Connection deleted successfully!');
     } catch (err: any) {
@@ -166,67 +167,69 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
       {connections.length === 0 ? (
         <Alert variant="info">No connections saved yet.</Alert>
       ) : (
-        <ListGroup>
+        <div className="connection-list">
           {connections.map((conn) => (
-            <ListGroup.Item key={conn.id}>
-              {editingConnection && editingConnection.id === conn.id ? (
-                <Form onSubmit={handleUpdateConnection}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Connection Name</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="name"
-                      value={editingConnection.name}
-                      onChange={handleEditChange}
-                      required
-                    />
-                  </Form.Group>
-                  <Form.Group className="mb-3">
-                    <Form.Label>MongoDB URI</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      name="uri"
-                      value={editingConnection.uri}
-                      onChange={handleEditChange}
-                      rows={3}
-                      required
-                    />
-                  </Form.Group>
-                  <InputGroup>
-                    <Button type="submit" variant="success" className="me-2">Save</Button>
-                    <Button variant="secondary" onClick={() => setEditingConnection(null)}>Cancel</Button>
-                  </InputGroup>
-                </Form>
-              ) : (
-                <div className="connection-details">
-                  <h4>{conn.name}</h4>
-                  <p className="connection-uri">URI: {conn.uri}</p>
-                  <InputGroup>
-                    <Button
-                      variant="primary"
-                      onClick={() => onConnect(conn.id)}
-                      disabled={currentStatus !== null}
-                    >
-                      Connect
-                    </Button>
-                    <Button
-                      variant="outline-warning"
-                      onClick={() => setEditingConnection(conn)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline-danger"
-                      onClick={() => confirmDeleteConnection(conn.id)}
-                    >
-                      Delete
-                    </Button>
-                  </InputGroup>
-                </div>
-              )}
-            </ListGroup.Item>
+            <Card key={conn.id} className="mb-3">
+              <Card.Body className="p-3">
+                {editingConnection && editingConnection.id === conn.id ? (
+                  <Form onSubmit={handleUpdateConnection}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Connection Name</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="name"
+                        value={editingConnection.name}
+                        onChange={handleEditChange}
+                        required
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label>MongoDB URI</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        name="uri"
+                        value={editingConnection.uri}
+                        onChange={handleEditChange}
+                        rows={3}
+                        required
+                      />
+                    </Form.Group>
+                    <InputGroup>
+                      <Button type="submit" variant="success">Save</Button>
+                      <Button variant="secondary" onClick={() => setEditingConnection(null)}>Cancel</Button>
+                    </InputGroup>
+                  </Form>
+                ) : (
+                  <div className="connection-details">
+                    <h4>{conn.name}</h4>
+                    <p className="connection-uri">URI: {conn.uri}</p>
+                    <InputGroup>
+                      <Button
+                        variant="primary"
+                        onClick={() => onConnect(conn.id)}
+                        disabled={currentStatus !== null}
+                      >
+                        Connect
+                      </Button>
+                      <Button
+                        variant="outline-warning"
+                        onClick={() => setEditingConnection(conn)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline-danger"
+                        onClick={() => confirmDeleteConnection(conn.id)}
+                      >
+                        Delete
+                      </Button>
+                    </InputGroup>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
           ))}
-        </ListGroup>
+        </div>
       )}
 
       {showConfirmDeleteDialog && (
