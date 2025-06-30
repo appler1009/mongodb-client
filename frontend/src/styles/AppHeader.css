@@ -1,0 +1,42 @@
+.app-header {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Enhanced shadow for depth */
+  border-radius: 0.5rem; /* Rounded corners */
+  padding: 0.5rem 1rem;
+  transition: background-color 0.3s ease, color 0.3s ease; /* Smooth theme transitions */
+}
+
+.app-header[data-bs-theme="dark"] {
+  background-color: #34495e; /* Slightly lighter dark shade for dark mode */
+  color: #ecf0f1; /* Light gray for dark mode text */
+}
+
+.app-header[data-bs-theme="light"] {
+  background-color: #3498db; /* Bright blue for light mode */
+  color: #ffffff; /* White text */
+}
+
+.app-header[data-bs-theme="dark"] .navbar-brand {
+  color: #ecf0f1; /* Light gray for dark mode text */
+}
+
+.app-header[data-bs-theme="light"] .navbar-brand {
+  color: #ffffff; /* White text */
+}
+
+.app-header .theme-toggle-button {
+  color: inherit;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.3s ease;
+}
+
+.app-header .theme-toggle-button:hover {
+  color: #e74c3c; /* Red hover effect for visibility */
+}
+
+.app-header .theme-icon {
+  margin: 0;
+}

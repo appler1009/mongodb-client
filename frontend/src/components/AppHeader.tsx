@@ -1,6 +1,7 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import { ThemeContext } from '../context/ThemeContext';
+import '../styles/AppHeader.css';
 
 interface AppHeaderProps {
 }
@@ -17,8 +18,23 @@ export const AppHeader: React.FC<AppHeaderProps> = () => {
     setIsSystemThemeActive((prev) => !prev);
   };
 
+  // Apply theme to document body based on system preference or manual setting
+  useEffect(() => {
+    const applyTheme = () => {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const effectiveTheme = isSystemThemeActive
+        ? (prefersDark ? 'dark' : 'light')
+        : theme;
+      document.body.setAttribute('data-bs-theme', effectiveTheme);
+    };
+    applyTheme();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', applyTheme);
+    return () => mediaQuery.removeEventListener('change', applyTheme);
+  }, [theme, isSystemThemeActive]);
+
   return (
-    <Navbar expand="lg" className="app-header mb-3">
+    <Navbar expand="lg" className="app-header" data-bs-theme={isSystemThemeActive ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme}>
       <Container fluid>
         <Navbar.Brand className="app-title">MongoDB Client</Navbar.Brand>
         <Nav className="ms-auto">
