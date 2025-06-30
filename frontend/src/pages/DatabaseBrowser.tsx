@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, ChangeEvent, KeyboardEvent } from 'react';
-import { Container, Row, Col, Form, Button, Alert, ToggleButton } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Alert, ToggleButton, Pagination } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo, Document } from '../types';
 import {
   getDatabaseCollections,
@@ -26,6 +26,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [filteredDocumentCount, setFilteredDocumentCount] = useState<number>(0);
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
   const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -38,15 +39,14 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
 
-  const totalDocuments = selectedCollection
-    ? collections.find((c) => c.name === selectedCollection)?.documentCount || 0
-    : 0;
+  const totalDocuments = hasQueryBeenExecuted ? filteredDocumentCount : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   const resetBrowserState = useCallback(() => {
     setCollections([]);
     setSelectedCollection(null);
     setDocuments([]);
+    setFilteredDocumentCount(0);
     setCurrentPage(1);
     setPromptText('');
     setQueryText('{}');
@@ -68,6 +68,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       const fetchedCollections = await getDatabaseCollections();
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setDocuments([]);
+      setFilteredDocumentCount(0);
       setCurrentPage(1);
       setPromptText('');
       setQueryText('{}');
@@ -93,6 +94,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const fetchDocuments = useCallback(async () => {
     if (!selectedCollection) {
       setDocuments([]);
+      setFilteredDocumentCount(0);
       return;
     }
     setDocumentsLoading(true);
@@ -101,9 +103,11 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       const skip = (currentPage - 1) * documentsPerPage;
       const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedQuery);
       setDocuments(response.documents);
+      setFilteredDocumentCount(response.totalDocuments || 0);
     } catch (err: any) {
       setError(`Failed to fetch documents for ${selectedCollection}: ${err.message}`);
       setDocuments([]);
+      setFilteredDocumentCount(0);
     } finally {
       setDocumentsLoading(false);
     }
@@ -122,6 +126,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       fetchDocuments();
     } else if (selectedCollection && !hasQueryBeenExecuted) {
       setDocuments([]);
+      setFilteredDocumentCount(0);
     }
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, hasQueryBeenExecuted, fetchDocuments]);
 
@@ -129,6 +134,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setSelectedCollection(collectionName);
     setCurrentPage(1);
     setDocuments([]);
+    setFilteredDocumentCount(0);
     setPromptText('');
     setQueryText('{}');
     setParsedQuery({});
@@ -136,12 +142,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setHasQueryBeenExecuted(false);
   };
 
-  const handlePrevPage = () => {
-    setCurrentPage((prev) => Math.max(1, prev - 1));
-  };
-
-  const handleNextPage = () => {
-    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  const handlePageSelect = (page: number) => {
+    setCurrentPage(page);
   };
 
   const handleDocumentsPerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -277,6 +279,65 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
+  // Generate pagination items with limited range
+  const maxPageButtons = 5; // Show current page ±2
+  const paginationItems = [];
+  let startPage = Math.max(1, currentPage - 2);
+  let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+
+  // Adjust startPage if endPage is at totalPages
+  if (endPage === totalPages) {
+    startPage = Math.max(1, endPage - maxPageButtons + 1);
+  }
+
+  // Add first page and ellipsis if needed
+  if (startPage > 1) {
+    paginationItems.push(
+      <Pagination.Item
+        key={1}
+        active={1 === currentPage}
+        onClick={() => handlePageSelect(1)}
+        disabled={documentsLoading || aiLoading}
+      >
+        1
+      </Pagination.Item>
+    );
+    if (startPage > 2) {
+      paginationItems.push(<Pagination.Ellipsis key="start-ellipsis" />);
+    }
+  }
+
+  // Add page range
+  for (let page = startPage; page <= endPage; page++) {
+    paginationItems.push(
+      <Pagination.Item
+        key={page}
+        active={page === currentPage}
+        onClick={() => handlePageSelect(page)}
+        disabled={documentsLoading || aiLoading}
+      >
+        {page}
+      </Pagination.Item>
+    );
+  }
+
+  // Add last page and ellipsis if needed
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      paginationItems.push(<Pagination.Ellipsis key="end-ellipsis" />);
+    }
+    paginationItems.push(
+      <Pagination.Item
+        key={totalPages}
+        active={totalPages === currentPage}
+        onClick={() => handlePageSelect(totalPages)}
+        disabled={documentsLoading || aiLoading}
+      >
+        {totalPages}
+      </Pagination.Item>
+    );
+  }
+
   if (!currentStatus?.database) {
     return <p className="text-center mt-4">Select a connection to browse databases.</p>;
   }
@@ -321,7 +382,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                   variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
                   checked={autoRunGeneratedQuery}
                   value="1"
-                  onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
+                  onClick={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
                   disabled={aiLoading}
                   className="me-2"
                 >
@@ -376,7 +437,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
           </div>
           {selectedCollection && (
             <div className="pagination-controls d-flex align-items-center mb-3">
-              <div className="me-auto">
+              <div className="me-auto d-flex align-items-center">
                 <Form.Select
                   value={documentsPerPage}
                   onChange={handleDocumentsPerPageChange}
@@ -389,28 +450,28 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </Form.Select>
-                <Form.Text className="me-2">
-                  Page {currentPage} of {totalPages} (Total: {totalDocuments} documents)
-                </Form.Text>
+                {hasQueryBeenExecuted && filteredDocumentCount > 0 && (
+                  <Form.Text className="me-2">
+                    Total {filteredDocumentCount} docs
+                  </Form.Text>
+                )}
               </div>
               <div className="d-flex">
-                <Button
-                  variant="outline-primary"
-                  onClick={handlePrevPage}
-                  disabled={currentPage === 1 || documentsLoading || aiLoading}
-                  className="me-2"
-                >
-                  <i className="bi bi-arrow-left me-1"></i>
-                  Previous
-                </Button>
-                <Button
-                  variant="outline-primary"
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages || documentsLoading || aiLoading}
-                >
-                  Next
-                  <i className="bi bi-arrow-right ms-1"></i>
-                </Button>
+                <Pagination>
+                  <Pagination.Prev
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1 || documentsLoading || aiLoading}
+                  >
+                    <i className="bi bi-arrow-left"></i>
+                  </Pagination.Prev>
+                  {paginationItems}
+                  <Pagination.Next
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages || documentsLoading || aiLoading}
+                  >
+                    <i className="bi bi-arrow-right"></i>
+                  </Pagination.Next>
+                </Pagination>
               </div>
             </div>
           )}
