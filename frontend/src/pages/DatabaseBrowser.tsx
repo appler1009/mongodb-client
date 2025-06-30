@@ -284,60 +284,62 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   // Generate pagination items with limited range
   const maxPageButtons = 5; // Show current page ±2
   const paginationItems = [];
-  let startPage = Math.max(1, currentPage - 2);
-  let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+  if (filteredDocumentCount > 0) {
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
 
-  // Adjust startPage if endPage is at totalPages
-  if (endPage === totalPages) {
-    startPage = Math.max(1, endPage - maxPageButtons + 1);
-  }
-
-  // Add first page and ellipsis if needed
-  if (startPage > 1) {
-    paginationItems.push(
-      <Pagination.Item
-        key={1}
-        active={1 === currentPage}
-        onClick={() => handlePageSelect(1)}
-        disabled={documentsLoading || aiLoading}
-      >
-        1
-      </Pagination.Item>
-    );
-    if (startPage > 2) {
-      paginationItems.push(<Pagination.Ellipsis key="start-ellipsis" />);
+    // Adjust startPage if endPage is at totalPages
+    if (endPage === totalPages) {
+      startPage = Math.max(1, endPage - maxPageButtons + 1);
     }
-  }
 
-  // Add page range
-  for (let page = startPage; page <= endPage; page++) {
-    paginationItems.push(
-      <Pagination.Item
-        key={page}
-        active={page === currentPage}
-        onClick={() => handlePageSelect(page)}
-        disabled={documentsLoading || aiLoading}
-      >
-        {page}
-      </Pagination.Item>
-    );
-  }
-
-  // Add last page and ellipsis if needed
-  if (endPage < totalPages) {
-    if (endPage < totalPages - 1) {
-      paginationItems.push(<Pagination.Ellipsis key="end-ellipsis" />);
+    // Add first page and ellipsis if needed
+    if (startPage > 1) {
+      paginationItems.push(
+        <Pagination.Item
+          key={1}
+          active={1 === currentPage}
+          onClick={() => handlePageSelect(1)}
+          disabled={documentsLoading || aiLoading}
+        >
+          1
+        </Pagination.Item>
+      );
+      if (startPage > 2) {
+        paginationItems.push(<Pagination.Ellipsis key="start-ellipsis" />);
+      }
     }
-    paginationItems.push(
-      <Pagination.Item
-        key={totalPages}
-        active={totalPages === currentPage}
-        onClick={() => handlePageSelect(totalPages)}
-        disabled={documentsLoading || aiLoading}
-      >
-        {totalPages}
-      </Pagination.Item>
-    );
+
+    // Add page range
+    for (let page = startPage; page <= endPage; page++) {
+      paginationItems.push(
+        <Pagination.Item
+          key={page}
+          active={page === currentPage}
+          onClick={() => handlePageSelect(page)}
+          disabled={documentsLoading || aiLoading}
+        >
+          {page}
+        </Pagination.Item>
+      );
+    }
+
+    // Add last page and ellipsis if needed
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        paginationItems.push(<Pagination.Ellipsis key="end-ellipsis" />);
+      }
+      paginationItems.push(
+        <Pagination.Item
+          key={totalPages}
+          active={totalPages === currentPage}
+          onClick={() => handlePageSelect(totalPages)}
+          disabled={documentsLoading || aiLoading}
+        >
+          {totalPages}
+        </Pagination.Item>
+      );
+    }
   }
 
   if (!currentStatus?.database) {
@@ -445,7 +447,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                 <Form.Select
                   value={documentsPerPage}
                   onChange={handleDocumentsPerPageChange}
-                  disabled={documentsLoading || aiLoading}
+                  disabled={documentsLoading || aiLoading || filteredDocumentCount === 0}
                   className="me-2"
                   style={{ width: 'auto' }}
                 >
@@ -464,14 +466,14 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                 <Pagination>
                   <Pagination.Prev
                     onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1 || documentsLoading || aiLoading}
+                    disabled={currentPage === 1 || documentsLoading || aiLoading || filteredDocumentCount === 0}
                   >
                     <i className="bi bi-arrow-left"></i>
                   </Pagination.Prev>
                   {paginationItems}
                   <Pagination.Next
                     onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages || documentsLoading || aiLoading}
+                    disabled={currentPage === totalPages || documentsLoading || aiLoading || filteredDocumentCount === 0}
                   >
                     <i className="bi bi-arrow-right"></i>
                   </Pagination.Next>
