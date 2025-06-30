@@ -324,6 +324,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                 disabled={aiLoading}
                 className="me-2"
               >
+                <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
                 Auto-run
               </ToggleButton>
               <Button
