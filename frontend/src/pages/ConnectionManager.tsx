@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Form, Button, ListGroup, InputGroup, Alert } from 'react-bootstrap';
+import { Container, Form, Button, ListGroup, InputGroup, Alert, Accordion } from 'react-bootstrap';
 import type { ConnectionConfig, ConnectionStatus } from '../types';
 import {
   getConnections,
@@ -125,35 +125,44 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
 
   return (
     <Container className="py-4">
-      <h3>Add New Connection</h3>
-      <Form onSubmit={handleAddConnection} className="mb-4">
-        <Form.Group className="mb-3">
-          <Form.Label>Connection Name</Form.Label>
-          <Form.Control
-            type="text"
-            name="name"
-            placeholder="Connection Name"
-            value={newConnection.name}
-            onChange={handleChange}
-            required
-          />
-        </Form.Group>
-        <Form.Group className="mb-3">
-          <Form.Label>MongoDB URI</Form.Label>
-          <Form.Control
-            as="textarea"
-            name="uri"
-            placeholder="MongoDB URI (e.g., mongodb://user:pass@host:port/database?replicaSet=mySet)"
-            value={newConnection.uri}
-            onChange={handleChange}
-            rows={3}
-            required
-          />
-        </Form.Group>
-        <Button type="submit" variant="primary">Add Connection</Button>
-      </Form>
+      <Accordion defaultActiveKey={null}>
+        <Accordion.Item eventKey="0">
+          <Accordion.Header>
+            <i className="bi bi-plus-circle theme-icon me-2"></i>
+            Add New Connection
+          </Accordion.Header>
+          <Accordion.Body>
+            <Form onSubmit={handleAddConnection} className="mb-4">
+              <Form.Group className="mb-3">
+                <Form.Label>Connection Name</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="name"
+                  placeholder="Connection Name"
+                  value={newConnection.name}
+                  onChange={handleChange}
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>MongoDB URI</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  name="uri"
+                  placeholder="MongoDB URI (e.g., mongodb://user:pass@host:port/database?replicaSet=mySet)"
+                  value={newConnection.uri}
+                  onChange={handleChange}
+                  rows={3}
+                  required
+                />
+              </Form.Group>
+              <Button type="submit" variant="primary">Add Connection</Button>
+            </Form>
+          </Accordion.Body>
+        </Accordion.Item>
+      </Accordion>
 
-      <h3>Saved Connections</h3>
+      <h3 className="mt-4">Saved Connections</h3>
       {connections.length === 0 ? (
         <Alert variant="info">No connections saved yet.</Alert>
       ) : (

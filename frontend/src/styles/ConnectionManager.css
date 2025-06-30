@@ -2,14 +2,24 @@ h3 {
   margin-bottom: 1.5rem;
 }
 
+.connection-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .connection-details h4 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
+  margin: 0;
 }
 
 .connection-uri {
   font-family: monospace;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+  font-size: 0.9em;
   word-break: break-all;
+}
+
+.accordion-header .theme-icon {
+  font-size: 1.2rem;
+  position: relative;
+  top: -3px;
 }
