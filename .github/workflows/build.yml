@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Needed for git log
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -81,16 +81,11 @@ jobs:
           MACOS_DEVELOPER_ID_CERTIFICATE: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }}
           MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
         run: |
-          # Create a temporary keychain
           security create-keychain -p mysecret build.keychain
           security set-keychain-settings -lut 21600 build.keychain
           security unlock-keychain -p mysecret build.keychain
-
-          # Decode and import the certificate
           echo -n "$MACOS_DEVELOPER_ID_CERTIFICATE" | base64 --decode > developer-id.p12
           security import developer-id.p12 -k build.keychain -P "$MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-
-          # Set the keychain as default and allow codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k mysecret build.keychain
           security list-keychain -d user -s build.keychain
 
@@ -98,8 +93,19 @@ jobs:
         run: npm run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # CSC_LINK: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }} # Optional fallback for identity
-          # CSC_KEY_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }} # Optional fallback for password
+          # CSC_LINK: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }}
+          # CSC_KEY_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+
+      - name: Notarize the macOS App (macOS only)
+        if: runner.os == 'macOS' && success()
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          XCRUN_NOTARYTOOL_SKIP_SUBMISSION: false
+        run: |
+          dmg_path="release/MongoDB Client-*.dmg"
+          xcrun notarytool submit "$dmg_path" --apple-id "$APPLE_ID" --password "$APPLE_ID_PASSWORD" --team-id "YourTeamID" --wait
+          xcrun stapler staple "$dmg_path"
 
       - name: Clean Up (macOS only)
         if: runner.os == 'macOS' && always()
@@ -110,66 +116,63 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          # Use a consistent pattern for artifact names to easily download them later
           name: ${{ matrix.os }}-release-build
-          path: release/ # Path to your electron-builder output directory
+          path: release/
 
   release:
-    # This job depends on the 'release-notes' job for the body content
-    # AND all instances of the 'build' job to ensure binaries are ready.
     needs: [release-notes, build]
-    runs-on: ubuntu-latest # Run this on a single OS as it's just coordinating
+    runs-on: ubuntu-latest
     permissions:
-      contents: write # Necessary to create and upload assets to a release
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Needed to access RELEASE_NOTES.md if it's not an artifact
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract Package Version
+        id: package_version
+        run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Download release notes artifact
         uses: actions/download-artifact@v4
         with:
           name: release-notes
-          path: . # Download to current directory
+          path: .
 
-      # Download all platform-specific build artifacts
       - name: Download all release builds
         uses: actions/download-artifact@v4
         with:
-          # This downloads ALL artifacts that match the pattern,
-          # placing them in subdirectories named after the artifact names (e.g., ubuntu-latest-release-build/, windows-latest-release-build/)
-          # The '*' matches the 'name' given in the upload step for each OS.
           pattern: '*-release-build'
           path: ./release-builds-download
 
       - name: List downloaded artifacts (for debugging)
-        # Limit the directory depth of ls output for brevity
         run: find ./release-builds-download -maxdepth 3
 
       - name: Create GitHub Release
-        id: create_release # Give this step an ID to reference its outputs
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ github.run_number }} # Use the same tag as before
-          release_name: Release v${{ github.run_number }}
+          tag_name: v${{ steps.package_version.outputs.PACKAGE_VERSION }}
+          release_name: Release v${{ steps.package_version.outputs.PACKAGE_VERSION }}
           body_path: RELEASE_NOTES.md
           draft: false
-          prerelease: false # Set to true if you want draft/pre-release
+          prerelease: false
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1 # A better action for uploading multiple assets
-        if: success() # Only run if release creation was successful
+        uses: softprops/action-gh-release@v1
+        if: success()
         with:
-          # Update file pattern to specifically target the .zip files generated by electron-builder.
-          # These will be found inside the 'release/' subdirectory within each downloaded artifact.
           files: |
             ./release-builds-download/*/release/*.zip
             ./release-builds-download/*/release/*.dmg
             ./release-builds-download/*/release/*.AppImage
             ./release-builds-download/*/release/*.exe
-          tag_name: v${{ github.run_number }} # Match the tag created by the previous step
-          # You can add a name for each asset if you want to be more specific,
-          # but for multiple files, a wildcard is easier.
+          tag_name: v${{ steps.package_version.outputs.PACKAGE_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
