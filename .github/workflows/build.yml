@@ -96,15 +96,25 @@ jobs:
           # CSC_LINK: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }}
           # CSC_KEY_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
 
+      - name: Debug release directory
+        if: runner.os == 'macOS'
+        run: ls -la release/
+
       - name: Notarize the macOS App (macOS only)
         if: runner.os == 'macOS' && success()
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           XCRUN_NOTARYTOOL_SKIP_SUBMISSION: false
         run: |
-          dmg_path="release/MongoDB Client-*.dmg"
-          xcrun notarytool submit "$dmg_path" --apple-id "$APPLE_ID" --password "$APPLE_ID_PASSWORD" --team-id "YourTeamID" --wait
+          dmg_path=$(ls release/MongoDB\ Client-*.dmg)
+          if [ -z "$dmg_path" ]; then
+            echo "Error: No .dmg file found in release/"
+            exit 1
+          fi
+          echo "Notarizing $dmg_path"
+          xcrun notarytool submit "$dmg_path" --apple-id "$APPLE_ID" --password "$APPLE_ID_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
           xcrun stapler staple "$dmg_path"
 
       - name: Clean Up (macOS only)
