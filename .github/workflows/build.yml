@@ -93,8 +93,6 @@ jobs:
         run: npm run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # CSC_LINK: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
 
       - name: Debug release directory
         if: runner.os == 'macOS'
@@ -179,8 +177,8 @@ jobs:
         if: success()
         with:
           files: |
+            ./release-builds-download/*/MongoDB\ Client-*.dmg
             ./release-builds-download/*/release/*.zip
-            ./release-builds-download/*/release/*.dmg
             ./release-builds-download/*/release/*.AppImage
             ./release-builds-download/*/release/*.exe
           tag_name: v${{ steps.package_version.outputs.PACKAGE_VERSION }}
