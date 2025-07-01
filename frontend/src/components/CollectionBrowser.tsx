@@ -38,7 +38,6 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
           </Card.Footer>
         </Card>
       )}
-      <h5>Collections ({collections.length})</h5>
       {collections.length === 0 ? (
         <p className="text-muted">No collections found in this database.</p>
       ) : (
