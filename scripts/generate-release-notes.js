@@ -55,7 +55,7 @@ async function generateReleaseNotes() {
     }
 
     // Prepare prompt for Grok
-    const prompt = `Summarize the following commit messages into concise release notes in Markdown format, grouping by features, bug fixes, and chores. Limit the summary to a few meaningful items per group, avoiding a detailed list of every commit:\n\n${commitsToSummarize}`;
+    const prompt = `Summarize the following commit messages into concise release notes in Markdown format, grouping by features, bug fixes, and chores. Limit the summary to a few meaningful items per group, avoiding a detailed list of every commit. Don't include any additional information or context:\n\n${commitsToSummarize}`;
     console.log(`Prompt sent to API:\n---\n${prompt}\n---`);
 
     // Call Grok API using the native global fetch API (available in Node.js 18+)
