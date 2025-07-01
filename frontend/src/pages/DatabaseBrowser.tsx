@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, ChangeEvent, KeyboardEvent } from 'react';
-import { Container, Row, Col, Form, Button, Alert, ToggleButton, Pagination } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Alert, ToggleButton, Pagination, Accordion, Card } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo, Document } from '../types';
 import {
   getDatabaseCollections,
@@ -40,6 +40,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
+  const [accordionActiveKey, setAccordionActiveKey] = useState<string[]>(['0', '1']); // State to control accordion
 
   const totalDocuments = hasQueryBeenExecuted ? filteredDocumentCount : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
@@ -57,6 +58,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setHasQueryBeenExecuted(false);
     setAiLoading(false);
     setAutoRunGeneratedQuery(true);
+    setAccordionActiveKey(['0', '1']); // Reset accordion to open both
   }, []);
 
   const fetchCollections = useCallback(async () => {
@@ -132,6 +134,13 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, hasQueryBeenExecuted, fetchDocuments]);
 
+  // Separate effect to handle accordion collapse
+  useEffect(() => {
+    if (hasQueryBeenExecuted && documents.length > 0) {
+      setAccordionActiveKey([]);
+    }
+  }, [hasQueryBeenExecuted, documents]);
+
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);
     setCurrentPage(1);
@@ -142,6 +151,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setParsedQuery({});
     setQueryError(null);
     setHasQueryBeenExecuted(false);
+    setAccordionActiveKey(['0', '1']); // Open both accordions on new collection
   };
 
   const handlePageSelect = (page: number) => {
@@ -368,79 +378,91 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               {queryError}
             </Alert>
           )}
-          <div className="query-editor-container mb-4">
-            <h5>Query Helper</h5>
-            <Form.Control
-              as="textarea"
-              className="prompt-editor mb-2"
-              value={promptText}
-              onChange={handlePromptTextChange}
-              onKeyDown={handlePromptKeyDown}
-              placeholder="Enter natural language prompt (e.g., 'find users older than 30')"
-              rows={3}
-              disabled={documentsLoading || aiLoading}
-            />
-            <div className="d-flex align-items-center mb-3">
-              <div className="me-auto">
-                <ToggleButton
-                  id="auto-run-toggle"
-                  type="checkbox"
-                  variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
-                  checked={autoRunGeneratedQuery}
-                  value="1"
-                  onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
-                  disabled={aiLoading}
-                  className="me-2"
-                >
-                  <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
-                  Auto-run
-                </ToggleButton>
-              </div>
-              <div className="d-flex">
-                <Button
-                  variant="primary"
-                  onClick={handleGenerateAIQuery}
-                  disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
-                  title="Generate MongoDB query using Query Helper based on your natural language prompt"
-                >
-                  {aiLoading ? 'Generating Query...' : 'Generate Query'}
-                </Button>
-              </div>
-            </div>
-            <h5>Find Query (JSON)</h5>
-            <Form.Control
-              as="textarea"
-              className="query-editor mb-2"
-              value={queryText}
-              onChange={handleQueryTextChange}
-              onKeyDown={handleQueryKeyDown}
-              placeholder='Enter MongoDB query JSON (e.g., {"age": {"$gt": 30}})'
-              rows={5}
-              disabled={documentsLoading || aiLoading}
-            />
-            <div className="d-flex">
-              <div className="me-auto">
-                <Button
-                  variant="secondary"
-                  onClick={handleExport}
-                  disabled={!selectedCollection || documentsLoading || aiLoading}
-                  title="Export all documents matching the current query to a JSON Lines file"
-                  className="me-2"
-                >
-                  Export
-                </Button>
-              </div>
-              <div className="d-flex">
-                <Button
-                  variant="success"
-                  onClick={handleExecuteManualQuery}
-                  disabled={documentsLoading || aiLoading || !selectedCollection}
-                >
-                  Run Query
-                </Button>
-              </div>
-            </div>
-          </div>
+          <Accordion activeKey={accordionActiveKey} onSelect={(key) => setAccordionActiveKey(key ? [key.toString()] : [])} className="mb-4">
+            <Card>
+              <Accordion.Item eventKey="0">
+                <Accordion.Header>Query Helper</Accordion.Header>
+                <Accordion.Body>
+                  <Form.Control
+                    as="textarea"
+                    className="prompt-editor mb-2"
+                    value={promptText}
+                    onChange={handlePromptTextChange}
+                    onKeyDown={handlePromptKeyDown}
+                    placeholder="Enter natural language prompt (e.g., 'find users older than 30')"
+                    rows={3}
+                    disabled={documentsLoading || aiLoading}
+                  />
+                  <div className="d-flex align-items-center mb-3">
+                    <div className="me-auto">
+                      <ToggleButton
+                        id="auto-run-toggle"
+                        type="checkbox"
+                        variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
+                        checked={autoRunGeneratedQuery}
+                        value="1"
+                        onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
+                        disabled={aiLoading}
+                        className="me-2"
+                      >
+                        <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
+                        Auto-run
+                      </ToggleButton>
+                    </div>
+                    <div className="d-flex">
+                      <Button
+                        variant="primary"
+                        onClick={handleGenerateAIQuery}
+                        disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
+                        title="Generate MongoDB query using Query Helper based on your natural language prompt"
+                      >
+                        {aiLoading ? 'Generating Query...' : 'Generate Query'}
+                      </Button>
+                    </div>
+                  </div>
+                </Accordion.Body>
+              </Accordion.Item>
+            </Card>
+            <Card>
+              <Accordion.Item eventKey="1">
+                <Accordion.Header>Find Query (JSON)</Accordion.Header>
+                <Accordion.Body>
+                  <Form.Control
+                    as="textarea"
+                    className="query-editor mb-2"
+                    value={queryText}
+                    onChange={handleQueryTextChange}
+                    onKeyDown={handleQueryKeyDown}
+                    placeholder='Enter MongoDB query JSON (e.g., {"age": {"$gt": 30}})'
+                    rows={5}
+                    disabled={documentsLoading || aiLoading}
+                  />
+                  <div className="d-flex">
+                    <div className="me-auto">
+                      <Button
+                        variant="secondary"
+                        onClick={handleExport}
+                        disabled={!selectedCollection || documentsLoading || aiLoading}
+                        title="Export all documents matching the current query to a JSON Lines file"
+                        className="me-2"
+                      >
+                        Export
+                      </Button>
+                    </div>
+                    <div className="d-flex">
+                      <Button
+                        variant="success"
+                        onClick={handleExecuteManualQuery}
+                        disabled={documentsLoading || aiLoading || !selectedCollection}
+                      >
+                        Run Query
+                      </Button>
+                    </div>
+                  </div>
+                </Accordion.Body>
+              </Accordion.Item>
+            </Card>
+          </Accordion>
           {selectedCollection && (
             <div className="pagination-controls d-flex align-items-center mb-3">
               <div className="me-auto d-flex align-items-center">
