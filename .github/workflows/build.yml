@@ -75,10 +75,37 @@ jobs:
       - name: Install root dependencies
         run: npm install
 
+      - name: Install the Developer ID Certificate (macOS only)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_DEVELOPER_ID_CERTIFICATE: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }}
+          MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          security create-keychain -p mysecret build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          security unlock-keychain -p mysecret build.keychain
+
+          # Decode and import the certificate
+          echo -n "$MACOS_DEVELOPER_ID_CERTIFICATE" | base64 --decode > developer-id.p12
+          security import developer-id.p12 -k build.keychain -P "$MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+
+          # Set the keychain as default and allow codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k mysecret build.keychain
+          security list-keychain -d user -s build.keychain
+
       - name: Build and package
         run: npm run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # CSC_LINK: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE }} # Optional fallback for identity
+          # CSC_KEY_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }} # Optional fallback for password
+
+      - name: Clean Up (macOS only)
+        if: runner.os == 'macOS' && always()
+        run: |
+          security delete-keychain build.keychain
+          rm developer-id.p12
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

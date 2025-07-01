@@ -55,7 +55,9 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "resources/app.icns"
+      "icon": "resources/app.icns",
+      "type": "distribution",
+      "hardenedRuntime": true
     },
     "linux": {
       "target": "AppImage",
