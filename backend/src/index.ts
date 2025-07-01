@@ -1,5 +1,5 @@
 // backend/src/index.ts
-import { connectWithDriverFallback, MongoClient, Db, ObjectId } from './services/mongoDriverChooser';
+import { connectWithDriverFallback, MongoClient, Db, ObjectId, UniversalMongoClientOptions } from './services/mongoDriverChooser';
 import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
@@ -197,7 +197,10 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     }
 
     logger.info(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
-    const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri);
+    const options: UniversalMongoClientOptions = {
+      connectTimeoutMS: 5000,
+    };
+    const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri, options);
     await client.connect(); // Connects to the MongoDB server
 
     let dbNameFromUri: string | undefined;
