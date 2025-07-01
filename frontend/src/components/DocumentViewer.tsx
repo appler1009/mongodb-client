@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useContext, useCallback } from 'react';
 import type { Document } from '../types';
-import { Button, ButtonGroup, ToggleButton, Table } from 'react-bootstrap';
+import { Button, ButtonGroup, ToggleButton, Table, Alert } from 'react-bootstrap';
 
 // Import SyntaxHighlighter component
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -103,7 +103,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   documentsPerPage,
 }) => {
   const [viewMode, setViewMode] = useState<'table' | 'json'>('table');
-  const [copyFeedback, setCopyFeedback] = useState(''); // State for "Copied!" message
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
 
   const columns = useMemo(() => {
     if (!Array.isArray(documents)) {
@@ -153,13 +154,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     if (content) {
       try {
         await navigator.clipboard.writeText(content);
-        setCopyFeedback(`${viewMode === 'json' ? 'JSON' : 'CSV'} copied!`);
-        setTimeout(() => setCopyFeedback(''), 2000);
+        setAlertMessage(`${viewMode === 'json' ? 'JSON' : 'CSV'} copied!`);
       } catch (err) {
         console.error(`Failed to copy ${viewMode === 'json' ? 'JSON' : 'CSV'}:`, err);
-        setCopyFeedback('Failed to copy!');
-        setTimeout(() => setCopyFeedback(''), 2000);
+        setAlertMessage('Failed to copy!');
       }
+      setShowAlert(true);
+      setTimeout(() => setShowAlert(false), 2000); // Auto-hide after 2 seconds
     }
   }, [viewMode, jsonContent, csvContent]);
 
@@ -189,7 +190,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               >
                 Copy
               </Button>
-              {copyFeedback && <span className="copy-feedback">{copyFeedback}</span>}
+              {showAlert && (
+                <Alert
+                  variant={alertMessage.includes('copied') ? 'success' : 'danger'}
+                  className="mb-0 small-alert"
+                >{alertMessage}</Alert>
+              )}
             </div>
           </div>
 

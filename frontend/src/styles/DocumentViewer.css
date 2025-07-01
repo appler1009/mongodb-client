@@ -115,3 +115,12 @@ thead th {
     overflow: visible; /* Remove ellipsis and allow content to extend */
     white-space: nowrap;
 }
+
+/* Custom style for smaller alert */
+.small-alert {
+    padding: 2px 8px; /* Reduced padding */
+    font-size: 0.7em; /* Smaller font size */
+    line-height: 1; /* Tighter line height */
+    height: auto; /* Allow content to determine height */
+    --bs-alert-padding-y: 0.6rem !important;
+}
