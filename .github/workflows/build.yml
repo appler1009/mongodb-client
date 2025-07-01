@@ -178,9 +178,9 @@ jobs:
         with:
           files: |
             ./release-builds-download/*/MongoDB\ Client-*.dmg
+            ./release-builds-download/*/MongoDB\ Client\ Setup\ *.exe
+            ./release-builds-download/*/MongoDB\ Client-*.AppImage
             ./release-builds-download/*/release/*.zip
-            ./release-builds-download/*/release/*.AppImage
-            ./release-builds-download/*/release/*.exe
           tag_name: v${{ steps.package_version.outputs.PACKAGE_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
