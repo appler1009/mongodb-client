@@ -51,7 +51,7 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
               className="d-flex align-items-center"
             >
               <span>{col.name}</span>
-              <Badge bg="secondary" className="ms-auto collection-badge">
+              <Badge bg="secondary" className="ms-auto collection-badge" pill>
                 {col.documentCount.toLocaleString()}
               </Badge>
             </ListGroup.Item>
