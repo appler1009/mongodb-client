@@ -4,6 +4,7 @@ export interface ConnectionConfig {
   id: string;
   name: string;
   uri: string;
+  driverVersion?: 'v6' | 'v5' | 'v4' | 'v3'; // Optional field for the driver version that worked
 }
 
 export interface ConnectionStatus {
@@ -29,5 +30,5 @@ export interface DocumentsResponse {
 
 // Schema for the connections electron-store
 export interface ConnectionsStoreSchema {
-    connections: ConnectionConfig[]; // This defines that the 'connections' key holds an array of ConnectionConfig
+  connections: ConnectionConfig[]; // This defines that the 'connections' key holds an array of ConnectionConfig
 }

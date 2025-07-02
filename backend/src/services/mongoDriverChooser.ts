@@ -37,21 +37,59 @@ interface ConnectionAttemptResult {
 
 /**
  * Attempts to connect to MongoDB using different driver versions, from newest to oldest.
- * This function handles the fallback logic.
+ * If a knownVersion is provided, it attempts to connect with that version only, skipping fallback.
  * @param uri The MongoDB connection URI.
- * @param options MongoClientOptions to pass to the driver. Note: Options might behave differently across driver versions.
+ * @param options MongoClientOptions to pass to the driver, including optional connectTimeoutMS.
+ * @param knownVersion Optional known working driver version (v6, v5, v4, or v3) to skip fallback searching.
  * @returns A Promise that resolves with the connected MongoClient, the wrapper instance used, and its driver version.
- * @throws An Error if connection fails with all attempted driver versions.
+ * @throws An Error if connection fails with the known version or all attempted driver versions.
  */
 export async function connectWithDriverFallback(
   uri: string,
-  options?: UniversalMongoClientOptions
+  options?: UniversalMongoClientOptions,
+  knownVersion?: 'v6' | 'v5' | 'v4' | 'v3'
 ): Promise<ConnectionAttemptResult> {
-  // Define the order of wrappers to try (newest to oldest)
-  const wrapperVersions: {
-    version: 'v6' | 'v5' | 'v4' | 'v3';
-    Wrapper: MongoWrapperConstructor;
-  }[] = [
+
+  // If knownVersion is provided, attempt connection with that version only
+  if (knownVersion) {
+    console.log(`Connecting with mongodb-wrapper-${knownVersion}... to ${uri}`);
+    let Wrapper: MongoWrapperConstructor;
+    switch (knownVersion) {
+      case 'v6':
+        Wrapper = MongoDBWrapperV6;
+        break;
+      case 'v5':
+        Wrapper = MongoDBWrapperV5;
+        break;
+      case 'v4':
+        Wrapper = MongoDBWrapperV4;
+        break;
+      case 'v3':
+        Wrapper = MongoDBWrapperV3;
+        break;
+      default:
+        throw new Error(`Invalid knownVersion '${knownVersion}'. Must be 'v6', 'v5', 'v4', or 'v3'.`);
+    }
+    const wrapperInstance = new Wrapper(uri, options as any);
+    try {
+      const client = (await wrapperInstance.connect()) as MongoClient;
+      console.log(`Successfully connected with mongodb-wrapper-${knownVersion}.`);
+      return { client, wrapper: wrapperInstance, driverVersion: knownVersion };
+    } catch (error: any) {
+      console.warn(`Connection failed with mongodb-wrapper-${knownVersion}: ${error.message}`);
+      if (wrapperInstance && typeof wrapperInstance.disconnect === 'function') {
+        try {
+          await wrapperInstance.disconnect();
+        } catch (closeError: any) {
+          console.error(`Error closing wrapper ${knownVersion} client after failed attempt:`, closeError.message);
+        }
+      }
+      throw new Error(`Failed to connect with known version ${knownVersion}: ${error.message}`);
+    }
+  }
+
+  // Fallback to trying all versions if no knownVersion is provided
+  const wrapperVersions: { version: 'v6' | 'v5' | 'v4' | 'v3'; Wrapper: MongoWrapperConstructor }[] = [
     { version: 'v6', Wrapper: MongoDBWrapperV6 },
     { version: 'v5', Wrapper: MongoDBWrapperV5 },
     { version: 'v4', Wrapper: MongoDBWrapperV4 },
@@ -62,14 +100,11 @@ export async function connectWithDriverFallback(
     console.log(`Attempting to connect with mongodb-wrapper-${version}... to ${uri}`);
     const wrapperInstance = new Wrapper(uri, options as any);
     try {
-      // The connect method of each wrapper returns a MongoClient compatible with its version.
-      // We'll cast it to MongoClientV6 for the return type, as it's the "widest" type.
       const client = (await wrapperInstance.connect()) as MongoClient;
       console.log(`Successfully connected with mongodb-wrapper-${version}.`);
       return { client, wrapper: wrapperInstance, driverVersion: version };
     } catch (error: any) {
       console.warn(`Connection failed with mongodb-wrapper-${version}: ${error.message}`);
-      // Ensure the client is closed if a connection was briefly established but failed wire version check
       if (wrapperInstance && typeof wrapperInstance.disconnect === 'function') {
         try {
           await wrapperInstance.disconnect();
@@ -77,7 +112,6 @@ export async function connectWithDriverFallback(
           console.error(`Error closing wrapper ${version} client after failed attempt:`, closeError.message);
         }
       }
-      // Continue to the next wrapper version
     }
   }
 

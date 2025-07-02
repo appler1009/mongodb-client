@@ -31,7 +31,6 @@ export class ConnectionService {
   // Refactored to use electron-store
   private readConnections(): ConnectionConfig[] {
     const store = this.ensureStoreInitialized();
-    // 'connections' is the key under which the array of connections is stored in electron-store
     return store.get('connections', []); // Default to empty array if key doesn't exist
   }
 

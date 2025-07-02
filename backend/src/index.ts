@@ -197,25 +197,27 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     }
 
     logger.info(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
+    logger.debug(`IPC: Connection details: ${id} ${JSON.stringify(connectionConfig)}`);
     const options: UniversalMongoClientOptions = {
       connectTimeoutMS: 5000,
     };
-    const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri, options);
+    const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri, options, connectionConfig.driverVersion);
+
     await client.connect(); // Connects to the MongoDB server
 
     let dbNameFromUri: string | undefined;
     try {
-        const uriObj = new URL(connectionConfig.uri);
-        if (uriObj.pathname && uriObj.pathname.length > 1) {
-            dbNameFromUri = uriObj.pathname.substring(1);
-        }
+      const uriObj = new URL(connectionConfig.uri);
+      if (uriObj.pathname && uriObj.pathname.length > 1) {
+        dbNameFromUri = uriObj.pathname.substring(1);
+      }
     } catch (e) {
-        logger.warn({ uri: connectionConfig.uri, error: e }, 'Failed to parse URI to extract database name. This might be normal if URI doesn\'t specify a database path.');
+      logger.warn({ uri: connectionConfig.uri, error: e }, 'Failed to parse URI to extract database name. This might be normal if URI doesn\'t specify a database path.');
     }
 
     if (!dbNameFromUri) {
-        dbNameFromUri = client.db().databaseName;
-        logger.info(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
+      dbNameFromUri = client.db().databaseName;
+      logger.info(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
     }
 
     activeMongoClient = client;
@@ -223,6 +225,16 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     activeConnectionId = id;
     activeDatabaseName = dbNameFromUri;
     activeDriverVersion = driverVersion;
+
+    // Update the connection config with the driver version
+    if (connectionConfig && driverVersion) {
+      const updatedConnection: ConnectionConfig = {
+        ...connectionConfig,
+        driverVersion: driverVersion,
+      };
+      await connectionService.updateConnection(id, updatedConnection);
+      logger.info(`IPC: Stored driver version ${driverVersion} for connection ${id}`);
+    }
 
     databaseService.setActiveDb(activeDb); // Set active DB in DatabaseService
 

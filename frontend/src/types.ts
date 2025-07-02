@@ -5,6 +5,7 @@ export interface ConnectionConfig {
   id: string;
   name: string;
   uri: string;
+  driverVersion?: 'v6' | 'v5' | 'v4' | 'v3'; // Optional field for the driver version that worked
 }
 
 // Interface for the connection status from the backend

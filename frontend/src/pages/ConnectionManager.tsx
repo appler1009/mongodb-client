@@ -62,6 +62,13 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     setEditingConnection((prev) => (prev ? { ...prev, [name]: value } : null));
   };
 
+  const handleDriverVersionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    setEditingConnection((prev) =>
+      prev ? { ...prev, driverVersion: value === 'unknown' ? undefined : (value as 'v6' | 'v5' | 'v4' | 'v3') } : null
+    );
+  };
+
   const handleAddConnection = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -194,6 +201,25 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                         required
                       />
                     </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Driver Version</Form.Label>
+                      <div>
+                        {['v6', 'v5', 'v4', 'v3', 'unknown'].map((version) => (
+                          <Form.Check
+                            key={version}
+                            type="radio"
+                            label={version}
+                            name="driverVersion"
+                            value={version}
+                            checked={
+                              editingConnection.driverVersion === version ||
+                              (version === 'unknown' && editingConnection.driverVersion === undefined)
+                            }
+                            onChange={handleDriverVersionChange}
+                          />
+                        ))}
+                      </div>
+                    </Form.Group>
                     <InputGroup>
                       <Button type="submit" variant="success">Save</Button>
                       <Button variant="secondary" onClick={() => setEditingConnection(null)}>Cancel</Button>
@@ -203,6 +229,9 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                   <div className="connection-details">
                     <h4>{conn.name}</h4>
                     <p className="connection-uri">{conn.uri}</p>
+                    <p>
+                      Driver Version: {conn.driverVersion || 'unknown'}
+                    </p>
                     <InputGroup>
                       <Button
                         variant="primary"
