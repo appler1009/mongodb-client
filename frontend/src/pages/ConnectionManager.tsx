@@ -54,12 +54,20 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewConnection((prev) => ({ ...prev, [name]: value }));
+    setNewConnection((prev) => ({
+      ...prev,
+      [name]: name === 'uri' ? value.trim() : value, // Trim whitespace from URI
+    }));
   };
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setEditingConnection((prev) => (prev ? { ...prev, [name]: value } : null));
+    setEditingConnection((prev) =>
+      prev ? {
+        ...prev,
+        [name]: name === 'uri' ? value.trim() : value, // Trim whitespace from URI
+      } : null
+    );
   };
 
   const handleDriverVersionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
