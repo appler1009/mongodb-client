@@ -1,5 +1,4 @@
-// frontend/src/api/backend.ts
-import type { ConnectionConfig, ConnectionStatus, CollectionInfo, DocumentsResponse, Document } from '../types';
+import type { ConnectionConfig, ConnectionStatus, CollectionInfo, DocumentsResponse, Document, MongoQueryParams } from '../types';
 import type { Theme } from '../context/ThemeContext';
 
 // Declare the Electron API on the Window object
@@ -20,8 +19,8 @@ declare global {
 
       // Database Browse IPC calls
       getDatabaseCollections: () => Promise<CollectionInfo[]>;
-      getCollectionDocuments: (collectionName: string, limit: number, skip: number, query: object) => Promise<DocumentsResponse>;
-      exportCollectionDocuments: (collectionName: string, query: object) => Promise<string>;
+      getCollectionDocuments: (collectionName: string, limit: number, skip: number, params: MongoQueryParams) => Promise<DocumentsResponse>;
+      exportCollectionDocuments: (collectionName: string, params: MongoQueryParams) => Promise<string>;
 
       // File system interaction (via Main Process for security)
       // Note: saveFile now expects the sourceFilePath to be moved, not content
@@ -84,15 +83,15 @@ export const getCollectionDocuments = (
   collectionName: string,
   limit: number = 20,
   skip: number = 0,
-  query: object = {}
+  params: MongoQueryParams = {}
 ): Promise<DocumentsResponse> => {
-  return window.electronAPI.getCollectionDocuments(collectionName, limit, skip, query);
+  return window.electronAPI.getCollectionDocuments(collectionName, limit, skip, params);
 };
 
 // --- Export documents from a collection ---
 export async function exportCollectionDocuments(
   collectionName: string,
-  query: object
+  params: MongoQueryParams = {}
 ): Promise<{ success: boolean; filePath?: string; error?: string }> {
   let tempFilePath: string | undefined; // Declare tempFilePath outside try for finally block access
 
@@ -100,7 +99,7 @@ export async function exportCollectionDocuments(
     // 1. Request the backend (via main process IPC) to prepare the export
     //    and save it to a temporary file. This call now returns the path
     //    to that temporary file.
-    tempFilePath = await window.electronAPI.exportCollectionDocuments(collectionName, query);
+    tempFilePath = await window.electronAPI.exportCollectionDocuments(collectionName, params);
 
     // 2. Request the main process to show a save dialog and move the
     //    temporary file to the user-selected location.

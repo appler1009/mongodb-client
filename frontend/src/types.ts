@@ -32,3 +32,42 @@ export interface DocumentsResponse {
   documents: Document[];
   totalDocuments: number;
 }
+
+// Represents a MongoDB aggregation pipeline stage
+interface PipelineStage {
+  [key: string]: Document;
+}
+
+// Represents a MongoDB sort specification
+interface SortSpec {
+  [key: string]: 1 | -1 | 'asc' | 'desc';
+}
+
+// Represents a MongoDB collation specification
+interface CollationSpec {
+  locale: string;
+  caseLevel?: boolean;
+  caseFirst?: 'upper' | 'lower' | 'off';
+  strength?: 1 | 2 | 3 | 4 | 5;
+  numericOrdering?: boolean;
+  alternate?: 'non-ignorable' | 'shifted';
+  maxVariable?: 'punct' | 'space';
+  backwards?: boolean;
+  normalization?: boolean;
+}
+
+// Represents a MongoDB index hint
+interface HintSpec {
+  [key: string]: 1 | -1 | string;
+}
+
+export interface MongoQueryParams {
+  query?: object;
+  sort?: SortSpec;
+  filter?: object;
+  pipeline?: PipelineStage[];
+  projection?: object;
+  collation?: CollationSpec;
+  hint?: HintSpec;
+  readPreference?: string;
+}

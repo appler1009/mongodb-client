@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback, ChangeEvent, KeyboardEvent } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, ToggleButton, Pagination, Accordion, Card } from 'react-bootstrap';
-import type { ConnectionStatus, CollectionInfo, Document } from '../types';
+import { z } from 'zod';
+import type { ConnectionStatus, CollectionInfo, Document, MongoQueryParams } from '../types';
 import {
   getDatabaseCollections,
   getCollectionDocuments,
@@ -11,6 +13,39 @@ import {
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 import '../styles/DatabaseBrowser.css';
+
+// Zod schema for MongoQueryParams
+const MongoQueryParamsSchema = z.object({
+  query: z.record(z.any()).optional(),
+  sort: z
+    .record(
+      z.union([
+        z.number().refine(val => val === 1 || val === -1, {
+          message: 'Sort value must be 1 or -1',
+        }),
+        z.enum(['asc', 'desc']),
+      ]).transform(val => (val === 'asc' ? 1 : val === 'desc' ? -1 : val))
+    )
+    .optional(),
+  filter: z.record(z.any()).optional(),
+  pipeline: z.array(z.record(z.any())).optional(),
+  projection: z.record(z.any()).optional(),
+  collation: z
+    .object({
+      locale: z.string(),
+      caseLevel: z.boolean().optional(),
+      caseFirst: z.enum(['upper', 'lower', 'off']).optional(),
+      strength: z.number().min(1).max(5).optional(),
+      numericOrdering: z.boolean().optional(),
+      alternate: z.enum(['non-ignorable', 'shifted']).optional(),
+      maxVariable: z.enum(['punct', 'space']).optional(),
+      backwards: z.boolean().optional(),
+      normalization: z.boolean().optional(),
+    })
+    .optional(),
+  hint: z.union([z.record(z.any()), z.string()]).optional(),
+  readPreference: z.enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest']).optional(),
+}).strict();
 
 interface DatabaseBrowserProps {
   currentStatus: ConnectionStatus | null;
@@ -36,13 +71,15 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [documentsPerPage, setDocumentsPerPage] = useState<number>(25);
   const [promptText, setPromptText] = useState<string>('');
   const [queryText, setQueryText] = useState<string>('{}');
-  const [parsedQuery, setParsedQuery] = useState<object>({});
+  const [parsedParams, setParsedParams] = useState<MongoQueryParams>({});
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
-  const [accordionActiveKey, setAccordionActiveKey] = useState<string[]>(['0', '1']); // State to control accordion
+  const [accordionActiveKey, setAccordionActiveKey] = useState<string[]>(['0', '1']);
 
-  const totalDocuments = hasQueryBeenExecuted ? filteredDocumentCount : 0;
+  const totalDocuments = hasQueryBeenExecuted
+
+ ? filteredDocumentCount : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   const resetBrowserState = useCallback(() => {
@@ -53,12 +90,12 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setCurrentPage(1);
     setPromptText('');
     setQueryText('{}');
-    setParsedQuery({});
+    setParsedParams({});
     setQueryError(null);
     setHasQueryBeenExecuted(false);
     setAiLoading(false);
     setAutoRunGeneratedQuery(true);
-    setAccordionActiveKey(['0', '1']); // Reset accordion to open both
+    setAccordionActiveKey(['0', '1']);
   }, []);
 
   const fetchCollections = useCallback(async () => {
@@ -76,7 +113,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       setCurrentPage(1);
       setPromptText('');
       setQueryText('{}');
-      setParsedQuery({});
+      setParsedParams({});
       setQueryError(null);
       setHasQueryBeenExecuted(false);
       setCollections(fetchedCollections);
@@ -85,8 +122,9 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       } else {
         setSelectedCollection(null);
       }
-    } catch (err: any) {
-      setError(`Failed to fetch collections: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(`Failed to fetch collections: ${errorMessage}`);
       setCollections([]);
       setSelectedCollection(null);
       resetBrowserState();
@@ -105,17 +143,18 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setError(null);
     try {
       const skip = (currentPage - 1) * documentsPerPage;
-      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedQuery);
+      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedParams);
       setDocuments(response.documents);
       setFilteredDocumentCount(response.totalDocuments || 0);
-    } catch (err: any) {
-      setError(`Failed to fetch documents for ${selectedCollection}: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(`Failed to fetch documents for ${selectedCollection}: ${errorMessage}`);
       setDocuments([]);
       setFilteredDocumentCount(0);
     } finally {
       setDocumentsLoading(false);
     }
-  }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, setError]);
+  }, [selectedCollection, currentPage, documentsPerPage, parsedParams, setError]);
 
   useEffect(() => {
     if (currentStatus?.database) {
@@ -132,9 +171,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       setDocuments([]);
       setFilteredDocumentCount(0);
     }
-  }, [selectedCollection, currentPage, documentsPerPage, parsedQuery, hasQueryBeenExecuted, fetchDocuments]);
+  }, [selectedCollection, currentPage, documentsPerPage, parsedParams, hasQueryBeenExecuted, fetchDocuments]);
 
-  // Separate effect to handle accordion collapse
   useEffect(() => {
     if (hasQueryBeenExecuted && documents.length > 0) {
       setAccordionActiveKey([]);
@@ -148,10 +186,10 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setFilteredDocumentCount(0);
     setPromptText('');
     setQueryText('{}');
-    setParsedQuery({});
+    setParsedParams({});
     setQueryError(null);
     setHasQueryBeenExecuted(false);
-    setAccordionActiveKey(['0', '1']); // Open both accordions on new collection
+    setAccordionActiveKey(['0', '1']);
   };
 
   const handlePageSelect = (page: number) => {
@@ -191,6 +229,24 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
+  const validateMongoQueryParams = (params: object): MongoQueryParams | null => {
+    try {
+      const result = MongoQueryParamsSchema.safeParse(params);
+      if (!result.success) {
+        const errorMessage = result.error.errors
+          .map(err => `${err.path.join('.')} - ${err.message}`)
+          .join('; ');
+        setQueryError(`Invalid MongoQueryParams: ${errorMessage}`);
+        return null;
+      }
+      return result.data as MongoQueryParams;
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'An unexpected error occurred';
+      setQueryError(`Invalid MongoQueryParams: ${errorMessage}`);
+      return null;
+    }
+  };
+
   const handleGenerateAIQuery = useCallback(async () => {
     if (!selectedCollection) {
       setNotificationMessage('Please select a collection before asking Query Helper to generate a query.');
@@ -198,7 +254,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
     const userPrompt = promptText.trim();
     if (!userPrompt) {
-      setQueryError('Please provide a description for the Query Helper (e.g., "find users older than 30").');
+      setQueryError('Please provide a description for the Query Helper (e.g., "find users older than 30, sorted by name").');
       return;
     }
 
@@ -219,30 +275,41 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
         setQueryError(`Query Helper Error: ${backendError}`);
         setNotificationMessage(`Query Helper generation failed: ${backendError}`);
       } else if (generatedQuery) {
-        setQueryText(generatedQuery);
-        if (autoRunGeneratedQuery) {
-          try {
-            const parsedQueryHelperQuery = JSON.parse(generatedQuery);
-            setParsedQuery(parsedQueryHelperQuery);
-            setCurrentPage(1);
-            setHasQueryBeenExecuted(true);
-            setNotificationMessage('Query Helper generated and executed query successfully!');
-          } catch (parseError: any) {
-            setQueryError(`Query Helper generated invalid JSON: ${parseError.message}. Please check the Query Helper's output.`);
-            setNotificationMessage('Query Helper generated invalid JSON. Manual correction might be needed.');
+        setQueryText(JSON.stringify(JSON.parse(generatedQuery), null, 2)); // Always set queryText with generated query
+        try {
+          const parsedGenerated = JSON.parse(generatedQuery);
+          const validatedParams = validateMongoQueryParams(parsedGenerated);
+          if (validatedParams) {
+            if (autoRunGeneratedQuery) {
+              setParsedParams(validatedParams);
+              setCurrentPage(1);
+              setHasQueryBeenExecuted(true);
+              setNotificationMessage('Query Helper generated and executed query successfully!');
+            } else {
+              setParsedParams({});
+              setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
+              setHasQueryBeenExecuted(false);
+            }
+          } else {
+            setParsedParams({});
+            setNotificationMessage('Query Helper generated query with validation errors. Review and fix in the query editor.');
             setHasQueryBeenExecuted(false);
           }
-        } else {
-          setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
+        } catch (parseError: unknown) {
+          const errorMessage = parseError instanceof Error ? parseError.message : 'An unexpected error occurred';
+          setQueryError(`Query Helper generated invalid JSON: ${errorMessage}. Please check the Query Helper's output.`);
+          setNotificationMessage('Query Helper generated invalid JSON. Manual correction might be needed.');
+          setParsedParams({});
           setHasQueryBeenExecuted(false);
         }
       } else {
         setQueryError('Query Helper did not return a query. Please try rephrasing your request.');
         setNotificationMessage('Query Helper generation failed: No query returned.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('Frontend error during Query Helper generation:', err);
-      setError(`Failed to communicate with Query Helper: ${err.message}`);
+      setError(`Failed to communicate with Query Helper: ${errorMessage}`);
       setNotificationMessage('Failed to communicate with Query Helper.');
     } finally {
       setAiLoading(false);
@@ -255,13 +322,17 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       return;
     }
     try {
-      const newQuery = JSON.parse(queryText);
-      setParsedQuery(newQuery);
-      setCurrentPage(1);
-      setQueryError(null);
-      setHasQueryBeenExecuted(true);
-    } catch (e: any) {
-      setQueryError('Invalid JSON query. Please ensure it\'s a valid JSON object (e.g., {"field": "value"}).');
+      const parsed = JSON.parse(queryText);
+      const validatedParams = validateMongoQueryParams(parsed);
+      if (validatedParams) {
+        setParsedParams(validatedParams);
+        setCurrentPage(1);
+        setQueryError(null);
+        setHasQueryBeenExecuted(true);
+      }
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'An unexpected error occurred';
+      setQueryError(`Invalid JSON: ${errorMessage}. Please ensure it's a valid MongoQueryParams object (e.g., {"query": {"field": "value"}, "sort": {"field": 1}}).`);
       setHasQueryBeenExecuted(false);
     }
   };
@@ -274,7 +345,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setError(null);
     setDocumentsLoading(true);
     try {
-      const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, parsedQuery);
+      const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, parsedParams);
       if (success && filePath) {
         setNotificationMessage(`Exported to: ${filePath}`);
       } else if (!success && exportError) {
@@ -283,9 +354,10 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       } else {
         setNotificationMessage('Export cancelled or failed.');
       }
-    } catch (err: any) {
-      setError(`An unexpected error occurred during export: ${err.message}`);
-      setNotificationMessage(`An unexpected error occurred: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(`An unexpected error occurred during export: ${errorMessage}`);
+      setNotificationMessage(`An unexpected error occurred: ${errorMessage}`);
     } finally {
       setDocumentsLoading(false);
     }
@@ -296,7 +368,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const paginationItems = [];
   if (filteredDocumentCount > 0) {
     let startPage = Math.max(1, currentPage - 2);
-    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+    const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
 
     // Adjust startPage if endPage is at totalPages
     if (endPage === totalPages) {
@@ -389,7 +461,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                     value={promptText}
                     onChange={handlePromptTextChange}
                     onKeyDown={handlePromptKeyDown}
-                    placeholder="Enter natural language prompt (e.g., 'find users older than 30')"
+                    placeholder="Enter natural language prompt (e.g., 'find users older than 30, sorted by name')"
                     rows={3}
                     disabled={documentsLoading || aiLoading}
                   />
@@ -433,7 +505,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                     value={queryText}
                     onChange={handleQueryTextChange}
                     onKeyDown={handleQueryKeyDown}
-                    placeholder='Enter MongoDB query JSON (e.g., {"age": {"$gt": 30}})'
+                    placeholder='Enter MongoDB query JSON (e.g., {"query": {"age": {"$gt": 30}}, "sort": {"name": 1}, "collation": {"locale": "en"}})'
                     rows={5}
                     disabled={documentsLoading || aiLoading}
                   />

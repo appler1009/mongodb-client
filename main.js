@@ -1,4 +1,3 @@
-// /main.js
 const { app, BrowserWindow, ipcMain, screen, dialog, Menu, shell } = require('electron');
 const path = require('path');
 // Corrected fs imports:
@@ -472,18 +471,18 @@ ipcMain.handle('database:getCollections', async () => {
   }
 });
 
-ipcMain.handle('database:getDocuments', async (event, collectionName, limit, skip, query) => {
+ipcMain.handle('database:getDocuments', async (event, collectionName, limit, skip, params) => {
   try {
-    return await backend.getCollectionDocuments(collectionName, limit, skip, query);
+    return await backend.getCollectionDocuments(collectionName, limit, skip, params);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'IPC error (database:getDocuments)');
     throw error;
   }
 });
 
-ipcMain.handle('database:exportDocuments', async (event, collectionName, query) => {
+ipcMain.handle('database:exportDocuments', async (event, collectionName, params) => {
   try {
-    return await backend.exportCollectionDocuments(collectionName, query);
+    return await backend.exportCollectionDocuments(collectionName, params);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'IPC error (database:exportDocuments)');
     throw error;

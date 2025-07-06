@@ -1,4 +1,3 @@
-// my-mongo-client/preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -14,8 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Database Browse
   getDatabaseCollections: () => ipcRenderer.invoke('database:getCollections'),
-  getCollectionDocuments: (collectionName, limit, skip, query) => ipcRenderer.invoke('database:getDocuments', collectionName, limit, skip, query),
-  exportCollectionDocuments: (collectionName, query) => ipcRenderer.invoke('database:exportDocuments', collectionName, query),
+  getCollectionDocuments: (collectionName, limit, skip, params) => ipcRenderer.invoke('database:getDocuments', collectionName, limit, skip, params),
+  exportCollectionDocuments: (collectionName, params) => ipcRenderer.invoke('database:exportDocuments', collectionName, params),
 
   // File system interaction
   saveFile: (defaultFilename, sourceFilePath) => ipcRenderer.invoke('file:save', defaultFilename, sourceFilePath),

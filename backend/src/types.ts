@@ -1,5 +1,7 @@
 // backend/src/types.ts
 
+import { Sort, CollationOptions } from 'mongodb';
+
 export interface ConnectionConfig {
   id: string;
   name: string;
@@ -31,4 +33,15 @@ export interface DocumentsResponse {
 // Schema for the connections electron-store
 export interface ConnectionsStoreSchema {
   connections: ConnectionConfig[]; // This defines that the 'connections' key holds an array of ConnectionConfig
+}
+
+export interface MongoQueryParams {
+  query?: object;
+  sort?: Sort;
+  filter?: object;
+  pipeline?: any[];
+  projection?: object;
+  collation?: CollationOptions;
+  hint?: object;
+  readPreference?: string;
 }

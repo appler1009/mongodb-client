@@ -4,7 +4,7 @@ import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
 import dotenv from 'dotenv';
-import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus, Document } from './types'; // Import Document type
+import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus, Document, MongoQueryParams } from './types';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -282,14 +282,15 @@ export const getCollectionDocuments = async (
   collectionName: string,
   limit: number = 20,
   skip: number = 0,
-  query: object = {}
+  params: MongoQueryParams = {}
 ): Promise<DocumentsResponse> => {
   try {
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to retrieve documents.');
     }
-    const documents = await databaseService.getDocuments(collectionName, limit, skip, query);
-    const totalDocuments = await databaseService.getDocumentCount(collectionName, query);
+    const documents = await databaseService.getDocuments(collectionName, limit, skip, params);
+    const { query = {}, filter = {} } = params;
+    const totalDocuments = await databaseService.getDocumentCount(collectionName, { ...query, ...filter });
 
     // Apply the transformation before sending documents to the renderer
     const transformedDocuments = documents.map(prepareDocumentForFrontend);
@@ -302,12 +303,12 @@ export const getCollectionDocuments = async (
 };
 
 // Export documents from a collection
-export const exportCollectionDocuments = async (collectionName: string, query: object): Promise<string> => {
+export const exportCollectionDocuments = async (collectionName: string, params: MongoQueryParams = {}): Promise<string> => {
   try {
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to export documents.');
     }
-    const documents = await databaseService.getAllDocuments(collectionName, query);
+    const documents = await databaseService.getAllDocuments(collectionName, params);
 
     // Apply the transformation before stringifying for NDJSON export
     const transformedDocuments = documents.map(prepareDocumentForFrontend);
@@ -367,7 +368,7 @@ export const getCollectionSchemaAndSampleDocuments = async (
  * @param {string} collectionName - The name of the collection for context.
  * @param {string} schemaSummary - A summary of the collection's schema.
  * @param {Document[]} sampleDocuments - A few sample documents from the collection.
- * @returns {Promise<{ generatedQuery?: string; error?: string }>} The generated query or an error.
+ * @returns {Promise<{ generatedQuery?: string; error?: string }>} The generated MongoQueryParams JSON or an error.
  */
 export const generateAIQuery = async (
   userPrompt: string,
@@ -381,9 +382,23 @@ export const generateAIQuery = async (
 
     const formattedSampleDocs = JSON.stringify(sampleDocuments, null, 2);
 
-    const systemInstruction = `You are an expert MongoDB query generator.
-Your task is to convert natural language descriptions into valid MongoDB 'find' query JSON objects.
-Do NOT include aggregation pipeline stages like $match, $lookup, $group, etc.
+    const systemInstruction = `As an expert MongoDB query generator, convert natural language descriptions into a valid MongoDB query parameters JSON object conforming to the following structure:
+{
+  "query"?: object, // MongoDB find query (e.g., {"age": {"$gt": 30}})
+  "sort"?: object, // Sort specification (e.g., {"name": 1} or {"name": "asc"})
+  "filter"?: object, // Additional filter for find query
+  "pipeline"?: object[], // Aggregation pipeline stages (e.g., [{"$match": {...}}, {"$group": {...}}])
+  "projection"?: object, // Fields to include/exclude (e.g., {"name": 1, "_id": 0})
+  "collation"?: object, // Collation options (e.g., {"locale": "en", "strength": 2})
+  "hint"?: object | string, // Index hint (e.g., {"name": 1} or "indexName")
+  "readPreference"?: string // Read preference (e.g., "primary", "secondary")
+}
+- Include only the fields relevant to the user's prompt.
+- For simple queries, use "query" for MongoDB find operations.
+- Use "pipeline" only for explicit aggregation requests (e.g., grouping, joining).
+- Ensure "sort" values are 1, -1, "asc", or "desc".
+- Ensure "collation" includes a "locale" property if specified.
+- Ensure "readPreference" is one of: "primary", "primaryPreferred", "secondary", "secondaryPreferred", "nearest".
 Respond ONLY with the raw JSON object. Do not include any other text, explanations, or markdown fences.`;
 
     const prompt = `Given the following MongoDB collection information:
@@ -397,7 +412,7 @@ Document Examples (first ${sampleDocuments.length} documents):
 ${formattedSampleDocs}
 \`\`\`
 
-Based on this context, generate a MongoDB 'find' query JSON object for the following natural language request:
+Based on this context, generate a MongoDB query parameters JSON object for the following natural language request:
 
 "${userPrompt}"`;
 
@@ -438,25 +453,23 @@ Based on this context, generate a MongoDB 'find' query JSON object for the follo
     // The chat completions API returns choices[0].message.content
     if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
       const generatedText = result.choices[0].message.content;
-      logger.info({ generatedTextLength: generatedText.length }, `Query Helper (${grokModel}) returned a response.`);
+      logger.info({ generatedTextLength: generatedText.length, generatedText }, `Query Helper (${grokModel}) returned a response.`);
 
       try {
-          const parsedJson = JSON.parse(generatedText); // Parse to validate
-          // Ensure it's a valid object before returning
-          if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
-              throw new Error('Query Helper response was not a JSON object.');
-          }
-          return { generatedQuery: JSON.stringify(parsedJson, null, 2) }; // Re-stringify for pretty print
-      } catch (parseError: any) {
-          logger.error({ parseError, generatedText }, 'Failed to parse Query Helper generated JSON');
-          return { error: 'Query Helper generated invalid JSON. Please try again with a clearer prompt.' };
+        JSON.parse(generatedText); // Parse to validate JSON syntax
+        return { generatedQuery: generatedText }; // Return raw JSON string without validation
+      } catch (parseError: unknown) {
+        const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error parsing JSON';
+        logger.error({ parseError: errorMessage, generatedText }, 'Failed to parse Query Helper generated JSON');
+        return { error: 'Query Helper generated invalid JSON. Please try again with a clearer prompt.' };
       }
     } else {
       logger.warn({ result }, `Query Helper (${grokModel}) did not return a valid response structure.`);
       return { error: `Query Helper did not return a valid response structure.` };
     }
-  } catch (error: any) {
-    logger.error({ error }, `Error during Query Helper generation`);
-    return { error: `Internal error during Query Helper generation: ${error.message}` };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error during Query Helper generation';
+    logger.error({ error: errorMessage }, `Error during Query Helper generation`);
+    return { error: `Internal error during Query Helper generation: ${errorMessage}` };
   }
 };

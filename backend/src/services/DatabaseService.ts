@@ -1,6 +1,7 @@
 import { Db, Collection, Document as MongoDocument } from './mongoDriverChooser';
-import { CollectionInfo } from '../types';
+import { CollectionInfo, MongoQueryParams } from '../types';
 import { Logger } from 'pino';
+import { CollationOptions, Sort } from 'mongodb';
 
 export class DatabaseService {
   private activeDb: Db | null = null;
@@ -56,11 +57,11 @@ export class DatabaseService {
   }
 
   /**
-   * Retrieves documents from a specific collection with pagination and query.
+   * Retrieves documents from a specific collection with pagination and advanced query options.
    * @param collectionName - The name of the collection.
    * @param limit - The maximum number of documents to return.
    * @param skip - The number of documents to skip.
-   * @param query - The query object to filter documents.
+   * @param params - Query parameters including query, sort, filter, pipeline, projection, collation, hint, and readPreference.
    * @returns {Promise<MongoDocument[]>} An array of documents.
    * @throws {Error} If no active database connection.
    */
@@ -68,63 +69,169 @@ export class DatabaseService {
     collectionName: string,
     limit: number,
     skip: number,
-    query: object = {}
+    params: MongoQueryParams = {}
   ): Promise<MongoDocument[]> {
+    const {
+      query = {},
+      sort = {},
+      filter = {},
+      pipeline = [],
+      projection = {},
+      collation = {},
+      hint = {},
+      readPreference = 'primary'
+    } = params;
+
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to get documents without active DB');
       throw error;
     }
-    this.logger.info(`Fetching documents from collection: ${collectionName} (limit: ${limit}, skip: ${skip}, query: ${JSON.stringify(query)})`);
+    this.logger.info(`Fetching documents from collection: ${collectionName} (limit: ${limit}, skip: ${skip}, query: ${JSON.stringify(query)}, sort: ${JSON.stringify(sort)}, filter: ${JSON.stringify(filter)}, pipeline: ${JSON.stringify(pipeline)}, projection: ${JSON.stringify(projection)}, collation: ${JSON.stringify(collation)}, hint: ${JSON.stringify(hint)}, readPreference: ${readPreference})`);
     try {
       const collection: Collection = this.activeDb.collection(collectionName);
-      const documents = await collection.find(query).skip(skip).limit(limit).toArray();
+
+      // Set read preference
+      const options: any = { readPreference };
+
+      // If an aggregation pipeline is provided, use aggregation
+      if (pipeline.length > 0) {
+        const aggPipeline = [
+          { $match: { ...query, ...filter } },
+          ...pipeline,
+          { $skip: skip },
+          { $limit: limit }
+        ];
+        if (Object.keys(sort).length > 0) {
+          aggPipeline.splice(1, 0, { $sort: sort });
+        }
+        if (Object.keys(projection).length > 0) {
+          aggPipeline.push({ $project: projection });
+        }
+        if (Object.keys(collation).length > 0) {
+          options.collation = collation;
+        }
+        if (Object.keys(hint).length > 0) {
+          options.hint = hint;
+        }
+        const documents = await collection.aggregate(aggPipeline, options).toArray();
+        return documents;
+      }
+
+      // Standard find with query, sort, filter, and advanced options
+      let findQuery = collection.find({ ...query, ...filter }, options);
+      if (Object.keys(sort).length > 0) {
+        findQuery = findQuery.sort(sort);
+      }
+      if (Object.keys(projection).length > 0) {
+        findQuery = findQuery.project(projection);
+      }
+      if (Object.keys(collation).length > 0) {
+        findQuery = findQuery.collation(collation as CollationOptions);
+      }
+      if (Object.keys(hint).length > 0) {
+        findQuery = findQuery.hint(hint);
+      }
+      const documents = await findQuery.skip(skip).limit(limit).toArray();
       return documents;
     } catch (error) {
-      this.logger.error({ error, collectionName, query }, 'Failed to retrieve documents from collection with query');
+      this.logger.error({ error, collectionName, query, sort, filter, pipeline, projection, collation, hint, readPreference }, 'Failed to retrieve documents from collection');
       throw error;
     }
   }
 
   /**
-   * Method to get the total count of documents in a collection matching a query.
+   * Method to get the total count of documents in a collection matching query and filter.
    * @param collectionName - The name of the collection.
-   * @param query - The query object to filter documents for counting.
+   * @param params - Query parameters including query and filter.
    * @returns {Promise<number>} The count of documents.
    * @throws {Error} If no active database connection.
    */
   async getDocumentCount(
     collectionName: string,
-    query: object = {}
+    params: MongoQueryParams = {}
   ): Promise<number> {
+    const { query = {}, filter = {} } = params;
+
     if (!this.activeDb) {
       throw new Error('No active database connection.');
     }
-    this.logger.info(`DatabaseService: Counting documents in collection "${collectionName}" with query: ${JSON.stringify(query)}`);
+    this.logger.info(`DatabaseService: Counting documents in collection "${collectionName}" with query: ${JSON.stringify(query)}, filter: ${JSON.stringify(filter)}`);
     const collection: Collection<MongoDocument> = this.activeDb.collection(collectionName);
-    return await collection.countDocuments(query);
+    return await collection.countDocuments({ ...query, ...filter });
   }
 
   /**
-   * Retrieves all documents from a specific collection matching a query. Used primarily for export.
+   * Retrieves all documents from a specific collection with advanced query options. Used primarily for export.
    * @param collectionName - The name of the collection.
-   * @param query - The query object to filter documents.
+   * @param params - Query parameters including query, sort, filter, pipeline, projection, collation, hint, and readPreference.
    * @returns {Promise<MongoDocument[]>} An array of all matching documents.
    * @throws {Error} If no active database connection.
    */
-  public async getAllDocuments(collectionName: string, query: object = {}): Promise<MongoDocument[]> {
+  public async getAllDocuments(collectionName: string, params: MongoQueryParams = {}): Promise<MongoDocument[]> {
+    const {
+      query = {},
+      sort = {},
+      filter = {},
+      pipeline = [],
+      projection = {},
+      collation = {},
+      hint = {},
+      readPreference = 'primary'
+    } = params;
+
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to get all documents for export without active DB');
       throw error;
     }
-    this.logger.info(`Fetching ALL documents from collection: ${collectionName} with query: ${JSON.stringify(query)} for export`);
+    this.logger.info(`Fetching ALL documents from collection: ${collectionName} with query: ${JSON.stringify(query)}, sort: ${JSON.stringify(sort)}, filter: ${JSON.stringify(filter)}, pipeline: ${JSON.stringify(pipeline)}, projection: ${JSON.stringify(projection)}, collation: ${JSON.stringify(collation)}, hint: ${JSON.stringify(hint)}, readPreference: ${readPreference} for export`);
     try {
       const collection: Collection = this.activeDb.collection(collectionName);
-      const documents = await collection.find(query).toArray();
+
+      // Set read preference
+      const options: any = { readPreference };
+
+      // If an aggregation pipeline is provided, use aggregation
+      if (pipeline.length > 0) {
+        const aggPipeline = [
+          { $match: { ...query, ...filter } },
+          ...pipeline
+        ];
+        if (Object.keys(sort).length > 0) {
+          aggPipeline.push({ $sort: sort });
+        }
+        if (Object.keys(projection).length > 0) {
+          aggPipeline.push({ $project: projection });
+        }
+        if (Object.keys(collation).length > 0) {
+          options.collation = collation;
+        }
+        if (Object.keys(hint).length > 0) {
+          options.hint = hint;
+        }
+        const documents = await collection.aggregate(aggPipeline, options).toArray();
+        return documents;
+      }
+
+      // Standard find with query, sort, filter, and advanced options
+      let findQuery = collection.find({ ...query, ...filter }, options);
+      if (Object.keys(sort).length > 0) {
+        findQuery = findQuery.sort(sort as Sort);
+      }
+      if (Object.keys(projection).length > 0) {
+        findQuery = findQuery.project(projection);
+      }
+      if (Object.keys(collation).length > 0) {
+        findQuery = findQuery.collation(collation as CollationOptions);
+      }
+      if (Object.keys(hint).length > 0) {
+        findQuery = findQuery.hint(hint);
+      }
+      const documents = await findQuery.toArray();
       return documents;
     } catch (error) {
-      this.logger.error({ error, collectionName, query }, 'Failed to retrieve all documents for export from collection');
+      this.logger.error({ error, collectionName, query, sort, filter, pipeline, projection, collation, hint, readPreference }, 'Failed to retrieve all documents for export from collection');
       throw error;
     }
   }
