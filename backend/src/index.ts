@@ -289,11 +289,15 @@ export const getCollectionDocuments = async (
       throw new Error('No active database connection to retrieve documents.');
     }
     const documents = await databaseService.getDocuments(collectionName, limit, skip, params);
+    logger.info(`Retrieved ${documents.length} documents from collection ${collectionName}`);
+    logger.debug(JSON.stringify(documents));
     const { query = {}, filter = {} } = params;
-    const totalDocuments = await databaseService.getDocumentCount(collectionName, { ...query, ...filter });
+    const totalDocuments = await databaseService.getDocumentCount(collectionName, params);
 
     // Apply the transformation before sending documents to the renderer
     const transformedDocuments = documents.map(prepareDocumentForFrontend);
+    logger.info(`Transformed ${transformedDocuments.length} documents`);
+    logger.debug(JSON.stringify(transformedDocuments));
 
     return { documents: transformedDocuments, totalDocuments };
   } catch (error: any) {
@@ -384,22 +388,26 @@ export const generateAIQuery = async (
 
     const systemInstruction = `As an expert MongoDB query generator, convert natural language descriptions into a valid MongoDB query parameters JSON object conforming to the following structure:
 {
-  "query"?: object, // MongoDB find query (e.g., {"age": {"$gt": 30}})
-  "sort"?: object, // Sort specification (e.g., {"name": 1} or {"name": "asc"})
-  "filter"?: object, // Additional filter for find query
-  "pipeline"?: object[], // Aggregation pipeline stages (e.g., [{"$match": {...}}, {"$group": {...}}])
-  "projection"?: object, // Fields to include/exclude (e.g., {"name": 1, "_id": 0})
-  "collation"?: object, // Collation options (e.g., {"locale": "en", "strength": 2})
-  "hint"?: object | string, // Index hint (e.g., {"name": 1} or "indexName")
+  "query"?: string, // JSON-stringified MongoDB find query (e.g., "{\"age\":{\"$gt\":30}}")
+  "sort"?: string, // JSON-stringified sort specification (e.g., "{\"name\":1}" or "{\"name\":\"asc\"}")
+  "filter"?: string, // JSON-stringified additional filter for find query
+  "pipeline"?: string[], // Array of JSON-stringified aggregation pipeline stages (e.g., ["{\"$match\":{\"age\":30}}", "{\"$group\":{\"_id\":\"$role\"}}"])
+  "projection"?: string, // JSON-stringified fields to include/exclude (e.g., "{\"name\":1,\"_id\":0}")
+  "collation"?: string, // JSON-stringified collation options (e.g., "{\"locale\":\"en\",\"strength\":2}")
+  "hint"?: string, // JSON-stringified index hint or index name (e.g., "{\"name\":1}" or "\"indexName\"")
   "readPreference"?: string // Read preference (e.g., "primary", "secondary")
 }
 - Include only the fields relevant to the user's prompt.
+- For Date fields (e.g., timestamp), use ISODate("YYYY-MM-DDTHH:mm:ss.sssZ") (e.g., "{\"timestamp\":{\"$gte\":\"ISODate(\\\"2025-06-30T00:00:00.000Z\\\")\"}}").
+- For relative time expressions (e.g., "within the last week", "last 7 days"), calculate the date relative to the current timestamp (2025-07-08T08:42:00.000Z) and use ISODate. For example, "within the last week" means {\"timestamp\":{\"$gte\":\"ISODate(\\\"2025-07-01T08:42:00.000Z\\\")\"}}.
+- For ObjectId fields (e.g., _id), use ObjectId("24-character-hex-string") (e.g., "{\"_id\":\"ObjectId(\\\"507f1f77bcf86cd799439011\\\")\"}").
 - For simple queries, use "query" for MongoDB find operations.
 - Use "pipeline" only for explicit aggregation requests (e.g., grouping, joining).
 - Ensure "sort" values are 1, -1, "asc", or "desc".
 - Ensure "collation" includes a "locale" property if specified.
 - Ensure "readPreference" is one of: "primary", "primaryPreferred", "secondary", "secondaryPreferred", "nearest".
 Respond ONLY with the raw JSON object. Do not include any other text, explanations, or markdown fences.`;
+    logger.info(`System prompt ${systemInstruction}`);
 
     const prompt = `Given the following MongoDB collection information:
 
@@ -415,6 +423,7 @@ ${formattedSampleDocs}
 Based on this context, generate a MongoDB query parameters JSON object for the following natural language request:
 
 "${userPrompt}"`;
+    logger.info(`User prompt: ${prompt}`);
 
     // Construct the messages array for x.ai chat completions API
     const messages = [

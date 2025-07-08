@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, ToggleButton, Pagination, Accordion, Card } from 'react-bootstrap';
-import { z } from 'zod';
 import type { ConnectionStatus, CollectionInfo, Document, MongoQueryParams } from '../types';
 import {
   getDatabaseCollections,
@@ -14,38 +13,6 @@ import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 import '../styles/DatabaseBrowser.css';
 
-// Zod schema for MongoQueryParams
-const MongoQueryParamsSchema = z.object({
-  query: z.record(z.any()).optional(),
-  sort: z
-    .record(
-      z.union([
-        z.number().refine(val => val === 1 || val === -1, {
-          message: 'Sort value must be 1 or -1',
-        }),
-        z.enum(['asc', 'desc']),
-      ]).transform(val => (val === 'asc' ? 1 : val === 'desc' ? -1 : val))
-    )
-    .optional(),
-  filter: z.record(z.any()).optional(),
-  pipeline: z.array(z.record(z.any())).optional(),
-  projection: z.record(z.any()).optional(),
-  collation: z
-    .object({
-      locale: z.string(),
-      caseLevel: z.boolean().optional(),
-      caseFirst: z.enum(['upper', 'lower', 'off']).optional(),
-      strength: z.number().min(1).max(5).optional(),
-      numericOrdering: z.boolean().optional(),
-      alternate: z.enum(['non-ignorable', 'shifted']).optional(),
-      maxVariable: z.enum(['punct', 'space']).optional(),
-      backwards: z.boolean().optional(),
-      normalization: z.boolean().optional(),
-    })
-    .optional(),
-  hint: z.union([z.record(z.any()), z.string()]).optional(),
-  readPreference: z.enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest']).optional(),
-}).strict();
 
 interface DatabaseBrowserProps {
   currentStatus: ConnectionStatus | null;
@@ -229,24 +196,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
-  const validateMongoQueryParams = (params: object): MongoQueryParams | null => {
-    try {
-      const result = MongoQueryParamsSchema.safeParse(params);
-      if (!result.success) {
-        const errorMessage = result.error.errors
-          .map(err => `${err.path.join('.')} - ${err.message}`)
-          .join('; ');
-        setQueryError(`Invalid MongoQueryParams: ${errorMessage}`);
-        return null;
-      }
-      return result.data as MongoQueryParams;
-    } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'An unexpected error occurred';
-      setQueryError(`Invalid MongoQueryParams: ${errorMessage}`);
-      return null;
-    }
-  };
-
   const handleGenerateAIQuery = useCallback(async () => {
     if (!selectedCollection) {
       setNotificationMessage('Please select a collection before asking Query Helper to generate a query.');
@@ -275,24 +224,17 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
         setQueryError(`Query Helper Error: ${backendError}`);
         setNotificationMessage(`Query Helper generation failed: ${backendError}`);
       } else if (generatedQuery) {
-        setQueryText(JSON.stringify(JSON.parse(generatedQuery), null, 2)); // Always set queryText with generated query
+        setQueryText(generatedQuery); // Always set queryText with generated query
         try {
-          const parsedGenerated = JSON.parse(generatedQuery);
-          const validatedParams = validateMongoQueryParams(parsedGenerated);
-          if (validatedParams) {
-            if (autoRunGeneratedQuery) {
-              setParsedParams(validatedParams);
-              setCurrentPage(1);
-              setHasQueryBeenExecuted(true);
-              setNotificationMessage('Query Helper generated and executed query successfully!');
-            } else {
-              setParsedParams({});
-              setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
-              setHasQueryBeenExecuted(false);
-            }
+          const parsedGeneratedQuery = JSON.parse(generatedQuery);
+          if (autoRunGeneratedQuery) {
+            setParsedParams(parsedGeneratedQuery as MongoQueryParams);
+            setCurrentPage(1);
+            setHasQueryBeenExecuted(true);
+            setNotificationMessage('Query Helper generated and executed query successfully!');
           } else {
-            setParsedParams({});
-            setNotificationMessage('Query Helper generated query with validation errors. Review and fix in the query editor.');
+            setParsedParams({} as MongoQueryParams);
+            setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
             setHasQueryBeenExecuted(false);
           }
         } catch (parseError: unknown) {
@@ -323,9 +265,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
     try {
       const parsed = JSON.parse(queryText);
-      const validatedParams = validateMongoQueryParams(parsed);
-      if (validatedParams) {
-        setParsedParams(validatedParams);
+      if (parsed) {
+        setParsedParams(parsed);
         setCurrentPage(1);
         setQueryError(null);
         setHasQueryBeenExecuted(true);
