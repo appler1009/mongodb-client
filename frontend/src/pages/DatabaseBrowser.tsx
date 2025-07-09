@@ -37,16 +37,13 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [documentsPerPage, setDocumentsPerPage] = useState<number>(25);
   const [promptText, setPromptText] = useState<string>('');
-  const [queryText, setQueryText] = useState<string>('{}');
-  const [parsedParams, setParsedParams] = useState<MongoQueryParams>({});
+  const [queryParams, setQueryParams] = useState<MongoQueryParams>({});
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
-  const [accordionActiveKey, setAccordionActiveKey] = useState<string[]>(['0', '1']);
+  const [accordionActiveKey, setAccordionActiveKey] = useState<string | null>('0');
 
-  const totalDocuments = hasQueryBeenExecuted
-
- ? filteredDocumentCount : 0;
+  const totalDocuments = hasQueryBeenExecuted ? filteredDocumentCount : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   const resetBrowserState = useCallback(() => {
@@ -56,13 +53,12 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setFilteredDocumentCount(0);
     setCurrentPage(1);
     setPromptText('');
-    setQueryText('{}');
-    setParsedParams({});
+    setQueryParams({});
     setQueryError(null);
     setHasQueryBeenExecuted(false);
     setAiLoading(false);
     setAutoRunGeneratedQuery(true);
-    setAccordionActiveKey(['0', '1']);
+    setAccordionActiveKey('0');
   }, []);
 
   const fetchCollections = useCallback(async () => {
@@ -79,8 +75,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       setFilteredDocumentCount(0);
       setCurrentPage(1);
       setPromptText('');
-      setQueryText('{}');
-      setParsedParams({});
+      setQueryParams({});
       setQueryError(null);
       setHasQueryBeenExecuted(false);
       setCollections(fetchedCollections);
@@ -100,7 +95,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [currentStatus?.database, resetBrowserState, setError]);
 
-  const fetchDocuments = useCallback(async () => {
+  const fetchDocuments = useCallback(async (params: MongoQueryParams) => {
     if (!selectedCollection) {
       setDocuments([]);
       setFilteredDocumentCount(0);
@@ -110,7 +105,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setError(null);
     try {
       const skip = (currentPage - 1) * documentsPerPage;
-      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, parsedParams);
+      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, params);
       setDocuments(response.documents);
       setFilteredDocumentCount(response.totalDocuments || 0);
     } catch (err: unknown) {
@@ -121,7 +116,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     } finally {
       setDocumentsLoading(false);
     }
-  }, [selectedCollection, currentPage, documentsPerPage, parsedParams, setError]);
+  }, [selectedCollection, currentPage, documentsPerPage, setError]);
 
   useEffect(() => {
     if (currentStatus?.database) {
@@ -131,41 +126,31 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [currentStatus?.database, fetchCollections, resetBrowserState]);
 
-  useEffect(() => {
-    if (selectedCollection && hasQueryBeenExecuted) {
-      fetchDocuments();
-    } else if (selectedCollection && !hasQueryBeenExecuted) {
-      setDocuments([]);
-      setFilteredDocumentCount(0);
-    }
-  }, [selectedCollection, currentPage, documentsPerPage, parsedParams, hasQueryBeenExecuted, fetchDocuments]);
-
-  useEffect(() => {
-    if (hasQueryBeenExecuted && documents.length > 0) {
-      setAccordionActiveKey([]);
-    }
-  }, [hasQueryBeenExecuted, documents]);
-
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);
     setCurrentPage(1);
     setDocuments([]);
     setFilteredDocumentCount(0);
     setPromptText('');
-    setQueryText('{}');
-    setParsedParams({});
+    setQueryParams({});
     setQueryError(null);
     setHasQueryBeenExecuted(false);
-    setAccordionActiveKey(['0', '1']);
+    setAccordionActiveKey('0');
   };
 
   const handlePageSelect = (page: number) => {
     setCurrentPage(page);
+    if (hasQueryBeenExecuted) {
+      fetchDocuments(queryParams);
+    }
   };
 
   const handleDocumentsPerPageChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setDocumentsPerPage(parseInt(e.target.value, 10));
     setCurrentPage(1);
+    if (hasQueryBeenExecuted) {
+      fetchDocuments(queryParams);
+    }
   };
 
   const handlePromptTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -173,8 +158,16 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setQueryError(null);
   };
 
-  const handleQueryTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setQueryText(e.target.value);
+  const handleParamChange = (key: keyof MongoQueryParams, value: string | string[]) => {
+    if (value === '') {
+      setQueryParams((prev) => {
+        const newParams = { ...prev };
+        delete newParams[key];
+        return newParams;
+      });
+    } else {
+      setQueryParams((prev) => ({ ...prev, [key]: value }));
+    }
     setQueryError(null);
   };
 
@@ -189,7 +182,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
-  const handleQueryKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleParamKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>, key: keyof MongoQueryParams) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
       handleExecuteManualQuery();
@@ -224,24 +217,34 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
         setQueryError(`Query Helper Error: ${backendError}`);
         setNotificationMessage(`Query Helper generation failed: ${backendError}`);
       } else if (generatedQuery) {
-        setQueryText(generatedQuery); // Always set queryText with generated query
         try {
-          const parsedGeneratedQuery = JSON.parse(generatedQuery);
+          const parsedQuery = JSON.parse(generatedQuery) as MongoQueryParams;
+          const formattedParams: MongoQueryParams = {};
+          if (parsedQuery.query) formattedParams.query = parsedQuery.query as string;
+          if (parsedQuery.sort) formattedParams.sort = parsedQuery.sort as string;
+          if (parsedQuery.filter) formattedParams.filter = parsedQuery.filter as string;
+          if (parsedQuery.pipeline) formattedParams.pipeline = parsedQuery.pipeline as string[];
+          if (parsedQuery.projection) formattedParams.projection = parsedQuery.projection as string;
+          if (parsedQuery.collation) formattedParams.collation = parsedQuery.collation as string;
+          if (parsedQuery.hint) formattedParams.hint = parsedQuery.hint as string;
+          if (parsedQuery.readPreference) formattedParams.readPreference = parsedQuery.readPreference;
+
+          setQueryParams(formattedParams);
           if (autoRunGeneratedQuery) {
-            setParsedParams(parsedGeneratedQuery as MongoQueryParams);
             setCurrentPage(1);
             setHasQueryBeenExecuted(true);
+            await fetchDocuments(formattedParams);
+            setAccordionActiveKey(null);
             setNotificationMessage('Query Helper generated and executed query successfully!');
           } else {
-            setParsedParams({} as MongoQueryParams);
-            setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
             setHasQueryBeenExecuted(false);
+            setNotificationMessage('Query Helper generated query successfully! Review and click "Run Query" to execute.');
           }
         } catch (parseError: unknown) {
           const errorMessage = parseError instanceof Error ? parseError.message : 'An unexpected error occurred';
           setQueryError(`Query Helper generated invalid JSON: ${errorMessage}. Please check the Query Helper's output.`);
           setNotificationMessage('Query Helper generated invalid JSON. Manual correction might be needed.');
-          setParsedParams({});
+          setQueryParams({});
           setHasQueryBeenExecuted(false);
         }
       } else {
@@ -256,26 +259,22 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     } finally {
       setAiLoading(false);
     }
-  }, [selectedCollection, promptText, autoRunGeneratedQuery, setNotificationMessage, setError]);
+  }, [selectedCollection, promptText, autoRunGeneratedQuery, setNotificationMessage, setError, fetchDocuments]);
 
-  const handleExecuteManualQuery = () => {
+  const handleExecuteManualQuery = async () => {
     if (documentsLoading || aiLoading) {
       setQueryError('System is busy. Please wait for current operations to complete.');
       return;
     }
-    try {
-      const parsed = JSON.parse(queryText);
-      if (parsed) {
-        setParsedParams(parsed);
-        setCurrentPage(1);
-        setQueryError(null);
-        setHasQueryBeenExecuted(true);
-      }
-    } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'An unexpected error occurred';
-      setQueryError(`Invalid JSON: ${errorMessage}. Please ensure it's a valid MongoQueryParams object (e.g., {"query": {"field": "value"}, "sort": {"field": 1}}).`);
-      setHasQueryBeenExecuted(false);
+    if (Object.keys(queryParams).length === 0) {
+      setQueryError('Please provide at least one query parameter.');
+      return;
     }
+    setCurrentPage(1);
+    setQueryError(null);
+    setHasQueryBeenExecuted(true);
+    await fetchDocuments(queryParams);
+    setAccordionActiveKey(null);
   };
 
   const handleExport = async () => {
@@ -286,7 +285,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setError(null);
     setDocumentsLoading(true);
     try {
-      const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, parsedParams);
+      const { success, filePath, error: exportError } = await exportCollectionDocuments(selectedCollection, queryParams);
       if (success && filePath) {
         setNotificationMessage(`Exported to: ${filePath}`);
       } else if (!success && exportError) {
@@ -304,19 +303,16 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   };
 
-  // Generate pagination items with limited range
-  const maxPageButtons = 5; // Show current page ±2
   const paginationItems = [];
   if (filteredDocumentCount > 0) {
     let startPage = Math.max(1, currentPage - 2);
+    const maxPageButtons = 5;
     const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
 
-    // Adjust startPage if endPage is at totalPages
     if (endPage === totalPages) {
       startPage = Math.max(1, endPage - maxPageButtons + 1);
     }
 
-    // Add first page and ellipsis if needed
     if (startPage > 1) {
       paginationItems.push(
         <Pagination.Item
@@ -333,7 +329,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       }
     }
 
-    // Add page range
     for (let page = startPage; page <= endPage; page++) {
       paginationItems.push(
         <Pagination.Item
@@ -347,7 +342,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       );
     }
 
-    // Add last page and ellipsis if needed
     if (endPage < totalPages) {
       if (endPage < totalPages - 1) {
         paginationItems.push(<Pagination.Ellipsis key="end-ellipsis" />);
@@ -391,65 +385,145 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               {queryError}
             </Alert>
           )}
-          <Accordion activeKey={accordionActiveKey} onSelect={(key) => setAccordionActiveKey(key ? [key.toString()] : [])} className="mb-4">
+          <Accordion activeKey={accordionActiveKey} onSelect={(key) => setAccordionActiveKey(key as string | null)} className="mb-4">
             <Card>
               <Accordion.Item eventKey="0">
-                <Accordion.Header>Query Helper</Accordion.Header>
+                <Accordion.Header>Query</Accordion.Header>
                 <Accordion.Body>
-                  <Form.Control
-                    as="textarea"
-                    className="prompt-editor mb-2"
-                    value={promptText}
-                    onChange={handlePromptTextChange}
-                    onKeyDown={handlePromptKeyDown}
-                    placeholder="Enter natural language prompt (e.g., 'find users older than 30, sorted by name')"
-                    rows={3}
-                    disabled={documentsLoading || aiLoading}
-                  />
-                  <div className="d-flex align-items-center mb-3">
-                    <div className="me-auto">
-                      <ToggleButton
-                        id="auto-run-toggle"
-                        type="checkbox"
-                        variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
-                        checked={autoRunGeneratedQuery}
-                        value="1"
-                        onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
-                        disabled={aiLoading}
-                        className="me-2"
-                      >
-                        <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
-                        Auto-run
-                      </ToggleButton>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Query Helper</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      className="prompt-editor mb-2"
+                      value={promptText}
+                      onChange={handlePromptTextChange}
+                      onKeyDown={handlePromptKeyDown}
+                      placeholder="Enter natural language prompt (e.g., 'find users older than 30, sorted by name')"
+                      rows={3}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                    <div className="d-flex align-items-center mb-3">
+                      <div className="me-auto">
+                        <ToggleButton
+                          id="auto-run-toggle"
+                          type="checkbox"
+                          variant={autoRunGeneratedQuery ? 'primary' : 'outline-secondary'}
+                          checked={autoRunGeneratedQuery}
+                          value="1"
+                          onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
+                          disabled={aiLoading}
+                          className="me-2"
+                        >
+                          <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
+                          Auto-run
+                        </ToggleButton>
+                      </div>
+                      <div className="d-flex">
+                        <Button
+                          variant="primary"
+                          onClick={handleGenerateAIQuery}
+                          disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
+                          title="Generate MongoDB query using Query Helper based on your natural language prompt"
+                        >
+                          {aiLoading ? 'Generating Query...' : 'Generate Query'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="d-flex">
-                      <Button
-                        variant="primary"
-                        onClick={handleGenerateAIQuery}
-                        disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
-                        title="Generate MongoDB query using Query Helper based on your natural language prompt"
-                      >
-                        {aiLoading ? 'Generating Query...' : 'Generate Query'}
-                      </Button>
-                    </div>
-                  </div>
-                </Accordion.Body>
-              </Accordion.Item>
-            </Card>
-            <Card>
-              <Accordion.Item eventKey="1">
-                <Accordion.Header>Find Query (JSON)</Accordion.Header>
-                <Accordion.Body>
-                  <Form.Control
-                    as="textarea"
-                    className="query-editor mb-2"
-                    value={queryText}
-                    onChange={handleQueryTextChange}
-                    onKeyDown={handleQueryKeyDown}
-                    placeholder='Enter MongoDB query JSON (e.g., {"query": {"age": {"$gt": 30}}, "sort": {"name": 1}, "collation": {"locale": "en"}})'
-                    rows={5}
-                    disabled={documentsLoading || aiLoading}
-                  />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Query</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.query || ''}
+                      onChange={(e) => handleParamChange('query', e.target.value)}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'query')}
+                      placeholder='e.g., {"timestamp":{"$gte":"ISODate(\"2025-06-30T00:00:00.000Z\")"}}'
+                      rows={2}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Sort</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.sort || ''}
+                      onChange={(e) => handleParamChange('sort', e.target.value)}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'sort')}
+                      placeholder='e.g., {"name":1}'
+                      rows={2}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Filter</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.filter || ''}
+                      onChange={(e) => handleParamChange('filter', e.target.value)}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'filter')}
+                      placeholder='e.g., {"status":"active"}'
+                      rows={2}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Pipeline</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.pipeline ? queryParams.pipeline.join('\n') : ''}
+                      onChange={(e) => handleParamChange('pipeline', e.target.value.split('\n').filter((v) => v.trim()))}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'pipeline')}
+                      placeholder='e.g., {"$match":{"age":30}}'
+                      rows={3}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Projection</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.projection || ''}
+                      onChange={(e) => handleParamChange('projection', e.target.value)}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'projection')}
+                      placeholder='e.g., {"name":1}'
+                      rows={2}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Collation</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.collation || ''}
+                      onChange={(e) => handleParamChange('collation', e.target.value)}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'collation')}
+                      placeholder='e.g., {"locale":"en"}'
+                      rows={2}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Hint</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      value={queryParams.hint || ''}
+                      onChange={(e) => handleParamChange('hint', e.target.value)}
+                      onKeyDown={(e) => handleParamKeyDown(e, 'hint')}
+                      placeholder='e.g., {"name":1} or "indexName"'
+                      rows={2}
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-2">
+                    <Form.Label>Read Preference</Form.Label>
+                    <Form.Control
+                      as="input"
+                      value={queryParams.readPreference || ''}
+                      onChange={(e) => handleParamChange('readPreference', e.target.value)}
+                      placeholder='e.g., primary'
+                      disabled={documentsLoading || aiLoading}
+                    />
+                  </Form.Group>
                   <div className="d-flex">
                     <div className="me-auto">
                       <Button
@@ -500,14 +574,14 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               <div className="d-flex">
                 <Pagination>
                   <Pagination.Prev
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    onClick={() => handlePageSelect(currentPage - 1)}
                     disabled={currentPage === 1 || documentsLoading || aiLoading || filteredDocumentCount === 0}
                   >
                     <i className="bi bi-arrow-left"></i>
                   </Pagination.Prev>
                   {paginationItems}
                   <Pagination.Next
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    onClick={() => handlePageSelect(currentPage + 1)}
                     disabled={currentPage === totalPages || documentsLoading || aiLoading || filteredDocumentCount === 0}
                   >
                     <i className="bi bi-arrow-right"></i>
