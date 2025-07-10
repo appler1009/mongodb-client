@@ -1,32 +1,31 @@
-// backend/src/services/mongoDriverChooser.ts
-
-// Dynamic imports are best here to avoid loading all drivers if not needed,
-// but for simplicity with file: dependencies and commonjs, we'll use static imports first.
-// If you encounter memory issues or slow startup due to many unused drivers,
-// consider using dynamic `import()` calls (which would require converting to ESM
-// or careful handling with CommonJS). For now, static imports are simpler to type.
-
 import { MongoDBWrapperV6, MongoClientOptions as MongoClientOptionsV6, MongoClient as MongoClientV6 } from 'mongodb-wrapper-v6';
 import { MongoDBWrapperV5, MongoClientOptions as MongoClientOptionsV5, MongoClient as MongoClientV5 } from 'mongodb-wrapper-v5';
 import { MongoDBWrapperV4, MongoClientOptions as MongoClientOptionsV4, MongoClient as MongoClientV4 } from 'mongodb-wrapper-v4';
 import { MongoDBWrapperV3, MongoClientOptions as MongoClientOptionsV3, MongoClient as MongoClientV3 } from 'mongodb-wrapper-v3';
 
-// Re-export common types from the newest driver for consistency.
-// In a real application, you might abstract these further if there are
-// significant breaking changes in interfaces across driver versions.
-export { Db, Collection, Document, ObjectId, WithId, InsertOneResult, UpdateResult, DeleteResult } from 'mongodb-wrapper-v6';
+// Re-export common types from the newest driver (v6) for consistency
+export {
+  Db,
+  Collection,
+  Document,
+  ObjectId,
+  WithId,
+  InsertOneResult,
+  UpdateResult,
+  DeleteResult,
+  FindCursor,
+  AggregationCursor
+} from 'mongodb-wrapper-v6';
 export type MongoClient = MongoClientV6; // Use the newest MongoClient type for the return
 
 // Define a type for a generic MongoDB Wrapper constructor
-// This helps us iterate through them cleanly
 type MongoWrapperConstructor =
   | (new (uri: string, options?: MongoClientOptionsV6) => MongoDBWrapperV6)
   | (new (uri: string, options?: MongoClientOptionsV5) => MongoDBWrapperV5)
   | (new (uri: string, options?: MongoClientOptionsV4) => MongoDBWrapperV4)
   | (new (uri: string, options?: MongoClientOptionsV3) => MongoDBWrapperV3);
 
-// For simplicity, we'll use the most comprehensive MongoClientOptions (from V6).
-// Be aware that older drivers might not recognize all V6 options, but they usually ignore unknown ones.
+// For simplicity, use the most comprehensive MongoClientOptions (from V6)
 export type UniversalMongoClientOptions = MongoClientOptionsV6;
 
 interface ConnectionAttemptResult {
@@ -49,7 +48,6 @@ export async function connectWithDriverFallback(
   options?: UniversalMongoClientOptions,
   knownVersion?: 'v6' | 'v5' | 'v4' | 'v3'
 ): Promise<ConnectionAttemptResult> {
-
   // If knownVersion is provided, attempt connection with that version only
   if (knownVersion) {
     console.log(`Connecting with mongodb-wrapper-${knownVersion}... to ${uri}`);

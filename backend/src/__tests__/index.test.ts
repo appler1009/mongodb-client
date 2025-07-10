@@ -1,6 +1,5 @@
-// backend/src/__tests__/index.test.ts
 import { generateAIQuery } from '../index';
-import type { Document } from '../types';
+import type { Document, SchemaMap } from '../types';
 
 // Mock pino logger
 jest.mock('pino', () => {
@@ -18,7 +17,7 @@ const mockFetch = jest.spyOn(global, 'fetch').mockName('fetch');
 describe('generateAIQuery', () => {
   const userPrompt = 'find users older than 30, sorted by name';
   const collectionName = 'users';
-  const schemaSummary = 'Schema: { _id: ObjectId, name: string, age: number }';
+  const schemaMap: SchemaMap = { _id: ['ObjectId'], name: ['string'], age: ['number'] };
   const sampleDocuments: Document[] = [{ _id: '1', name: 'Alice', age: 25 }];
 
   beforeEach(() => {
@@ -40,7 +39,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -75,7 +74,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -107,7 +106,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -138,7 +137,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(

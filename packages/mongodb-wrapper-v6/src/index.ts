@@ -2,7 +2,7 @@
 import { MongoClient, MongoClientOptions } from 'mongodb';
 
 export { MongoClient } from 'mongodb';
-export { MongoClientOptions, Db, Collection, Document, ObjectId, WithId, InsertOneResult, UpdateResult, DeleteResult } from 'mongodb';
+export { MongoClientOptions, Db, Collection, Document, ObjectId, WithId, InsertOneResult, UpdateResult, DeleteResult, FindCursor, AggregationCursor } from 'mongodb';
 
 export class MongoDBWrapperV6 {
   private client: MongoClient | null = null;

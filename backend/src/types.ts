@@ -36,7 +36,7 @@ export interface ConnectionsStoreSchema {
 }
 
 export interface MongoQueryParams {
-  query?: string; // JSON-stringified, e.g., '{"timestamp":{"$gte":"ISODate(\"2025-06-30T00:00:00.000Z\")"}}'
+  query?: string; // JSON-stringified, e.g., '{"timestamp":{"$gte":"2025-06-30T00:00:00.000Z"}}'
   sort?: string; // JSON-stringified, e.g., '{"name":1}'
   filter?: string; // JSON-stringified, e.g., '{"status":"active"}'
   pipeline?: string[]; // Array of JSON-stringified stages, e.g., ['{"$match":{"age":30}}']
@@ -45,3 +45,6 @@ export interface MongoQueryParams {
   hint?: string; // JSON-stringified or index name, e.g., '{"name":1}' or '"indexName"'
   readPreference?: string; // e.g., "primary"
 }
+
+// Schema map type for representing field types in a collection
+export type SchemaMap = { [field: string]: string[] };

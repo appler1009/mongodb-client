@@ -1,17 +1,16 @@
-// backend/src/index.ts
-import { connectWithDriverFallback, MongoClient, Db, ObjectId, UniversalMongoClientOptions } from './services/mongoDriverChooser';
+import { connectWithDriverFallback, MongoClient, Db, ObjectId, UniversalMongoClientOptions, FindCursor, AggregationCursor } from './services/mongoDriverChooser';
 import { ConnectionService } from './services/ConnectionService';
 import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
 import dotenv from 'dotenv';
-import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus, Document, MongoQueryParams } from './types';
+import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus, Document, MongoQueryParams, SchemaMap } from './types';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { default as Store } from 'electron-store';
 
-dotenv.config(); // Still load .env for connection strings etc.
+dotenv.config();
 
 const logger = pino({
   transport: {
@@ -29,23 +28,19 @@ let activeConnectionId: string | null = null;
 let activeDatabaseName: string | undefined = undefined;
 let activeDriverVersion: string | null = null;
 
-// Initialize services.
-// ConnectionService now takes the logger and will later receive the store.
+// Initialize services
 const connectionService = new ConnectionService(logger);
 const databaseService = new DatabaseService(logger);
 
 // --- Initialization function for the backend ---
-// This function will be called from main.js and injects the connectionsStore
 export function initialize(connectionsStore: Store<any>) {
   if (!connectionsStore) {
     logger.error('Connections store was not provided during backend initialization.');
     throw new Error('Connections store is required for backend operations.');
   }
-  // Pass the connectionsStore instance to the ConnectionService
   connectionService.setStore(connectionsStore);
-  logger.info('Backend: ConnectionService initialized with electron-store.');
+  logger.debug('Backend: ConnectionService initialized with electron-store.');
 
-  // Return all exported functions so main.js can access them
   return {
     getConnections,
     addConnection,
@@ -61,7 +56,6 @@ export function initialize(connectionsStore: Store<any>) {
   };
 }
 
-
 // Helper function to disconnect
 async function disconnectMongoInternal() {
   if (activeMongoClient) {
@@ -72,20 +66,17 @@ async function disconnectMongoInternal() {
     activeConnectionId = null;
     activeDatabaseName = undefined;
     activeDriverVersion = null;
-    databaseService.setActiveDb(null); // Clear active DB in service
-    logger.info('MongoDB connection closed.');
+    databaseService.setActiveDb(null);
+    logger.debug('MongoDB connection closed.');
   }
 }
 
 // --- Helper: Prepare documents for frontend serialization ---
-// This function recursively converts MongoDB-specific types (like ObjectId)
-// into standard JavaScript types or strings that JSON.stringify can handle gracefully.
 const prepareDocumentForFrontend = (doc: any): any => {
   if (!doc || typeof doc !== 'object') {
     return doc;
   }
 
-  // Handle arrays recursively
   if (Array.isArray(doc)) {
     return doc.map(item => prepareDocumentForFrontend(item));
   }
@@ -95,25 +86,18 @@ const prepareDocumentForFrontend = (doc: any): any => {
     if (Object.prototype.hasOwnProperty.call(doc, key)) {
       const value = doc[key];
 
-      // Prioritize checking for the _bsontype property for robustness
       if (value && typeof value === 'object' && value._bsontype === 'ObjectID') {
-        newDoc[key] = value.toHexString(); // Convert to hex string
+        newDoc[key] = value.toHexString();
       }
-      // Keep the instanceof check as a fallback or for consistency,
-      // although the _bsontype check is more reliable in this scenario.
       else if (value instanceof ObjectId) {
         newDoc[key] = value.toHexString();
       }
-      // Date objects are generally handled well by JSON.stringify to ISO strings,
-      // but you can explicitly convert if you need different formatting or control.
       else if (value instanceof Date) {
         newDoc[key] = value.toISOString();
       }
-      // Recursively process nested objects
       else if (typeof value === 'object' && value !== null) {
         newDoc[key] = prepareDocumentForFrontend(value);
       }
-      // Keep other primitive values as they are
       else {
         newDoc[key] = value;
       }
@@ -124,7 +108,6 @@ const prepareDocumentForFrontend = (doc: any): any => {
 
 // --- IPC Handlers (Exposed functions) ---
 
-// Get all saved connections
 export const getConnections = async (): Promise<ConnectionConfig[]> => {
   try {
     return await connectionService.getConnections();
@@ -134,7 +117,6 @@ export const getConnections = async (): Promise<ConnectionConfig[]> => {
   }
 };
 
-// Add a new connection
 export const addConnection = async (newConnection: ConnectionConfig): Promise<ConnectionConfig> => {
   try {
     const addedConnection = await connectionService.addConnection(newConnection);
@@ -146,45 +128,42 @@ export const addConnection = async (newConnection: ConnectionConfig): Promise<Co
   }
 };
 
-// Update an existing connection
 export const updateConnection = async (id: string, updatedConnection: ConnectionConfig): Promise<ConnectionConfig | null> => {
   try {
     const result = await connectionService.updateConnection(id, updatedConnection);
     if (result) {
       if (activeConnectionId === id) {
-        await disconnectMongoInternal(); // Disconnect if active connection is updated
+        await disconnectMongoInternal();
         logger.warn(`IPC: Updated active connection ${id}. Disconnected existing connection.`);
       }
-      logger.info({ id }, 'IPC: Connection updated');
+      logger.debug({ id }, 'IPC: Connection updated');
       return result;
     }
-    return null; // Not found
+    return null;
   } catch (error: any) {
     logger.error({ error, id, body: updatedConnection }, 'IPC: Failed to update connection');
     throw new Error(`Failed to update connection: ${error.message}`);
   }
 };
 
-// Delete a connection
 export const deleteConnection = async (id: string): Promise<boolean> => {
   try {
     const deleted = await connectionService.deleteConnection(id);
     if (deleted) {
       if (activeConnectionId === id) {
-        await disconnectMongoInternal(); // Disconnect if active connection is deleted
+        await disconnectMongoInternal();
         logger.warn(`IPC: Deleted active connection ${id}. Disconnected existing connection.`);
       }
-      logger.info({ id }, 'IPC: Connection deleted');
+      logger.debug({ id }, 'IPC: Connection deleted');
       return true;
     }
-    return false; // Not found
+    return false;
   } catch (error: any) {
     logger.error({ error, id }, 'IPC: Failed to delete connection');
     throw new Error(`Failed to delete connection: ${error.message}`);
   }
 };
 
-// Connect to a MongoDB instance
 export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
   try {
     if (activeMongoClient) {
@@ -203,7 +182,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     };
     const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri, options, connectionConfig.driverVersion);
 
-    await client.connect(); // Connects to the MongoDB server
+    await client.connect();
 
     let dbNameFromUri: string | undefined;
     try {
@@ -212,7 +191,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
         dbNameFromUri = uriObj.pathname.substring(1);
       }
     } catch (e) {
-      logger.warn({ uri: connectionConfig.uri, error: e }, 'Failed to parse URI to extract database name. This might be normal if URI doesn\'t specify a database path.');
+      logger.warn({ uri: connectionConfig.uri, error: e }, 'Failed to parse URI to extract database name.');
     }
 
     if (!dbNameFromUri) {
@@ -226,7 +205,6 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     activeDatabaseName = dbNameFromUri;
     activeDriverVersion = driverVersion;
 
-    // Update the connection config with the driver version
     if (connectionConfig && driverVersion) {
       const updatedConnection: ConnectionConfig = {
         ...connectionConfig,
@@ -236,9 +214,9 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
       logger.info(`IPC: Stored driver version ${driverVersion} for connection ${id}`);
     }
 
-    databaseService.setActiveDb(activeDb); // Set active DB in DatabaseService
+    databaseService.setActiveDb(activeDb);
 
-    logger.info(`IPC: Successfully connected to MongoDB: ${connectionConfig.name} on database: ${activeDatabaseName} with driver ${activeDriverVersion}`);
+    logger.debug(`IPC: Successfully connected to MongoDB: ${connectionConfig.name} on database: ${activeDatabaseName} with driver ${activeDriverVersion}`);
     return {
       message: 'Successfully connected to MongoDB.',
       connectionId: activeConnectionId,
@@ -246,13 +224,11 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     };
   } catch (error: any) {
     logger.error({ error, connectionId: id }, 'IPC: Failed to connect to MongoDB');
-    // Ensure the connection is fully reset if an error occurs during connection
     await disconnectMongoInternal();
     throw new Error(`Failed to connect to MongoDB: ${error.message}`);
   }
 };
 
-// Disconnect from the current MongoDB instance
 export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
   try {
     await disconnectMongoInternal();
@@ -264,7 +240,6 @@ export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
   }
 };
 
-// Get collections for the active database
 export const getDatabaseCollections = async (): Promise<CollectionInfo[]> => {
   try {
     if (!databaseService.isDbActive()) {
@@ -277,7 +252,6 @@ export const getDatabaseCollections = async (): Promise<CollectionInfo[]> => {
   }
 };
 
-// Get documents from a specific collection in the active database
 export const getCollectionDocuments = async (
   collectionName: string,
   limit: number = 20,
@@ -289,14 +263,12 @@ export const getCollectionDocuments = async (
       throw new Error('No active database connection to retrieve documents.');
     }
     const documents = await databaseService.getDocuments(collectionName, limit, skip, params);
-    logger.info(`Retrieved ${documents.length} documents from collection ${collectionName}`);
+    logger.debug(`Retrieved ${documents.length} documents from collection ${collectionName}`);
     logger.debug(JSON.stringify(documents));
-    const { query = {}, filter = {} } = params;
     const totalDocuments = await databaseService.getDocumentCount(collectionName, params);
 
-    // Apply the transformation before sending documents to the renderer
     const transformedDocuments = documents.map(prepareDocumentForFrontend);
-    logger.info(`Transformed ${transformedDocuments.length} documents`);
+    logger.debug(`Transformed ${transformedDocuments.length} documents`);
     logger.debug(JSON.stringify(transformedDocuments));
 
     return { documents: transformedDocuments, totalDocuments };
@@ -306,7 +278,6 @@ export const getCollectionDocuments = async (
   }
 };
 
-// Export documents from a collection
 export const exportCollectionDocuments = async (collectionName: string, params: MongoQueryParams = {}): Promise<string> => {
   try {
     if (!databaseService.isDbActive()) {
@@ -314,52 +285,42 @@ export const exportCollectionDocuments = async (collectionName: string, params: 
     }
     const documents = await databaseService.getAllDocuments(collectionName, params);
 
-    // Apply the transformation before stringifying for NDJSON export
     const transformedDocuments = documents.map(prepareDocumentForFrontend);
-
-    // Format documents as newline-delimited JSON (NDJSON)
     const ndjsonContent = transformedDocuments.map(doc => JSON.stringify(doc)).join('\n');
 
-    // --- Store content into a temporary file ---
-    const tempDir = os.tmpdir(); // Get the system's temporary directory
-    // Generate a unique filename to avoid conflicts
+    const tempDir = os.tmpdir();
     const tempFileName = `export_${collectionName}_${uuidv4()}.jsonl`;
     const tempFilePath = path.join(tempDir, tempFileName);
 
     await fs.writeFile(tempFilePath, ndjsonContent, { encoding: 'utf8' });
-    logger.info(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+    logger.debug(`Exported NDJSON content to temporary file: ${tempFilePath}`);
 
-    return tempFilePath; // Return the path to the temporary file
+    return tempFilePath;
   } catch (error: any) {
     logger.error({ error, collectionName }, 'Backend: Failed to export documents to temp file');
-    // Ensure the error message sent back is clear and actionable
     throw new Error(`Failed to export documents to temporary file for collection ${collectionName}: ${error.message}`);
   }
 };
 
-
-// --- Query Helper Functions ---
-
 /**
- * Fetches sample documents and schema summary for a given collection.
+ * Fetches sample documents and schema map for a given collection.
  * This is used to provide context to the Query Helper model.
- * @param {string} collectionName - The name of the collection.
- * @param {number} sampleCount - The number of sample documents to fetch.
- * @returns {Promise<{ sampleDocuments: Document[]; schemaSummary: string }>} Sample documents and schema summary.
+ * @param collectionName The name of the collection.
+ * @param sampleCount The number of sample documents to fetch.
+ * @returns Sample documents and schema map.
  */
 export const getCollectionSchemaAndSampleDocuments = async (
   collectionName: string,
   sampleCount: number = 2
-): Promise<{ sampleDocuments: Document[]; schemaSummary: string }> => {
+): Promise<{ sampleDocuments: Document[]; schemaMap: SchemaMap }> => {
   try {
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to get schema and samples.');
     }
-    const { sampleDocuments, schemaSummary } = await databaseService.getCollectionSchemaAndSampleDocuments(collectionName, sampleCount);
-    // Ensure sample documents are prepared for frontend if they contain special BSON types
+    const { sampleDocuments, schemaMap } = await databaseService.getCollectionSchemaAndSampleDocuments(collectionName, sampleCount);
     const transformedSampleDocuments = sampleDocuments.map(prepareDocumentForFrontend);
-    logger.info({ collectionName, sampleCount, schemaSummaryLength: schemaSummary.length }, 'IPC: Fetched schema and sample documents for Query Helper.');
-    return { sampleDocuments: transformedSampleDocuments, schemaSummary };
+    logger.debug({ collectionName, sampleCount, schemaMapSize: Object.keys(schemaMap).length }, 'IPC: Fetched schema map and sample documents for Query Helper.');
+    return { sampleDocuments: transformedSampleDocuments, schemaMap };
   } catch (error: any) {
     logger.error({ error, collectionName }, 'IPC: Failed to get schema and sample documents for Query Helper');
     throw new Error(`Failed to get schema and sample documents for Query Helper: ${error.message}`);
@@ -368,16 +329,16 @@ export const getCollectionSchemaAndSampleDocuments = async (
 
 /**
  * Generates a MongoDB query using the Grok-3-mini model based on a natural language prompt.
- * @param {string} userPrompt - The natural language request from the user.
- * @param {string} collectionName - The name of the collection for context.
- * @param {string} schemaSummary - A summary of the collection's schema.
- * @param {Document[]} sampleDocuments - A few sample documents from the collection.
- * @returns {Promise<{ generatedQuery?: string; error?: string }>} The generated MongoQueryParams JSON or an error.
+ * @param userPrompt The natural language request from the user.
+ * @param collectionName The name of the collection for context.
+ * @param schemaMap A map of field names to their possible types.
+ * @param sampleDocuments A few sample documents from the collection.
+ * @returns The generated MongoQueryParams JSON or an error.
  */
 export const generateAIQuery = async (
   userPrompt: string,
   collectionName: string,
-  schemaSummary: string,
+  schemaMap: SchemaMap | null | undefined,
   sampleDocuments: Document[]
 ): Promise<{ generatedQuery?: string; error?: string }> => {
   try {
@@ -386,28 +347,41 @@ export const generateAIQuery = async (
 
     const formattedSampleDocs = JSON.stringify(sampleDocuments, null, 2);
 
+    // Handle null or undefined schemaMap
+    logger.debug(`schemaMap: ${JSON.stringify(schemaMap)}`);
+    let schemaSummary = '';
+    if (schemaMap && Object.keys(schemaMap).length > 0) {
+      schemaSummary = `Schema for ${collectionName} (inferred from ${sampleDocuments.length} samples):\n{\n`;
+      for (const [key, types] of Object.entries(schemaMap)) {
+        const typeStr = types.join(' | ');
+        schemaSummary += `  ${key}: ${typeStr}${typeStr.includes('Date') ? ' (ISODate("YYYY-MM-DDTHH:mm:ss.sssZ"))' : typeStr.includes('ObjectId') ? ' (ObjectId("24-character-hex-string"))' : ''}\n`;
+      }
+      schemaSummary += '}';
+    } else {
+      schemaSummary = `No schema could be inferred from sample documents in ${collectionName} (collection might be empty or samples invalid).`;
+    }
+
     const systemInstruction = `As an expert MongoDB query generator, convert natural language descriptions into a valid MongoDB query parameters JSON object conforming to the following structure:
 {
-  "query"?: string, // JSON-stringified MongoDB find query (e.g., "{\"age\":{\"$gt\":30}}")
-  "sort"?: string, // JSON-stringified sort specification (e.g., "{\"name\":1}" or "{\"name\":\"asc\"}")
-  "filter"?: string, // JSON-stringified additional filter for find query
-  "pipeline"?: string[], // Array of JSON-stringified aggregation pipeline stages (e.g., ["{\"$match\":{\"age\":30}}", "{\"$group\":{\"_id\":\"$role\"}}"])
-  "projection"?: string, // JSON-stringified fields to include/exclude (e.g., "{\"name\":1,\"_id\":0}")
-  "collation"?: string, // JSON-stringified collation options (e.g., "{\"locale\":\"en\",\"strength\":2}")
-  "hint"?: string, // JSON-stringified index hint or index name (e.g., "{\"name\":1}" or "\"indexName\"")
-  "readPreference"?: string // Read preference (e.g., "primary", "secondary")
+  "query"?: string,
+  "sort"?: string,
+  "filter"?: string,
+  "pipeline"?: string[],
+  "projection"?: string,
+  "collation"?: string,
+  "hint"?: string,
+  "readPreference"?: string
 }
 - Include only the fields relevant to the user's prompt.
-- For Date fields (e.g., timestamp), use ISODate("YYYY-MM-DDTHH:mm:ss.sssZ") (e.g., "{\"timestamp\":{\"$gte\":\"ISODate(\\\"2025-06-30T00:00:00.000Z\\\")\"}}").
-- For relative time expressions (e.g., "within the last week", "last 7 days"), calculate the date relative to the current timestamp (2025-07-08T08:42:00.000Z) and use ISODate. For example, "within the last week" means {\"timestamp\":{\"$gte\":\"ISODate(\\\"2025-07-01T08:42:00.000Z\\\")\"}}.
-- For ObjectId fields (e.g., _id), use ObjectId("24-character-hex-string") (e.g., "{\"_id\":\"ObjectId(\\\"507f1f77bcf86cd799439011\\\")\"}").
+- For relative time expressions (e.g., "within the last week", "last 7 days"), calculate the date relative to the current timestamp.
+- Do not use ISODate or ObjectId in the generated query.
 - For simple queries, use "query" for MongoDB find operations.
 - Use "pipeline" only for explicit aggregation requests (e.g., grouping, joining).
 - Ensure "sort" values are 1, -1, "asc", or "desc".
 - Ensure "collation" includes a "locale" property if specified.
 - Ensure "readPreference" is one of: "primary", "primaryPreferred", "secondary", "secondaryPreferred", "nearest".
 Respond ONLY with the raw JSON object. Do not include any other text, explanations, or markdown fences.`;
-    logger.info(`System prompt ${systemInstruction}`);
+    logger.debug(`System prompt: ${systemInstruction}`);
 
     const prompt = `Given the following MongoDB collection information:
 
@@ -423,9 +397,8 @@ ${formattedSampleDocs}
 Based on this context, generate a MongoDB query parameters JSON object for the following natural language request:
 
 "${userPrompt}"`;
-    logger.info(`User prompt: ${prompt}`);
+    logger.debug(`User prompt: ${prompt}`);
 
-    // Construct the messages array for x.ai chat completions API
     const messages = [
       { role: "system", content: systemInstruction },
       { role: "user", content: prompt }
@@ -459,14 +432,13 @@ Based on this context, generate a MongoDB query parameters JSON object for the f
     }
 
     const result = await response.json();
-    // The chat completions API returns choices[0].message.content
     if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
       const generatedText = result.choices[0].message.content;
       logger.info({ generatedTextLength: generatedText.length, generatedText }, `Query Helper (${grokModel}) returned a response.`);
 
       try {
-        JSON.parse(generatedText); // Parse to validate JSON syntax
-        return { generatedQuery: generatedText }; // Return raw JSON string without validation
+        JSON.parse(generatedText);
+        return { generatedQuery: generatedText };
       } catch (parseError: unknown) {
         const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error parsing JSON';
         logger.error({ parseError: errorMessage, generatedText }, 'Failed to parse Query Helper generated JSON');

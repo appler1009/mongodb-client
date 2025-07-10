@@ -37,7 +37,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [documentsPerPage, setDocumentsPerPage] = useState<number>(25);
   const [promptText, setPromptText] = useState<string>('');
-  const [queryParams, setQueryParams] = useState<MongoQueryParams>({});
+  const [queryParams, setQueryParams] = useState<MongoQueryParams>({ readPreference: 'primary' });
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
@@ -53,7 +53,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setFilteredDocumentCount(0);
     setCurrentPage(1);
     setPromptText('');
-    setQueryParams({});
+    setQueryParams({ readPreference: 'primary' });
     setQueryError(null);
     setHasQueryBeenExecuted(false);
     setAiLoading(false);
@@ -75,7 +75,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       setFilteredDocumentCount(0);
       setCurrentPage(1);
       setPromptText('');
-      setQueryParams({});
+      setQueryParams({ readPreference: 'primary' });
       setQueryError(null);
       setHasQueryBeenExecuted(false);
       setCollections(fetchedCollections);
@@ -132,7 +132,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setDocuments([]);
     setFilteredDocumentCount(0);
     setPromptText('');
-    setQueryParams({});
+    setQueryParams({ readPreference: 'primary' });
     setQueryError(null);
     setHasQueryBeenExecuted(false);
     setAccordionActiveKey('0');
@@ -205,11 +205,11 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setNotificationMessage('Generating query...');
 
     try {
-      const { sampleDocuments, schemaSummary } = await getCollectionSchemaAndSampleDocuments(selectedCollection, 2);
+      const { sampleDocuments, schemaMap } = await getCollectionSchemaAndSampleDocuments(selectedCollection, 2);
       const { generatedQuery, error: backendError } = await generateAIQuery(
         userPrompt,
         selectedCollection,
-        schemaSummary,
+        schemaMap,
         sampleDocuments,
       );
 
@@ -219,7 +219,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       } else if (generatedQuery) {
         try {
           const parsedQuery = JSON.parse(generatedQuery) as MongoQueryParams;
-          const formattedParams: MongoQueryParams = {};
+          const formattedParams: MongoQueryParams = { readPreference: 'primary' };
           if (parsedQuery.query) formattedParams.query = parsedQuery.query as string;
           if (parsedQuery.sort) formattedParams.sort = parsedQuery.sort as string;
           if (parsedQuery.filter) formattedParams.filter = parsedQuery.filter as string;
@@ -244,7 +244,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
           const errorMessage = parseError instanceof Error ? parseError.message : 'An unexpected error occurred';
           setQueryError(`Query Helper generated invalid JSON: ${errorMessage}. Please check the Query Helper's output.`);
           setNotificationMessage('Query Helper generated invalid JSON. Manual correction might be needed.');
-          setQueryParams({});
+          setQueryParams({ readPreference: 'primary' });
           setHasQueryBeenExecuted(false);
         }
       } else {
@@ -266,9 +266,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       setQueryError('System is busy. Please wait for current operations to complete.');
       return;
     }
-    if (Object.keys(queryParams).length === 0) {
-      setQueryError('Please provide at least one query parameter.');
-      return;
+    if (Object.keys(queryParams).length === 0 || (Object.keys(queryParams).length === 1 && queryParams.readPreference)) {
+      queryParams.query = '{}';
     }
     setCurrentPage(1);
     setQueryError(null);
@@ -437,7 +436,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                       value={queryParams.query || ''}
                       onChange={(e) => handleParamChange('query', e.target.value)}
                       onKeyDown={(e) => handleParamKeyDown(e, 'query')}
-                      placeholder='e.g., {"timestamp":{"$gte":"ISODate(\"2025-06-30T00:00:00.000Z\")"}}'
+                      placeholder='e.g., {"timestamp":{"$gte":"2025-06-30T00:00:00.000Z"}}'
                       rows={2}
                       disabled={documentsLoading || aiLoading}
                     />
@@ -516,13 +515,17 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                   </Form.Group>
                   <Form.Group className="mb-2">
                     <Form.Label>Read Preference</Form.Label>
-                    <Form.Control
-                      as="input"
-                      value={queryParams.readPreference || ''}
+                    <Form.Select
+                      value={queryParams.readPreference || 'primary'}
                       onChange={(e) => handleParamChange('readPreference', e.target.value)}
-                      placeholder='e.g., primary'
                       disabled={documentsLoading || aiLoading}
-                    />
+                    >
+                      <option value="primary">primary</option>
+                      <option value="primaryPreferred">primaryPreferred</option>
+                      <option value="secondary">secondary</option>
+                      <option value="secondaryPreferred">secondaryPreferred</option>
+                      <option value="nearest">nearest</option>
+                    </Form.Select>
                   </Form.Group>
                   <div className="d-flex">
                     <div className="me-auto">

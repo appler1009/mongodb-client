@@ -1,7 +1,7 @@
-import { Db, Collection, Document as MongoDocument, ObjectId } from './mongoDriverChooser';
-import { CollectionInfo, MongoQueryParams } from '../types';
+import { Db, Collection, Document as MongoDocument, ObjectId, FindCursor, AggregationCursor } from './mongoDriverChooser';
+import { CollectionInfo, MongoQueryParams, SchemaMap } from '../types';
 import { Logger } from 'pino';
-import { CollationOptions, Sort } from 'mongodb';
+import { CollationOptions } from 'mongodb';
 
 export class DatabaseService {
   private activeDb: Db | null = null;
@@ -25,11 +25,6 @@ export class DatabaseService {
     return this.activeDb !== null;
   }
 
-  /**
-   * Retrieves a list of all collections in the active database, including their document counts.
-   * @returns {Promise<CollectionInfo[]>} An array of collection information.
-   * @throws {Error} If no active database connection.
-   */
   public async getCollections(): Promise<CollectionInfo[]> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
@@ -56,301 +51,254 @@ export class DatabaseService {
     }
   }
 
-  /**
-   * Retrieves documents from a specific collection with pagination and advanced query options.
-   * @param collectionName - The name of the collection.
-   * @param limit - The maximum number of documents to return.
-   * @param skip - The number of documents to skip.
-   * @param params - Query parameters including query, sort, filter, pipeline, projection, collation, hint, and readPreference.
-   * @returns {Promise<MongoDocument[]>} An array of documents.
-   * @throws {Error} If no active database connection.
-   */
+  private async buildQueryCursor(
+    collectionName: string,
+    params: MongoQueryParams,
+    forCount: boolean = false
+  ): Promise<{
+    cursor?: FindCursor<MongoDocument> | AggregationCursor<MongoDocument>;
+    countQuery?: MongoDocument;
+  }> {
+    const {
+      query = '{}',
+      sort = '{}',
+      filter = '{}',
+      pipeline = [],
+      projection = '{}',
+      collation = '{}',
+      hint = '{}',
+      readPreference = 'primary',
+    } = params;
+
+    if (!this.activeDb) {
+      const error = new Error('No active database connection.');
+      this.logger.error(error, 'Attempted to build query cursor without active DB');
+      throw error;
+    }
+
+    const collection: Collection = this.activeDb.collection(collectionName);
+
+    // Fetch schema to use for type conversion and validation
+    const { schemaMap } = await this.getCollectionSchemaAndSampleDocuments(collectionName, 5);
+    this.logger.debug(`schema map: ${JSON.stringify(schemaMap)}`);
+
+    // Convert values to MongoDB types based on schema
+    const convertValue = (value: any, field: string): any => {
+      this.logger.debug(`Converting value ${JSON.stringify(value)} for field ${field}`);
+      // Use the parent field for schema lookup if the current field is an operator
+      const schemaField = field.includes('.') ? field.split('.')[0] : field;
+      if (typeof value === 'string' && schemaMap[schemaField] && !schemaField.startsWith('$')) {
+        const fieldTypes = schemaMap[schemaField];
+        if (fieldTypes.includes('Date')) {
+          try {
+            const date = new Date(value);
+            if (!isNaN(date.getTime())) {
+              return date;
+            }
+          } catch {
+            this.logger.warn(`Failed to convert ${value} to Date for field ${schemaField}`);
+          }
+        } else if (fieldTypes.includes('ObjectId') && /^[0-9a-fA-F]{24}$/.test(value)) {
+          try {
+            return new ObjectId(value);
+          } catch {
+            this.logger.warn(`Failed to convert ${value} to ObjectId for field ${schemaField}`);
+          }
+        }
+      }
+      if (Array.isArray(value)) {
+        return value.map(v => convertValue(v, field));
+      }
+      if (typeof value === 'object' && value !== null) {
+        return Object.fromEntries(
+          Object.entries(value).map(([k, v]) => {
+            // For operator keys, keep the parent field; for non-operator keys, use the current key
+            const nextField = k.startsWith('$') ? field : field ? `${field}.${k}` : k;
+            return [k, convertValue(v, nextField)];
+          })
+        );
+      }
+      return value;
+    };
+
+    // Parse stringified params
+    let parsedQuery, parsedFilter, parsedSort, parsedPipeline, parsedProjection, parsedCollation, parsedHint;
+    try {
+      parsedQuery = query ? convertValue(JSON.parse(query), '') : {};
+      parsedFilter = filter ? convertValue(JSON.parse(filter), '') : {};
+      parsedSort = sort ? JSON.parse(sort) : {};
+      parsedPipeline = pipeline.map((stage, index) => convertValue(JSON.parse(stage), `pipeline[${index}]`));
+      parsedProjection = projection ? convertValue(JSON.parse(projection), '') : {};
+      parsedCollation = collation ? convertValue(JSON.parse(collation), '') : {};
+      parsedHint = hint ? convertValue(JSON.parse(hint), '') : {};
+    } catch (err) {
+      this.logger.error({ err, params }, 'Failed to parse query parameters');
+      throw new Error('Invalid JSON in query parameters');
+    }
+
+    // Validate field types against schema, skipping MongoDB operators
+    const validateField = (field: string, value: any, context: string) => {
+      if (field.startsWith('$')) {
+        return;
+      }
+      if (!schemaMap[field]) {
+        this.logger.warn(`Field ${field} in ${context} not found in inferred schema for ${collectionName}`);
+        return;
+      }
+      const expectedTypes = schemaMap[field];
+      let actualType: string;
+      if (value instanceof ObjectId) actualType = 'ObjectId';
+      else if (value instanceof Date) actualType = 'Date';
+      else if (Array.isArray(value)) actualType = 'array';
+      else if (value === null) actualType = 'null';
+      else if (typeof value === 'object') actualType = 'object';
+      else actualType = typeof value;
+
+      if (!expectedTypes.includes(actualType)) {
+        this.logger.warn(`Type mismatch for ${field} in ${context}: expected ${expectedTypes.join(' | ')}, got ${actualType}`);
+      }
+    };
+
+    const validateObject = (obj: any, context: string, fieldPrefix: string = '') => {
+      if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+        for (const [key, value] of Object.entries(obj)) {
+          if (key.startsWith('$')) {
+            continue;
+          }
+          const fullField = fieldPrefix ? `${fieldPrefix}.${key}` : key;
+          if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            validateObject(value, context, fullField);
+          } else {
+            validateField(fullField, value, context);
+          }
+        }
+      }
+    };
+
+    validateObject(parsedQuery, 'query');
+    validateObject(parsedFilter, 'filter');
+    parsedPipeline.forEach((stage, index) => validateObject(stage, `pipeline[${index}]`));
+    validateObject(parsedProjection, 'projection');
+    validateObject(parsedCollation, 'collation');
+    validateObject(parsedHint, 'hint');
+    this.logger.debug(`Validated query: ${JSON.stringify(parsedQuery)}`);
+    this.logger.debug(`Validated filter: ${JSON.stringify(parsedFilter)}`);
+    this.logger.debug(`Validated pipeline: ${JSON.stringify(parsedPipeline)}`);
+    this.logger.debug(`Validated projection: ${JSON.stringify(parsedProjection)}`);
+    this.logger.debug(`Validated collation: ${JSON.stringify(parsedCollation)}`);
+    this.logger.debug(`Validated hint: ${JSON.stringify(parsedHint)}`);
+
+    const options: any = { readPreference };
+
+    if (forCount) {
+      return { countQuery: { ...parsedQuery, ...parsedFilter } };
+    }
+
+    if (parsedPipeline.length > 0) {
+      const aggPipeline = [{ $match: { ...parsedQuery, ...parsedFilter } }, ...parsedPipeline];
+      if (Object.keys(parsedSort).length > 0) {
+        aggPipeline.splice(1, 0, { $sort: parsedSort });
+      }
+      if (Object.keys(parsedProjection).length > 0) {
+        aggPipeline.push({ $project: parsedProjection });
+      }
+      if (Object.keys(parsedCollation).length > 0) {
+        options.collation = parsedCollation;
+      }
+      if (Object.keys(parsedHint).length > 0) {
+        options.hint = parsedHint;
+      }
+      return { cursor: collection.aggregate(aggPipeline, options) };
+    }
+
+    let findQuery = collection.find({ ...parsedQuery, ...parsedFilter }, options);
+    if (Object.keys(parsedSort).length > 0) {
+      findQuery = findQuery.sort(parsedSort);
+    }
+    if (Object.keys(parsedProjection).length > 0) {
+      findQuery = findQuery.project(parsedProjection);
+    }
+    if (Object.keys(parsedCollation).length > 0) {
+      findQuery = findQuery.collation(parsedCollation as CollationOptions);
+    }
+    if (Object.keys(parsedHint).length > 0) {
+      findQuery = findQuery.hint(parsedHint);
+    }
+    return { cursor: findQuery };
+  }
+
   public async getDocuments(
     collectionName: string,
     limit: number,
     skip: number,
     params: MongoQueryParams = {}
   ): Promise<MongoDocument[]> {
-    const {
-      query = '{}',
-      sort = '{}',
-      filter = '{}',
-      pipeline = [],
-      projection = '{}',
-      collation = '{}',
-      hint = '{}',
-      readPreference = 'primary'
-    } = params;
-
-    if (!this.activeDb) {
-      const error = new Error('No active database connection.');
-      this.logger.error(error, 'Attempted to get documents without active DB');
-      throw error;
-    }
-
-    // Convert ISODate/ObjectId strings to MongoDB types
-    const convertValue = (value: any): any => {
-      if (typeof value === 'string') {
-        if (/ISODate\("(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)"\)/.test(value)) {
-          const dateStr = value.match(/ISODate\("(.+)"\)/)?.[1];
-          return dateStr ? new Date(dateStr) : value;
-        }
-        if (/ObjectId\("([0-9a-fA-F]{24})"\)/.test(value)) {
-          const idStr = value.match(/ObjectId\("([0-9a-fA-F]{24})"\)/)?.[1];
-          return idStr ? new ObjectId(idStr) : value;
-        }
-      }
-      if (Array.isArray(value)) return value.map(convertValue);
-      if (typeof value === 'object' && value !== null) {
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, convertValue(v)]));
-      }
-      return value;
-    };
-
-    // Parse stringified params
-    const parsedQuery = query ? convertValue(JSON.parse(query)) : {};
-    const parsedFilter = filter ? convertValue(JSON.parse(filter)) : {};
-    const parsedSort = sort ? JSON.parse(sort) : {};
-    const parsedPipeline = pipeline.map(stage => convertValue(JSON.parse(stage)));
-    const parsedProjection = projection ? JSON.parse(projection) : {};
-    const parsedCollation = collation ? JSON.parse(collation) : {};
-    const parsedHint = hint ? JSON.parse(hint) : {};
-
-    this.logger.info(`Fetching documents from collection: ${collectionName} (limit: ${limit}, skip: ${skip}, query: ${JSON.stringify(parsedQuery)}, sort: ${JSON.stringify(parsedSort)}, filter: ${JSON.stringify(parsedFilter)}, pipeline: ${JSON.stringify(parsedPipeline)}, projection: ${JSON.stringify(parsedProjection)}, collation: ${JSON.stringify(parsedCollation)}, hint: ${JSON.stringify(parsedHint)}, readPreference: ${readPreference})`);
-
+    this.logger.debug(`Fetching documents from collection: ${collectionName} (limit: ${limit}, skip: ${skip})`);
     try {
-      const collection: Collection = this.activeDb.collection(collectionName);
-      const options: any = { readPreference };
-
-      if (parsedPipeline.length > 0) {
-        const aggPipeline = [
-          { $match: { ...parsedQuery, ...parsedFilter } },
-          ...parsedPipeline,
-          { $skip: skip },
-          { $limit: limit }
-        ];
-        if (Object.keys(parsedSort).length > 0) {
-          aggPipeline.splice(1, 0, { $sort: parsedSort });
-        }
-        if (Object.keys(parsedProjection).length > 0) {
-          aggPipeline.push({ $project: parsedProjection });
-        }
-        if (Object.keys(parsedCollation).length > 0) {
-          options.collation = parsedCollation;
-        }
-        if (Object.keys(parsedHint).length > 0) {
-          options.hint = parsedHint;
-        }
-        const documents = await collection.aggregate(aggPipeline, options).toArray();
-        this.logger.info(`Retrieved ${documents.length} documents from collection ${collectionName}`);
-        this.logger.debug(JSON.stringify(documents));
-        return documents;
+      const { cursor } = await this.buildQueryCursor(collectionName, params);
+      if (!cursor) {
+        throw new Error('No cursor returned from buildQueryCursor');
       }
-
-      let findQuery = collection.find({ ...parsedQuery, ...parsedFilter }, options);
-      if (Object.keys(parsedSort).length > 0) {
-        findQuery = findQuery.sort(parsedSort);
-      }
-      if (Object.keys(parsedProjection).length > 0) {
-        findQuery = findQuery.project(parsedProjection);
-      }
-      if (Object.keys(parsedCollation).length > 0) {
-        findQuery = findQuery.collation(parsedCollation);
-      }
-      if (Object.keys(parsedHint).length > 0) {
-        findQuery = findQuery.hint(parsedHint);
-      }
-      const documents = await findQuery.skip(skip).limit(limit).toArray();
-      this.logger.info(`Retrieved ${documents.length} documents from collection ${collectionName}`);
+      const documents = await cursor.skip(skip).limit(limit).toArray();
+      this.logger.debug(`Retrieved ${documents.length} documents from collection ${collectionName}`);
       this.logger.debug(JSON.stringify(documents));
       return documents;
     } catch (error) {
-      this.logger.error({ error, collectionName, query: parsedQuery, sort: parsedSort, filter: parsedFilter, pipeline: parsedPipeline, projection: parsedProjection, collation: parsedCollation, hint: parsedHint, readPreference }, 'Failed to retrieve documents from collection');
+      this.logger.error({ error, collectionName, params }, 'Failed to retrieve documents from collection');
       throw error;
     }
   }
 
-  /**
-   * Method to get the total count of documents in a collection matching query and filter.
-   * @param collectionName - The name of the collection.
-   * @param params - Query parameters including query and filter.
-   * @returns {Promise<number>} The count of documents.
-   * @throws {Error} If no active database connection.
-   */
   async getDocumentCount(
     collectionName: string,
     params: MongoQueryParams = {}
   ): Promise<number> {
-    const { query = '{}', filter = '{}' } = params;
-
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to count documents without active DB');
       throw error;
     }
 
-    // Convert ISODate/ObjectId strings to MongoDB types
-    const convertValue = (value: any): any => {
-      if (typeof value === 'string') {
-        if (/ISODate\("(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)"\)/.test(value)) {
-          const dateStr = value.match(/ISODate\("(.+)"\)/)?.[1];
-          return dateStr ? new Date(dateStr) : value;
-        }
-        if (/ObjectId\("([0-9a-fA-F]{24})"\)/.test(value)) {
-          const idStr = value.match(/ObjectId\("([0-9a-fA-F]{24})"\)/)?.[1];
-          return idStr ? new ObjectId(idStr) : value;
-        }
-      }
-      if (Array.isArray(value)) return value.map(convertValue);
-      if (typeof value === 'object' && value !== null) {
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, convertValue(v)]));
-      }
-      return value;
-    };
-
-    // Parse stringified params
-    const parsedQuery = query ? convertValue(JSON.parse(query)) : {};
-    const parsedFilter = filter ? convertValue(JSON.parse(filter)) : {};
-
-    this.logger.info(
-      `DatabaseService: Counting documents in collection "${collectionName}" with query: ${JSON.stringify(parsedQuery)}, filter: ${JSON.stringify(parsedFilter)}`
-    );
-
+    this.logger.debug(`Counting documents in collection "${collectionName}"`);
     try {
+      const { countQuery } = await this.buildQueryCursor(collectionName, params, true);
+      if (!countQuery) {
+        throw new Error('No count query returned from buildQueryCursor');
+      }
       const collection: Collection<MongoDocument> = this.activeDb.collection(collectionName);
-      return await collection.countDocuments({ ...parsedQuery, ...parsedFilter });
+      return await collection.countDocuments(countQuery);
     } catch (error) {
-      this.logger.error(
-        { error, collectionName, query: parsedQuery, filter: parsedFilter },
-        `Failed to count documents in ${collectionName}`
-      );
+      this.logger.error({ error, collectionName, params }, `Failed to count documents in ${collectionName}`);
       throw error;
     }
   }
 
-  /**
-   * Retrieves all documents from a specific collection with advanced query options. Used primarily for export.
-   * @param collectionName - The name of the collection.
-   * @param params - Query parameters including query, sort, filter, pipeline, projection, collation, hint, and readPreference.
-   * @returns {Promise<MongoDocument[]>} An array of all matching documents.
-   * @throws {Error} If no active database connection.
-   */
   public async getAllDocuments(collectionName: string, params: MongoQueryParams = {}): Promise<MongoDocument[]> {
-    const {
-      query = '{}',
-      sort = '{}',
-      filter = '{}',
-      pipeline = [],
-      projection = '{}',
-      collation = '{}',
-      hint = '{}',
-      readPreference = 'primary'
-    } = params;
-
-    if (!this.activeDb) {
-      const error = new Error('No active database connection.');
-      this.logger.error(error, 'Attempted to get all documents for export without active DB');
-      throw error;
-    }
-
-    // Convert ISODate/ObjectId strings to MongoDB types
-    const convertValue = (value: any): any => {
-      if (typeof value === 'string') {
-        if (/ISODate\("(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)"\)/.test(value)) {
-          const dateStr = value.match(/ISODate\("(.+)"\)/)?.[1];
-          return dateStr ? new Date(dateStr) : value;
-        }
-        if (/ObjectId\("([0-9a-fA-F]{24})"\)/.test(value)) {
-          const idStr = value.match(/ObjectId\("([0-9a-fA-F]{24})"\)/)?.[1];
-          return idStr ? new ObjectId(idStr) : value;
-        }
-      }
-      if (Array.isArray(value)) return value.map(convertValue);
-      if (typeof value === 'object' && value !== null) {
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, convertValue(v)]));
-      }
-      return value;
-    };
-
-    // Parse stringified params
-    const parsedQuery = query ? convertValue(JSON.parse(query)) : {};
-    const parsedFilter = filter ? convertValue(JSON.parse(filter)) : {};
-    const parsedSort = sort ? JSON.parse(sort) : {};
-    const parsedPipeline = pipeline.map(stage => convertValue(JSON.parse(stage)));
-    const parsedProjection = projection ? JSON.parse(projection) : {};
-    const parsedCollation = collation ? JSON.parse(collation) : {};
-    const parsedHint = hint ? JSON.parse(hint) : {};
-
-    this.logger.info(`Fetching ALL documents from collection: ${collectionName} with query: ${JSON.stringify(parsedQuery)}, sort: ${JSON.stringify(parsedSort)}, filter: ${JSON.stringify(parsedFilter)}, pipeline: ${JSON.stringify(parsedPipeline)}, projection: ${JSON.stringify(parsedProjection)}, collation: ${JSON.stringify(parsedCollation)}, hint: ${JSON.stringify(parsedHint)}, readPreference: ${readPreference} for export`);
-
+    this.logger.info(`Fetching ALL documents from collection: ${collectionName} for export`);
     try {
-      const collection: Collection = this.activeDb.collection(collectionName);
-      const options: any = { readPreference };
-
-      if (parsedPipeline.length > 0) {
-        const aggPipeline: MongoDocument[] = [
-          { $match: { ...parsedQuery, ...parsedFilter } },
-          ...parsedPipeline
-        ];
-        if (Object.keys(parsedSort).length > 0) {
-          aggPipeline.push({ $sort: parsedSort as MongoDocument });
-        }
-        if (Object.keys(parsedProjection).length > 0) {
-          aggPipeline.push({ $project: parsedProjection as MongoDocument });
-        }
-        if (Object.keys(parsedCollation).length > 0) {
-          options.collation = parsedCollation;
-        }
-        if (Object.keys(parsedHint).length > 0) {
-          options.hint = parsedHint;
-        }
-        const documents = await collection.aggregate(aggPipeline, options).toArray();
-        return documents;
+      const { cursor } = await this.buildQueryCursor(collectionName, params);
+      if (!cursor) {
+        throw new Error('No cursor returned from buildQueryCursor');
       }
-
-      let findQuery = collection.find({ ...parsedQuery, ...parsedFilter }, options);
-      if (Object.keys(parsedSort).length > 0) {
-        findQuery = findQuery.sort(parsedSort);
-      }
-      if (Object.keys(parsedProjection).length > 0) {
-        findQuery = findQuery.project(parsedProjection);
-      }
-      if (Object.keys(parsedCollation).length > 0) {
-        findQuery = findQuery.collation(parsedCollation);
-      }
-      if (Object.keys(parsedHint).length > 0) {
-        findQuery = findQuery.hint(parsedHint);
-      }
-      const documents = await findQuery.toArray();
+      const documents = await cursor.toArray();
       return documents;
     } catch (error) {
-      this.logger.error(
-        { error, collectionName, query: parsedQuery, sort: parsedSort, filter: parsedFilter, pipeline: parsedPipeline, projection: parsedProjection, collation: parsedCollation, hint: parsedHint, readPreference },
-        'Failed to retrieve all documents for export from collection'
-      );
+      this.logger.error({ error, collectionName, params }, 'Failed to retrieve all documents for export from collection');
       throw error;
     }
   }
 
-  /**
-   * Fetches a small number of sample documents and generates a basic schema summary
-   * for AI query generation context.
-   * @param {string} collectionName - The name of the collection.
-   * @param {number} sampleCount - The number of sample documents to retrieve.
-   * @returns {Promise<{ sampleDocuments: MongoDocument[]; schemaSummary: string }>} Sample documents and schema summary.
-   * @throws {Error} If not connected to MongoDB.
-   */
   public async getCollectionSchemaAndSampleDocuments(
     collectionName: string,
     sampleCount: number = 5
-  ): Promise<{ sampleDocuments: MongoDocument[]; schemaSummary: string }> {
+  ): Promise<{ sampleDocuments: MongoDocument[]; schemaMap: SchemaMap }> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to get schema and samples without active DB');
       throw error;
     }
 
-    this.logger.info(`Fetching schema and samples for collection: ${collectionName} (sample size: ${sampleCount})`);
+    this.logger.debug(`Fetching schema and samples for collection: ${collectionName} (sample size: ${sampleCount})`);
     try {
       const collection: Collection = this.activeDb.collection(collectionName);
 
@@ -358,8 +306,7 @@ export class DatabaseService {
         { $sample: { size: sampleCount } }
       ]).toArray()) as MongoDocument[];
 
-      const schemaMap: Map<string, Set<string>> = new Map();
-
+      const schemaMap: SchemaMap = {};
       sampleDocuments.forEach(doc => {
         if (typeof doc === 'object' && doc !== null) {
           for (const key in doc) {
@@ -379,30 +326,19 @@ export class DatabaseService {
               } else {
                 type = typeof value;
               }
-              if (!schemaMap.has(key)) {
-                schemaMap.set(key, new Set());
+              if (!schemaMap[key]) {
+                schemaMap[key] = [];
               }
-              schemaMap.get(key)!.add(type);
+              if (!schemaMap[key].includes(type)) {
+                schemaMap[key].push(type);
+              }
             }
           }
         }
       });
 
-      let schemaSummary = '';
-      if (schemaMap.size > 0) {
-        schemaSummary = `Schema for ${collectionName} (inferred from ${sampleDocuments.length} samples):\n{\n`;
-        schemaMap.forEach((types, key) => {
-          const typeStr = Array.from(types).join(' | ');
-          schemaSummary += `  ${key}: ${typeStr}${typeStr.includes('Date') ? ' (ISODate("YYYY-MM-DDTHH:mm:ss.sssZ"))' : typeStr.includes('ObjectId') ? ' (ObjectId("24-character-hex-string"))' : ''}\n`;
-        });
-        schemaSummary += '}';
-      } else {
-        schemaSummary = `No schema could be inferred from sample documents in ${collectionName} (collection might be empty or samples invalid).`;
-      }
-      console.log(`Schema summary for ${collectionName}: ${schemaSummary}`);
-
-      this.logger.debug({ schemaSummary, sampleCount: sampleDocuments.length }, 'Generated schema summary and samples.');
-      return { sampleDocuments, schemaSummary };
+      this.logger.debug({ schemaMap, sampleCount: sampleDocuments.length }, 'Generated schema map and samples.');
+      return { sampleDocuments, schemaMap };
     } catch (error: any) {
       this.logger.error({ error, collectionName }, `Failed to get schema and sample documents for ${collectionName}`);
       throw new Error(`Failed to get schema and sample documents for ${collectionName}: ${error.message}`);
