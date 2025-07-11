@@ -69,7 +69,6 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setCollectionsLoading(true);
     setError(null);
     try {
-      console.log('frontend: Fetching collections for database:', currentStatus.database);
       const fetchedCollections = await getDatabaseCollections();
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setDocuments([]);
