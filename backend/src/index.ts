@@ -374,8 +374,8 @@ export const generateAIQuery = async (
   "readPreference"?: string
 }
 - Include only the fields relevant to the user's prompt.
-- For relative time expressions (e.g., "within the last week", "last 7 days"), calculate the date relative to the current timestamp.
-- Do not use ISODate or ObjectId in the generated query.
+- For relative time expressions (e.g., "within the last week", "last 7 days"), calculate the date relative to ${new Date().toISOString()}.
+- Do not use ISODate or ObjectId in the generated query, but use string a representation of the values.
 - For simple queries, use "query" for MongoDB find operations.
 - Use "pipeline" only for explicit aggregation requests (e.g., grouping, joining).
 - Ensure "sort" values are 1, -1, "asc", or "desc".
