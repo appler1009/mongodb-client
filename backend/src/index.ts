@@ -59,7 +59,7 @@ export function initialize(connectionsStore: Store<any>) {
 // Helper function to disconnect
 async function disconnectMongoInternal() {
   if (activeMongoClient) {
-    logger.info('Closing existing MongoDB connection...');
+    logger.debug('Closing existing MongoDB connection...');
     await activeMongoClient.close();
     activeMongoClient = null;
     activeDb = null;
@@ -120,7 +120,7 @@ export const getConnections = async (): Promise<ConnectionConfig[]> => {
 export const addConnection = async (newConnection: ConnectionConfig): Promise<ConnectionConfig> => {
   try {
     const addedConnection = await connectionService.addConnection(newConnection);
-    logger.info({ id: addedConnection.id, name: addedConnection.name }, 'IPC: New connection added');
+    logger.debug({ id: addedConnection.id, name: addedConnection.name }, 'IPC: New connection added');
     return addedConnection;
   } catch (error: any) {
     logger.error({ error, body: newConnection }, 'IPC: Failed to add new connection');
@@ -175,7 +175,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
       throw new Error('Connection configuration not found.');
     }
 
-    logger.info(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
+    logger.debug(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
     logger.debug(`IPC: Connection details: ${id} ${JSON.stringify(connectionConfig)}`);
     const options: UniversalMongoClientOptions = {
       connectTimeoutMS: 5000,
@@ -196,7 +196,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
 
     if (!dbNameFromUri) {
       dbNameFromUri = client.db().databaseName;
-      logger.info(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
+      logger.debug(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
     }
 
     activeMongoClient = client;
@@ -211,7 +211,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
         driverVersion: driverVersion,
       };
       await connectionService.updateConnection(id, updatedConnection);
-      logger.info(`IPC: Stored driver version ${driverVersion} for connection ${id}`);
+      logger.debug(`IPC: Stored driver version ${driverVersion} for connection ${id}`);
     }
 
     databaseService.setActiveDb(activeDb);
@@ -232,7 +232,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
 export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
   try {
     await disconnectMongoInternal();
-    logger.info('IPC: Successfully disconnected from MongoDB.');
+    logger.debug('IPC: Successfully disconnected from MongoDB.');
     return { message: 'Successfully disconnected from MongoDB.' };
   } catch (error: any) {
     logger.error({ error }, 'IPC: Failed to disconnect from MongoDB');
@@ -241,6 +241,7 @@ export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
 };
 
 export const getDatabaseCollections = async (): Promise<CollectionInfo[]> => {
+  logger.debug('IPC: getDatabaseCollections called');
   try {
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to list collections.');
@@ -412,7 +413,7 @@ Based on this context, generate a MongoDB query parameters JSON object for the f
       max_tokens: 5000,
     };
 
-    logger.info({ collectionName, userPromptLength: userPrompt.length, sampleDocCount: sampleDocuments.length, model: payload.model },
+    logger.debug({ collectionName, userPromptLength: userPrompt.length, sampleDocCount: sampleDocuments.length, model: payload.model },
       `Sending request to Query Helper (${grokModel})...`);
 
     const response = await fetch(apiUrl, {
@@ -434,7 +435,7 @@ Based on this context, generate a MongoDB query parameters JSON object for the f
     const result = await response.json();
     if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
       const generatedText = result.choices[0].message.content;
-      logger.info({ generatedTextLength: generatedText.length, generatedText }, `Query Helper (${grokModel}) returned a response.`);
+      logger.debug({ generatedTextLength: generatedText.length, generatedText }, `Query Helper (${grokModel}) returned a response.`);
 
       try {
         JSON.parse(generatedText);

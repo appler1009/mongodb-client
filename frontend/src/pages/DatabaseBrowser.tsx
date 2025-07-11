@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, ToggleButton, Pagination, Accordion, Card } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo, Document, MongoQueryParams } from '../types';
@@ -12,7 +12,6 @@ import {
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 import '../styles/DatabaseBrowser.css';
-
 
 interface DatabaseBrowserProps {
   currentStatus: ConnectionStatus | null;
@@ -42,6 +41,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
   const [accordionActiveKey, setAccordionActiveKey] = useState<string | null>('0');
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const totalDocuments = hasQueryBeenExecuted ? filteredDocumentCount : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
@@ -69,6 +69,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setCollectionsLoading(true);
     setError(null);
     try {
+      console.log('frontend: Fetching collections for database:', currentStatus.database);
       const fetchedCollections = await getDatabaseCollections();
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setDocuments([]);
@@ -95,6 +96,15 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     }
   }, [currentStatus?.database, resetBrowserState, setError]);
 
+  const debouncedFetchCollections = useCallback(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+    debounceTimeout.current = setTimeout(() => {
+      fetchCollections();
+    }, 100);
+  }, [fetchCollections]);
+
   const fetchDocuments = useCallback(async (params: MongoQueryParams) => {
     if (!selectedCollection) {
       setDocuments([]);
@@ -120,11 +130,16 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
 
   useEffect(() => {
     if (currentStatus?.database) {
-      fetchCollections();
+      debouncedFetchCollections();
     } else {
       resetBrowserState();
     }
-  }, [currentStatus?.database, fetchCollections, resetBrowserState]);
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [currentStatus?.database, debouncedFetchCollections, resetBrowserState]);
 
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);

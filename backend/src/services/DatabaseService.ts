@@ -6,6 +6,10 @@ import { CollationOptions } from 'mongodb';
 export class DatabaseService {
   private activeDb: Db | null = null;
   private logger: Logger;
+  private schemaCache: Map<string, { schemaMap: SchemaMap; timestamp: number }> = new Map();
+  private collectionsCache: { collections: CollectionInfo[]; timestamp: number } | null = null;
+  private cacheTTL: number = 60 * 1000; // Cache for 60 seconds
+  private collectionsCachePromise: Promise<CollectionInfo[]> | null = null;
 
   constructor(logger: Logger) {
     this.logger = logger;
@@ -15,9 +19,12 @@ export class DatabaseService {
   public setActiveDb(db: Db | null): void {
     this.activeDb = db;
     if (db) {
-      this.logger.info(`DatabaseService now operating on database: ${db.databaseName}`);
+      this.logger.debug(`DatabaseService now operating on database: ${db.databaseName}`);
     } else {
-      this.logger.info('DatabaseService active database cleared.');
+      this.logger.debug('DatabaseService active database cleared.');
+      this.schemaCache.clear();
+      this.collectionsCache = null;
+      this.collectionsCachePromise = null;
     }
   }
 
@@ -26,25 +33,44 @@ export class DatabaseService {
   }
 
   public async getCollections(): Promise<CollectionInfo[]> {
-    if (!this.activeDb) {
+    if (!this.isDbActive()) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to get collections without active DB');
       throw error;
     }
-    this.logger.info(`Fetching collections from database: ${this.activeDb.databaseName}`);
+    this.logger.debug(`Fetching collections from database: ${this.activeDb!.databaseName}`);
     try {
-      const collections = await this.activeDb.listCollections().toArray();
-      const result: CollectionInfo[] = [];
-      for (const c of collections) {
-        let documentCount = 0;
-        try {
-          documentCount = await this.getDocumentCount(c.name);
-        } catch (err: any) {
-          this.logger.warn(`Failed to get document count for ${c.name}: ${err.message}`);
-        }
-        result.push({ name: c.name, documentCount });
+      // Check cache
+      if (this.collectionsCache && Date.now() - this.collectionsCache.timestamp < this.cacheTTL) {
+        this.logger.debug(`Using cached collections for database: ${this.activeDb!.databaseName}`);
+        return this.collectionsCache.collections;
       }
-      return result;
+      // If a fetch is already in progress, reuse the same promise
+      if (this.collectionsCachePromise) {
+        this.logger.debug(`Reusing in-progress collections fetch for database: ${this.activeDb!.databaseName}`);
+        return this.collectionsCachePromise;
+      }
+      // Start a new fetch and cache the promise
+      this.collectionsCachePromise = (async () => {
+        try {
+          const collections = await this.activeDb!.listCollections().toArray();
+          const result: CollectionInfo[] = [];
+          for (const c of collections) {
+            let documentCount = 0;
+            try {
+              documentCount = await this.getDocumentCount(c.name);
+            } catch (err: any) {
+              this.logger.warn(`Failed to get document count for ${c.name}: ${err.message}`);
+            }
+            result.push({ name: c.name, documentCount });
+          }
+          this.collectionsCache = { collections: result, timestamp: Date.now() };
+          return result;
+        } finally {
+          this.collectionsCachePromise = null; // Clear promise after completion
+        }
+      })();
+      return this.collectionsCachePromise;
     } catch (error) {
       this.logger.error({ error }, 'Failed to list collections');
       throw error;
@@ -78,14 +104,22 @@ export class DatabaseService {
 
     const collection: Collection = this.activeDb.collection(collectionName);
 
-    // Fetch schema to use for type conversion and validation
-    const { schemaMap } = await this.getCollectionSchemaAndSampleDocuments(collectionName, 5);
+    // Check cache for schema
+    const cached = this.schemaCache.get(collectionName);
+    let schemaMap: SchemaMap;
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      this.logger.debug(`Using cached schema for collection: ${collectionName}`);
+      schemaMap = cached.schemaMap;
+    } else {
+      const { schemaMap: fetchedSchema } = await this.getCollectionSchemaAndSampleDocuments(collectionName, 5);
+      schemaMap = fetchedSchema;
+      this.schemaCache.set(collectionName, { schemaMap, timestamp: Date.now() });
+    }
     this.logger.debug(`schema map: ${JSON.stringify(schemaMap)}`);
 
     // Convert values to MongoDB types based on schema
     const convertValue = (value: any, field: string): any => {
       this.logger.debug(`Converting value ${JSON.stringify(value)} for field ${field}`);
-      // Use the parent field for schema lookup if the current field is an operator
       const schemaField = field.includes('.') ? field.split('.')[0] : field;
       if (typeof value === 'string' && schemaMap[schemaField] && !schemaField.startsWith('$')) {
         const fieldTypes = schemaMap[schemaField];
@@ -112,7 +146,6 @@ export class DatabaseService {
       if (typeof value === 'object' && value !== null) {
         return Object.fromEntries(
           Object.entries(value).map(([k, v]) => {
-            // For operator keys, keep the parent field; for non-operator keys, use the current key
             const nextField = k.startsWith('$') ? field : field ? `${field}.${k}` : k;
             return [k, convertValue(v, nextField)];
           })
@@ -130,7 +163,7 @@ export class DatabaseService {
       parsedPipeline = pipeline.map((stage, index) => convertValue(JSON.parse(stage), `pipeline[${index}]`));
       parsedProjection = projection ? convertValue(JSON.parse(projection), '') : {};
       parsedCollation = collation ? convertValue(JSON.parse(collation), '') : {};
-      parsedHint = hint ? convertValue(JSON.parse(hint), '') : {};
+      parsedHint = hint ? JSON.parse(hint) : {};
     } catch (err) {
       this.logger.error({ err, params }, 'Failed to parse query parameters');
       throw new Error('Invalid JSON in query parameters');
@@ -274,7 +307,7 @@ export class DatabaseService {
   }
 
   public async getAllDocuments(collectionName: string, params: MongoQueryParams = {}): Promise<MongoDocument[]> {
-    this.logger.info(`Fetching ALL documents from collection: ${collectionName} for export`);
+    this.logger.debug(`Fetching ALL documents from collection: ${collectionName} for export`);
     try {
       const { cursor } = await this.buildQueryCursor(collectionName, params);
       if (!cursor) {
