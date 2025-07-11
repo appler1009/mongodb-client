@@ -30,6 +30,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocumentCount, setFilteredDocumentCount] = useState<number>(0);
+  const [totalDocumentCount, setTotalDocumentCount] = useState<number>(0);
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
   const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -43,7 +44,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [accordionActiveKey, setAccordionActiveKey] = useState<string | null>('0');
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const totalDocuments = hasQueryBeenExecuted ? filteredDocumentCount : 0;
+  const totalDocuments = hasQueryBeenExecuted ? totalDocumentCount : 0;
   const totalPages = Math.ceil(totalDocuments / documentsPerPage);
 
   const resetBrowserState = useCallback(() => {
@@ -51,6 +52,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setSelectedCollection(null);
     setDocuments([]);
     setFilteredDocumentCount(0);
+    setTotalDocumentCount(0);
     setCurrentPage(1);
     setPromptText('');
     setQueryParams({ readPreference: 'primary' });
@@ -73,6 +75,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       fetchedCollections.sort((a, b) => a.name.localeCompare(b.name));
       setDocuments([]);
       setFilteredDocumentCount(0);
+      setTotalDocumentCount(0);
       setCurrentPage(1);
       setPromptText('');
       setQueryParams({ readPreference: 'primary' });
@@ -108,6 +111,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     if (!selectedCollection) {
       setDocuments([]);
       setFilteredDocumentCount(0);
+      setTotalDocumentCount(0);
       return;
     }
     setDocumentsLoading(true);
@@ -116,12 +120,14 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
       const skip = (currentPage - 1) * documentsPerPage;
       const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, params);
       setDocuments(response.documents);
-      setFilteredDocumentCount(response.totalDocuments || 0);
+      setFilteredDocumentCount(response.documents.length);
+      setTotalDocumentCount(response.totalDocuments || 0);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(`Failed to fetch documents for ${selectedCollection}: ${errorMessage}`);
       setDocuments([]);
       setFilteredDocumentCount(0);
+      setTotalDocumentCount(0);
     } finally {
       setDocumentsLoading(false);
     }
@@ -145,6 +151,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setCurrentPage(1);
     setDocuments([]);
     setFilteredDocumentCount(0);
+    setTotalDocumentCount(0);
     setPromptText('');
     setQueryParams({ readPreference: 'primary' });
     setQueryError(null);
@@ -317,7 +324,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   };
 
   const paginationItems = [];
-  if (filteredDocumentCount > 0) {
+  if (totalDocumentCount > 0) {
     let startPage = Math.max(1, currentPage - 2);
     const maxPageButtons = 5;
     const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
@@ -573,7 +580,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                 <Form.Select
                   value={documentsPerPage}
                   onChange={handleDocumentsPerPageChange}
-                  disabled={documentsLoading || aiLoading || filteredDocumentCount === 0}
+                  disabled={documentsLoading || aiLoading || totalDocumentCount === 0}
                   className="me-2"
                   style={{ width: 'auto' }}
                 >
@@ -582,9 +589,9 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </Form.Select>
-                {hasQueryBeenExecuted && filteredDocumentCount > 0 && (
+                {hasQueryBeenExecuted && totalDocumentCount > 0 && (
                   <Form.Text className="me-2">
-                    Total {filteredDocumentCount} docs
+                    Showing {filteredDocumentCount} of {totalDocumentCount} docs
                   </Form.Text>
                 )}
               </div>
@@ -592,14 +599,14 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                 <Pagination>
                   <Pagination.Prev
                     onClick={() => handlePageSelect(currentPage - 1)}
-                    disabled={currentPage === 1 || documentsLoading || aiLoading || filteredDocumentCount === 0}
+                    disabled={currentPage === 1 || documentsLoading || aiLoading || totalDocumentCount === 0}
                   >
                     <i className="bi bi-arrow-left"></i>
                   </Pagination.Prev>
                   {paginationItems}
                   <Pagination.Next
                     onClick={() => handlePageSelect(currentPage + 1)}
-                    disabled={currentPage === totalPages || documentsLoading || aiLoading || filteredDocumentCount === 0}
+                    disabled={currentPage === totalPages || documentsLoading || aiLoading || totalDocumentCount === 0}
                   >
                     <i className="bi bi-arrow-right"></i>
                   </Pagination.Next>
