@@ -82,7 +82,7 @@ function createWindow() {
 
     // Load the last known window state
     let windowState = preferencesStore.get('windowState');
-    logger.info(`Loaded window state: ${JSON.stringify(windowState)}`);
+    logger.debug(`Loaded window state: ${JSON.stringify(windowState)}`);
 
     // --- Logic to ensure window appears on an active screen ---
     let x = windowState.x;
@@ -150,7 +150,7 @@ function createWindow() {
 
     mainWindow.loadURL(startUrl)
       .then(() => {
-        logger.info(`Window loaded successfully: ${startUrl}`);
+        logger.debug(`Window loaded successfully: ${startUrl}`);
         // Open the DevTools only in development
         if (!app.isPackaged) {
           mainWindow.webContents.openDevTools();
@@ -366,7 +366,7 @@ app.whenReady().then(() => {
     app.quit();
     return;
   }
-  logger.info('Backend module initialized with connections store.');
+  logger.debug('Backend module initialized with connections store.');
 
   createApplicationMenu();
   createWindow();
@@ -539,7 +539,7 @@ ipcMain.handle('file:save', async (event, defaultFilename, sourceFilePath) => {
 ipcMain.handle('theme:savePreference', async (event, theme) => {
   try {
     preferencesStore.set('theme', theme);
-    logger.info(`Theme preference saved: ${theme}`);
+    logger.debug(`Theme preference saved: ${theme}`);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack, theme }, 'Failed to save theme preference');
     throw error;
@@ -549,7 +549,7 @@ ipcMain.handle('theme:savePreference', async (event, theme) => {
 ipcMain.handle('theme:loadPreference', async () => {
   try {
     const theme = preferencesStore.get('theme');
-    logger.info(`Theme preference loaded: ${theme}`);
+    logger.debug(`Theme preference loaded: ${theme}`);
     return theme;
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Failed to load theme preference');
@@ -560,7 +560,7 @@ ipcMain.handle('theme:loadPreference', async () => {
 ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
   try {
     preferencesStore.set('isSystemThemeActive', isActive);
-    logger.info(`System theme active status saved: ${isActive}`);
+    logger.debug(`System theme active status saved: ${isActive}`);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack, isActive }, 'Failed to save system theme active status');
     throw error;
@@ -570,7 +570,7 @@ ipcMain.handle('theme:saveSystemPreference', async (event, isActive) => {
 ipcMain.handle('theme:loadSystemPreference', async () => {
   try {
     const isActive = preferencesStore.get('isSystemThemeActive');
-    logger.info(`System theme active status loaded: ${isActive}`);
+    logger.debug(`System theme active status loaded: ${isActive}`);
     return isActive;
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'Failed to load system theme active status');

@@ -15,7 +15,7 @@ export class ConnectionService {
   // Method to set the electron-store instance, called from index.ts
   public setStore(store: Store<ConnectionsStoreSchema>): void {
     this.connectionsStore = store;
-    this.logger.info('ConnectionService: electron-store instance injected.');
+    this.logger.debug('ConnectionService: electron-store instance injected.');
   }
 
   // Helper to ensure the store is available before operations
@@ -38,7 +38,7 @@ export class ConnectionService {
   private writeConnections(connections: ConnectionConfig[]): void {
     const store = this.ensureStoreInitialized();
     store.set('connections', connections);
-    this.logger.info('Connections data written to electron-store.');
+    this.logger.debug('Connections data written to electron-store.');
   }
 
   async getConnections(): Promise<ConnectionConfig[]> {
