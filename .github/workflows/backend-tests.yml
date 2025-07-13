@@ -23,6 +23,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
+      - name: Verify repository structure
+        run: |
+          ls -la .
+          ls -la packages
+          ls -la packages/mongodb-wrapper-v6
+          ls -la packages/mongodb-wrapper-v5
+          ls -la packages/mongodb-wrapper-v4
+          ls -la packages/mongodb-wrapper-v3
+
       - name: Install dependencies
         run: |
           cd backend
@@ -30,13 +39,12 @@ jobs:
         env:
           CI: true
 
-      - name: Verify local dependencies
+      - name: Verify node_modules
         run: |
-          ls -la ../packages
-          ls -la ../packages/mongodb-wrapper-v6
-          ls -la ../packages/mongodb-wrapper-v5
-          ls -la ../packages/mongodb-wrapper-v4
-          ls -la ../packages/mongodb-wrapper-v3
+          ls -la backend/node_modules/mongodb-wrapper-v6
+          ls -la backend/node_modules/mongodb-wrapper-v5
+          ls -la backend/node_modules/mongodb-wrapper-v4
+          ls -la backend/node_modules/mongodb-wrapper-v3
 
       - name: Run tests
         run: |
@@ -55,6 +63,6 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: ./backend/coverage/lcov.info
+          files: backend/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
