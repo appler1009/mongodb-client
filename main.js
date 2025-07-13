@@ -179,7 +179,7 @@ function createWindow() {
         preferencesStore.set('windowState.height', bounds.height);
         preferencesStore.set('windowState.x', bounds.x);
         preferencesStore.set('windowState.y', bounds.y);
-        logger.info({ bounds }, 'Saved window bounds');
+        logger.debug({ bounds }, 'Saved window bounds');
       }
     }, 500); // Debounce by 500ms
 
