@@ -2,9 +2,7 @@ name: Backend Tests
 
 on:
   push:
-    branches: [fixing-backend-tests]
-  pull_request:
-    branches: [fixing-backend-tests]
+    branches: ['**']
 
 jobs:
   test:
@@ -66,16 +64,10 @@ jobs:
         env:
           CI: true
 
-      - name: Check test coverage
-        run: |
-          cd backend
-          npm run test -- --coverage
-        env:
-          CI: true
-
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           files: backend/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
+          verbose: true

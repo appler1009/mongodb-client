@@ -69,6 +69,7 @@ tmp/
 
 # Project specific
 backend/connections.json
+backend/coverage/
 release/
 packages/*/dist/
 query-helper-lambda-proxy/*.zip
