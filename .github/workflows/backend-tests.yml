@@ -2,7 +2,9 @@ name: Backend Tests
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   test:
@@ -27,21 +29,10 @@ jobs:
             if [ -f "$dir/package.json" ]; then
               cd $dir
               npm ci
-              npm run build || echo "No build script for $dir"
+              npm run build
               cd -
             fi
           done
-
-      - name: Verify repository structure
-        run: |
-          ls -la .
-          ls -la packages
-          ls -la packages/mongodb-wrapper-v6
-          ls -la packages/mongodb-wrapper-v5
-          ls -la packages/mongodb-wrapper-v4
-          ls -la packages/mongodb-wrapper-v3
-          cat packages/mongodb-wrapper-v6/package.json
-          ls -la packages/mongodb-wrapper-v6/dist || echo "No dist directory for mongodb-wrapper-v6"
 
       - name: Install dependencies
         run: |
@@ -50,19 +41,10 @@ jobs:
         env:
           CI: true
 
-      - name: Verify node_modules
-        run: |
-          ls -la backend/node_modules/mongodb-wrapper-v6
-          ls -la backend/node_modules/mongodb-wrapper-v5
-          ls -la backend/node_modules/mongodb-wrapper-v4
-          ls -la backend/node_modules/mongodb-wrapper-v3
-
       - name: Run tests
         run: |
           cd backend
           npm test -- --coverage
-          ls -la coverage || echo "Coverage directory not found"
-          cat coverage/lcov.info || echo "lcov.info not found"
         env:
           CI: true
 
@@ -72,4 +54,4 @@ jobs:
           files: backend/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
-          verbose: true
+          verbose: false
