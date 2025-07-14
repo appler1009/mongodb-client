@@ -1,78 +1,78 @@
 // backend/src/__tests__/jest.setup.js
-const { jest } = require('@jest/globals');
+const jestGlobals = require('@jest/globals');
 
-jest.mock('mongodb-wrapper-v6', () => ({
-  MongoDBWrapperV6: jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue({
+jestGlobals.jest.mock('mongodb-wrapper-v6', () => ({
+  MongoDBWrapperV6: jestGlobals.jest.fn().mockImplementation(() => ({
+    connect: jestGlobals.jest.fn().mockResolvedValue({
       db: {
         databaseName: 'testdb',
-        listCollections: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-        collection: jest.fn().mockReturnValue({
-          find: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-          countDocuments: jest.fn().mockResolvedValue(0),
-          aggregate: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) })
+        listCollections: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+        collection: jestGlobals.jest.fn().mockReturnValue({
+          find: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+          countDocuments: jestGlobals.jest.fn().mockResolvedValue(0),
+          aggregate: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) })
         })
       }
     }),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-    getClient: jest.fn().mockReturnValue({}),
+    disconnect: jestGlobals.jest.fn().mockResolvedValue(undefined),
+    getClient: jestGlobals.jest.fn().mockReturnValue({}),
   })),
-  MongoClientV6: jest.fn(),
+  MongoClientV6: jestGlobals.jest.fn(),
 }));
 
-jest.mock('mongodb-wrapper-v5', () => ({
-  MongoDBWrapperV5: jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue({
+jestGlobals.jest.mock('mongodb-wrapper-v5', () => ({
+  MongoDBWrapperV5: jestGlobals.jest.fn().mockImplementation(() => ({
+    connect: jestGlobals.jest.fn().mockResolvedValue({
       db: {
         databaseName: 'testdb',
-        listCollections: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-        collection: jest.fn().mockReturnValue({
-          find: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-          countDocuments: jest.fn().mockResolvedValue(0),
-          aggregate: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) })
+        listCollections: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+        collection: jestGlobals.jest.fn().mockReturnValue({
+          find: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+          countDocuments: jestGlobals.jest.fn().mockResolvedValue(0),
+          aggregate: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) })
         })
       }
     }),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-    getClient: jest.fn().mockReturnValue({}),
+    disconnect: jestGlobals.jest.fn().mockResolvedValue(undefined),
+    getClient: jestGlobals.jest.fn().mockReturnValue({}),
   })),
-  MongoClientV5: jest.fn(),
+  MongoClientV5: jestGlobals.jest.fn(),
 }));
 
-jest.mock('mongodb-wrapper-v4', () => ({
-  MongoDBWrapperV4: jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue({
+jestGlobals.jest.mock('mongodb-wrapper-v4', () => ({
+  MongoDBWrapperV4: jestGlobals.jest.fn().mockImplementation(() => ({
+    connect: jestGlobals.jest.fn().mockResolvedValue({
       db: {
         databaseName: 'testdb',
-        listCollections: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-        collection: jest.fn().mockReturnValue({
-          find: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-          countDocuments: jest.fn().mockResolvedValue(0),
-          aggregate: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) })
+        listCollections: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+        collection: jestGlobals.jest.fn().mockReturnValue({
+          find: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+          countDocuments: jestGlobals.jest.fn().mockResolvedValue(0),
+          aggregate: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) })
         })
       }
     }),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-    getClient: jest.fn().mockReturnValue({}),
+    disconnect: jestGlobals.jest.fn().mockResolvedValue(undefined),
+    getClient: jestGlobals.jest.fn().mockReturnValue({}),
   })),
-  MongoClientV4: jest.fn(),
+  MongoClientV4: jestGlobals.jest.fn(),
 }));
 
-jest.mock('mongodb-wrapper-v3', () => ({
-  MongoDBWrapperV3: jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue({
+jestGlobals.jest.mock('mongodb-wrapper-v3', () => ({
+  MongoDBWrapperV3: jestGlobals.jest.fn().mockImplementation(() => ({
+    connect: jestGlobals.jest.fn().mockResolvedValue({
       db: {
         databaseName: 'testdb',
-        listCollections: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-        collection: jest.fn().mockReturnValue({
-          find: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
-          countDocuments: jest.fn().mockResolvedValue(0),
-          aggregate: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) })
+        listCollections: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+        collection: jestGlobals.jest.fn().mockReturnValue({
+          find: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) }),
+          countDocuments: jestGlobals.jest.fn().mockResolvedValue(0),
+          aggregate: jestGlobals.jest.fn().mockReturnValue({ toArray: jestGlobals.jest.fn().mockResolvedValue([]) })
         })
       }
     }),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-    getClient: jest.fn().mockReturnValue({}),
+    disconnect: jestGlobals.jest.fn().mockResolvedValue(undefined),
+    getClient: jestGlobals.jest.fn().mockReturnValue({}),
   })),
-  MongoClientV3: jest.fn(),
+  MongoClientV3: jestGlobals.jest.fn(),
 }));

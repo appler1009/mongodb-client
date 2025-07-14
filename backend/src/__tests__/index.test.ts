@@ -7,6 +7,7 @@ jest.mock('pino', () => {
     info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
+    debug: jest.fn(),
   };
   return jest.fn(() => mockLogger);
 });
@@ -57,11 +58,11 @@ describe('generateAIQuery', () => {
       generatedQuery: JSON.stringify(queryObject, null, 2),
     });
     const mockLogger = require('pino')();
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.objectContaining({ collectionName, userPromptLength: userPrompt.length, sampleDocCount: 1, model: 'grok-3-mini' }),
       'Sending request to Query Helper (grok-3-mini)...'
     );
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.objectContaining({ generatedTextLength: expect.any(Number) }),
       'Query Helper (grok-3-mini) returned a response.'
     );
