@@ -60,7 +60,9 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          npm test
+          npm test -- --coverage
+          ls -la coverage || echo "Coverage directory not found"
+          cat coverage/lcov.info || echo "lcov.info not found"
         env:
           CI: true
 
