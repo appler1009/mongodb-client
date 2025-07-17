@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Form, Button, InputGroup, Alert, Accordion, Card } from 'react-bootstrap';
+import { Container, Form, Button, InputGroup, Alert, Accordion, Card, Spinner } from 'react-bootstrap';
 import type { ConnectionConfig, ConnectionStatus } from '../types';
 import {
   getConnections,
@@ -33,20 +33,25 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = useState<boolean>(false);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectionToDeleteId, setConnectionToDeleteId] = useState<string | null>(null);
 
-  const fetchConnections = async () => {
+  const fetchConnections = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await getConnections();
       setConnections(data);
-    } catch (err: any) {
-      setError(`Failed to fetch connections: ${err.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(`Failed to fetch connections: ${error.message}`);
+      } else {
+        setError('Failed to fetch connections: An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [setError]);
 
   useEffect(() => {
     fetchConnections();
@@ -241,25 +246,37 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                       Driver Version: {conn.driverVersion || 'unknown'}
                     </p>
                     <InputGroup>
-                      <Button
-                        variant="primary"
-                        onClick={() => onConnect(conn.id)}
-                        disabled={currentStatus !== null}
-                      >
-                        Connect
-                      </Button>
-                      <Button
-                        variant="outline-warning"
-                        onClick={() => setEditingConnection(conn)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline-danger"
-                        onClick={() => confirmDeleteConnection(conn.id)}
-                      >
-                        Delete
-                      </Button>
+                      {connectingId === conn.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <Spinner animation="border" size="sm" /> Connecting...
+                          <Button variant="secondary" onClick={() => setConnectingId(null)}>Cancel</Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            variant="primary"
+                            onClick={() => {
+                              setConnectingId(conn.id);
+                              onConnect(conn.id).finally(() => setConnectingId(null));
+                            }}
+                            disabled={currentStatus !== null}
+                          >
+                            Connect
+                          </Button>
+                          <Button
+                            variant="outline-warning"
+                            onClick={() => setEditingConnection(conn)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline-danger"
+                            onClick={() => confirmDeleteConnection(conn.id)}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </InputGroup>
                   </div>
                 )}
