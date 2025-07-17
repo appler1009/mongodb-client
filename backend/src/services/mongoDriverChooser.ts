@@ -1,3 +1,4 @@
+import * as pino from 'pino';
 import { MongoDBWrapperV6, MongoClientOptions as MongoClientOptionsV6, MongoClient as MongoClientV6 } from 'mongodb-wrapper-v6';
 import { MongoDBWrapperV5, MongoClientOptions as MongoClientOptionsV5, MongoClient as MongoClientV5 } from 'mongodb-wrapper-v5';
 import { MongoDBWrapperV4, MongoClientOptions as MongoClientOptionsV4, MongoClient as MongoClientV4 } from 'mongodb-wrapper-v4';
@@ -45,12 +46,13 @@ interface ConnectionAttemptResult {
  */
 export async function connectWithDriverFallback(
   uri: string,
+  logger: pino.Logger,
   options?: UniversalMongoClientOptions,
   knownVersion?: 'v6' | 'v5' | 'v4' | 'v3'
 ): Promise<ConnectionAttemptResult> {
   // If knownVersion is provided, attempt connection with that version only
   if (knownVersion) {
-    console.log(`Connecting with mongodb-wrapper-${knownVersion}... to ${uri}`);
+    logger.info(`Connecting with mongodb-wrapper-${knownVersion}... to ${uri}`);
     let Wrapper: MongoWrapperConstructor;
     switch (knownVersion) {
       case 'v6':
@@ -71,15 +73,15 @@ export async function connectWithDriverFallback(
     const wrapperInstance = new Wrapper(uri, options as any);
     try {
       const client = (await wrapperInstance.connect()) as MongoClient;
-      console.log(`Successfully connected with mongodb-wrapper-${knownVersion}.`);
+      logger.info(`Successfully connected with mongodb-wrapper-${knownVersion}.`);
       return { client, wrapper: wrapperInstance, driverVersion: knownVersion };
     } catch (error: any) {
-      console.warn(`Connection failed with mongodb-wrapper-${knownVersion}: ${error.message}`);
+      logger.warn(`Connection failed with mongodb-wrapper-${knownVersion}: ${error.message}`);
       if (wrapperInstance && typeof wrapperInstance.disconnect === 'function') {
         try {
           await wrapperInstance.disconnect();
         } catch (closeError: any) {
-          console.error(`Error closing wrapper ${knownVersion} client after failed attempt:`, closeError.message);
+          logger.error(`Error closing wrapper ${knownVersion} client after failed attempt: ${closeError.message}`);
         }
       }
       throw new Error(`Failed to connect with known version ${knownVersion}: ${error.message}`);
@@ -95,19 +97,19 @@ export async function connectWithDriverFallback(
   ];
 
   for (const { version, Wrapper } of wrapperVersions) {
-    console.log(`Attempting to connect with mongodb-wrapper-${version}... to ${uri}`);
+    logger.info(`Attempting to connect with mongodb-wrapper-${version}... to ${uri}`);
     const wrapperInstance = new Wrapper(uri, options as any);
     try {
       const client = (await wrapperInstance.connect()) as MongoClient;
-      console.log(`Successfully connected with mongodb-wrapper-${version}.`);
+      logger.info(`Successfully connected with mongodb-wrapper-${version}.`);
       return { client, wrapper: wrapperInstance, driverVersion: version };
     } catch (error: any) {
-      console.warn(`Connection failed with mongodb-wrapper-${version}: ${error.message}`);
+      logger.warn(`Connection failed with mongodb-wrapper-${version}: ${error.message}`);
       if (wrapperInstance && typeof wrapperInstance.disconnect === 'function') {
         try {
           await wrapperInstance.disconnect();
         } catch (closeError: any) {
-          console.error(`Error closing wrapper ${version} client after failed attempt:`, closeError.message);
+          logger.error(`Error closing wrapper ${version} client after failed attempt: ${closeError.message}`);
         }
       }
     }

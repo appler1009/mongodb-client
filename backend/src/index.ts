@@ -180,7 +180,12 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
     const options: UniversalMongoClientOptions = {
       connectTimeoutMS: 5000,
     };
-    const { client, driverVersion } = await connectWithDriverFallback(connectionConfig.uri, options, connectionConfig.driverVersion);
+    const { client, driverVersion } = await connectWithDriverFallback(
+      connectionConfig.uri,
+      logger,
+      options,
+      connectionConfig.driverVersion
+    );
 
     await client.connect();
 
