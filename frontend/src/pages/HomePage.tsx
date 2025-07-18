@@ -25,15 +25,20 @@ export const HomePage: React.FC = () => {
     }
   }, [notificationMessage]);
 
-  const handleConnect = useCallback(async (id: string) => {
+  const handleConnect = useCallback(async (connectionId: string, attemptId: string) => {
     setError(null);
     try {
-      const status = await connectToMongo(id);
+      const status = await connectToMongo(connectionId, attemptId);
       setCurrentStatus(status);
       setNotificationMessage(`Connected to ${status.database || 'MongoDB'}!`);
-    } catch (err: any) {
+      return status;
+    } catch (err: unknown) {
       setCurrentStatus(null);
-      setError(`Failed to connect: ${err.message}`);
+      if (err instanceof Error) {
+        setError(`Failed to connect: ${err.message}`);
+      } else {
+        setError('Failed to connect: Unknown error');
+      }
     }
   }, []);
 
@@ -47,8 +52,12 @@ export const HomePage: React.FC = () => {
       await disconnectFromMongo();
       setCurrentStatus(null);
       setNotificationMessage(`Disconnected from ${disconnectedDbName || 'MongoDB'}!`);
-    } catch (err: any) {
-      setError(`Failed to disconnect from ${disconnectedDbName || 'MongoDB'}: ${err.message}`);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(`Failed to disconnect from ${disconnectedDbName || 'MongoDB'}: ${err.message}`);
+      } else {
+        setError(`Failed to disconnect from ${disconnectedDbName || 'MongoDB'}: Unknown error`);
+      }
     }
   }, [currentStatus]);
 

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // MongoDB Connection
   connectToMongo: (connectionId) => ipcRenderer.invoke('mongo:connect', connectionId),
   disconnectFromMongo: () => ipcRenderer.invoke('mongo:disconnect'),
+  cancelConnectionAttempt: (attemptId) => ipcRenderer.invoke('mongo:cancelConnection', attemptId),
 
   // Database Browse
   getDatabaseCollections: () => ipcRenderer.invoke('database:getCollections'),

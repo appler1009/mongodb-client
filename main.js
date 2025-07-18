@@ -114,7 +114,7 @@ function createWindow() {
 
     if (!foundOnActiveDisplay) {
       // If the saved position is off-screen or undefined, center it on the primary display
-      logger.info('Window position not found on active display, centering.');
+      logger.debug('Window position not found on active display, centering.');
       x = Math.max(0, Math.round((screenWidth - initialWidth) / 2));
       y = Math.max(0, Math.round((screenHeight - initialHeight) / 2));
     }
@@ -166,7 +166,7 @@ function createWindow() {
     // Emitted when the window is closed.
     mainWindow.on('closed', () => {
       mainWindow = null; // Dereference the window object to allow garbage collection
-      logger.info('Main window closed, dereferenced.');
+      logger.debug('Main window closed, dereferenced.');
     });
 
     // --- Add event listeners for the mainWindow to save state ---
@@ -190,7 +190,7 @@ function createWindow() {
     mainWindow.on('maximize', () => {
       preferencesStore.set('windowState.isMaximized', true);
       preferencesStore.set('windowState.isFullScreen', false); // Cannot be both
-      logger.info('Window maximized, state saved.');
+      logger.debug('Window maximized, state saved.');
     });
     mainWindow.on('unmaximize', () => {
       preferencesStore.set('windowState.isMaximized', false);
@@ -200,7 +200,7 @@ function createWindow() {
       preferencesStore.set('windowState.height', bounds.height);
       preferencesStore.set('windowState.x', bounds.x);
       preferencesStore.set('windowState.y', bounds.y);
-      logger.info({ bounds }, 'Window unmaximized, state saved and bounds updated.');
+      logger.debug({ bounds }, 'Window unmaximized, state saved and bounds updated.');
     });
 
     // Save fullscreen state
@@ -443,9 +443,9 @@ ipcMain.handle('connections:deleteConnection', async (event, id) => {
 });
 
 // MongoDB Connection
-ipcMain.handle('mongo:connect', async (event, connectionId) => {
+ipcMain.handle('mongo:connect', async (event, connectionId, attemptId) => {
   try {
-    return await backend.connectToMongo(connectionId);
+    return await backend.connectToMongo(connectionId, attemptId);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'IPC error (mongo:connect)');
     throw error;
@@ -457,6 +457,15 @@ ipcMain.handle('mongo:disconnect', async () => {
     return await backend.disconnectFromMongo();
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack }, 'IPC error (mongo:disconnect)');
+    throw error;
+  }
+});
+
+ipcMain.handle('mongo:cancelConnection', async (event, attemptId) => {
+  try {
+    return await backend.cancelConnectionAttempt(attemptId);
+  } catch (error) {
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (mongo:cancelConnection)');
     throw error;
   }
 });

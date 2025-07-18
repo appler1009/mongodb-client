@@ -10,6 +10,9 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { default as Store } from 'electron-store';
 
+// Map to store active connection attempts for cancellation
+const connectionAttempts = new Map<string, { controller: AbortController, cleanup?: () => Promise<void> }>();
+
 dotenv.config();
 
 const logger = pino({
@@ -48,6 +51,7 @@ export function initialize(connectionsStore: Store<any>) {
     deleteConnection,
     connectToMongo,
     disconnectFromMongo,
+    cancelConnectionAttempt,
     getDatabaseCollections,
     getCollectionDocuments,
     exportCollectionDocuments,
@@ -164,30 +168,76 @@ export const deleteConnection = async (id: string): Promise<boolean> => {
   }
 };
 
-export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
+export const connectToMongo = async (connectionId: string, attemptId: string): Promise<ConnectionStatus> => {
   try {
     if (activeMongoClient) {
       await disconnectMongoInternal();
     }
 
-    const connectionConfig = await connectionService.getConnectionById(id);
+    const connectionConfig = await connectionService.getConnectionById(connectionId);
     if (!connectionConfig) {
       throw new Error('Connection configuration not found.');
     }
 
-    logger.debug(`IPC: Attempting to connect to MongoDB using ID: ${id}`);
-    logger.debug(`IPC: Connection details: ${id} ${JSON.stringify(connectionConfig)}`);
+    logger.debug(`IPC: Attempting to connect to MongoDB using ID: ${connectionId}`);
+    logger.debug(`IPC: Connection details: ${connectionId} ${JSON.stringify(connectionConfig)}`);
+
+    // Generate a unique attempt ID for cancellation tracking
+    const controller = new AbortController();
+
+    // Store the controller for possible cancellation
+    connectionAttempts.set(attemptId, { controller });
+
     const options: UniversalMongoClientOptions = {
       connectTimeoutMS: 5000,
     };
-    const { client, driverVersion } = await connectWithDriverFallback(
-      connectionConfig.uri,
-      logger,
-      options,
-      connectionConfig.driverVersion
-    );
+    let client: MongoClient;
+    let driverVersion: 'v6' | 'v5' | 'v4' | 'v3';
+    try {
+      const result = await connectWithDriverFallback(
+        connectionConfig.uri,
+        logger,
+        options,
+        connectionConfig.driverVersion,
+        controller.signal
+      );
+      client = result.client;
+      driverVersion = result.driverVersion;
 
-    await client.connect();
+      await client.connect();
+      // Store cleanup function in case connection is aborted later
+      connectionAttempts.get(attemptId)!.cleanup = async () => {
+        try {
+          if (client) await client.close();
+        } catch (err) {
+          logger.error('Error closing client during cleanup', err);
+        }
+      };
+    } catch (error: unknown) {
+      // Clean up on failure
+      connectionAttempts.delete(attemptId);
+      // Check if it was an abort error
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.debug(`Connection attempt ${attemptId} aborted by user.`);
+        throw new Error(`Connection attempt aborted for ID: ${connectionId}`);
+      }
+      // Regular error handling
+      if (error instanceof Error) {
+        logger.error(`Error connecting to MongoDB for ID ${connectionId}:`, error);
+      } else {
+        logger.error(`Error connecting to MongoDB for ID ${connectionId}: Unknown error`);
+      }
+      throw error;
+    } finally {
+      // Ensure cleanup if needed, though this is mostly handled in success or error paths
+      if (connectionAttempts.has(attemptId) && !connectionAttempts.get(attemptId)!.cleanup) {
+        connectionAttempts.delete(attemptId);
+      }
+    }
+
+    // On success, clean up the attempt entry
+    connectionAttempts.delete(attemptId);
+    logger.debug(`Attempt ID ${attemptId} deleted`);
 
     let dbNameFromUri: string | undefined;
     try {
@@ -206,7 +256,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
 
     activeMongoClient = client;
     activeDb = client.db(dbNameFromUri);
-    activeConnectionId = id;
+    activeConnectionId = connectionId;
     activeDatabaseName = dbNameFromUri;
     activeDriverVersion = driverVersion;
 
@@ -215,8 +265,8 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
         ...connectionConfig,
         driverVersion: driverVersion,
       };
-      await connectionService.updateConnection(id, updatedConnection);
-      logger.debug(`IPC: Stored driver version ${driverVersion} for connection ${id}`);
+      await connectionService.updateConnection(connectionId, updatedConnection);
+      logger.debug(`IPC: Stored driver version ${driverVersion} for connection ${connectionId}`);
     }
 
     databaseService.setActiveDb(activeDb);
@@ -228,7 +278,7 @@ export const connectToMongo = async (id: string): Promise<ConnectionStatus> => {
       database: activeDatabaseName
     };
   } catch (error: any) {
-    logger.error({ error, connectionId: id }, 'IPC: Failed to connect to MongoDB');
+    logger.error({ error, connectionId }, 'IPC: Failed to connect to MongoDB');
     await disconnectMongoInternal();
     throw new Error(`Failed to connect to MongoDB: ${error.message}`);
   }
@@ -243,6 +293,29 @@ export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
     logger.error({ error }, 'IPC: Failed to disconnect from MongoDB');
     throw new Error(`Failed to disconnect from MongoDB: ${error.message}`);
   }
+};
+
+// Function to cancel a connection attempt
+export const cancelConnectionAttempt = async (attemptId: string): Promise<{ success: boolean; message: string }> => {
+  logger.debug(`Received cancellation request for attempt ID: ${attemptId}`);
+  const attempt = connectionAttempts.get(attemptId);
+  if (!attempt) {
+    return { success: false, message: 'No matching connection attempt found' };
+  }
+
+  // Abort the controller
+  logger.debug(`Calling abort for attempt ID: ${attemptId}`);
+  attempt.controller.abort();
+
+  // Run any cleanup if needed (e.g., close an established connection)
+  logger.debug(`Calling cleanup for attempt ID: ${attemptId}`);
+  if (attempt.cleanup) {
+    await attempt.cleanup();
+  }
+
+  // Clean up
+  connectionAttempts.delete(attemptId);
+  return { success: true, message: 'Connection attempt cancelled' };
 };
 
 export const getDatabaseCollections = async (): Promise<CollectionInfo[]> => {

@@ -48,8 +48,13 @@ export async function connectWithDriverFallback(
   uri: string,
   logger: pino.Logger,
   options?: UniversalMongoClientOptions,
-  knownVersion?: 'v6' | 'v5' | 'v4' | 'v3'
+  knownVersion?: 'v6' | 'v5' | 'v4' | 'v3',
+  signal?: AbortSignal
 ): Promise<ConnectionAttemptResult> {
+  // Check for early abortion
+  if (signal?.aborted) {
+    throw new AbortError('Connection attempt aborted');
+  }
   // If knownVersion is provided, attempt connection with that version only
   if (knownVersion) {
     logger.info(`Connecting with mongodb-wrapper-${knownVersion}... to ${uri}`);
@@ -72,17 +77,25 @@ export async function connectWithDriverFallback(
     }
     const wrapperInstance = new Wrapper(uri, options as any);
     try {
+      if (signal?.aborted) throw new AbortError('Connection attempt aborted');
       const client = (await wrapperInstance.connect()) as MongoClient;
       logger.info(`Successfully connected with mongodb-wrapper-${knownVersion}.`);
       return { client, wrapper: wrapperInstance, driverVersion: knownVersion };
     } catch (error: any) {
-      logger.warn(`Connection failed with mongodb-wrapper-${knownVersion}: ${error.message}`);
+      if (signal?.aborted) {
+        logger.info(`Connection attempt with ${knownVersion} aborted.`);
+      } else {
+        logger.warn(`Connection failed with mongodb-wrapper-${knownVersion}: ${error.message}`);
+      }
       if (wrapperInstance && typeof wrapperInstance.disconnect === 'function') {
         try {
           await wrapperInstance.disconnect();
         } catch (closeError: any) {
           logger.error(`Error closing wrapper ${knownVersion} client after failed attempt: ${closeError.message}`);
         }
+      }
+      if (signal?.aborted) {
+        throw new AbortError('Connection attempt aborted');
       }
       throw new Error(`Failed to connect with known version ${knownVersion}: ${error.message}`);
     }
@@ -98,13 +111,21 @@ export async function connectWithDriverFallback(
 
   for (const { version, Wrapper } of wrapperVersions) {
     logger.info(`Attempting to connect with mongodb-wrapper-${version}... to ${uri}`);
+    if (signal?.aborted) {
+      throw new AbortError('Connection attempt aborted');
+    }
     const wrapperInstance = new Wrapper(uri, options as any);
     try {
+      if (signal?.aborted) throw new AbortError('Connection attempt aborted');
       const client = (await wrapperInstance.connect()) as MongoClient;
       logger.info(`Successfully connected with mongodb-wrapper-${version}.`);
       return { client, wrapper: wrapperInstance, driverVersion: version };
     } catch (error: any) {
-      logger.warn(`Connection failed with mongodb-wrapper-${version}: ${error.message}`);
+      if (signal?.aborted) {
+        logger.info(`Connection attempt with ${version} aborted.`);
+      } else {
+        logger.warn(`Connection failed with mongodb-wrapper-${version}: ${error.message}`);
+      }
       if (wrapperInstance && typeof wrapperInstance.disconnect === 'function') {
         try {
           await wrapperInstance.disconnect();
@@ -115,8 +136,19 @@ export async function connectWithDriverFallback(
     }
   }
 
+  if (signal?.aborted) {
+    throw new AbortError('Connection attempt aborted');
+  }
   throw new Error(
     `Failed to connect to MongoDB with any available driver version (${wrapperVersions.map(w => w.version).join(', ')}). ` +
     `Please check your MongoDB server's version and accessibility.`
   );
+}
+
+// Custom error class to identify abort-related errors
+class AbortError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AbortError';
+  }
 }

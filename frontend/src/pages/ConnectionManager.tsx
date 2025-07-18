@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Form, Button, InputGroup, Alert, Accordion, Card, Spinner } from 'react-bootstrap';
+import { v4 as uuidv4 } from 'uuid';
 import type { ConnectionConfig, ConnectionStatus } from '../types';
 import {
   getConnections,
@@ -12,7 +13,7 @@ import '../styles/ConnectionManager.css';
 
 interface ConnectionManagerProps {
   currentStatus: ConnectionStatus | null;
-  onConnect: (id: string) => Promise<void>;
+  onConnect: (connectionId: string, attemptId: string) => Promise<ConnectionStatus|undefined>;
   setNotificationMessage: (message: string | null) => void;
   setError: (message: string | null) => void;
 }
@@ -35,6 +36,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
   const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = useState<boolean>(false);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectionToDeleteId, setConnectionToDeleteId] = useState<string | null>(null);
+  const [attemptIds, setAttemptIds] = useState<{ [connId: string]: string | null }>({}); // Map<connId, attemptId>
 
   const fetchConnections = useCallback(async () => {
     setLoading(true);
@@ -101,13 +103,21 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
     if (!editingConnection) return;
     try {
       const updated = await updateConnection(editingConnection.id, editingConnection);
-      setConnections((prev) =>
-        prev.map((conn) => (conn.id === updated.id ? updated : conn))
-      );
-      setEditingConnection(null);
-      setNotificationMessage('Connection updated successfully!');
-    } catch (err: any) {
-      setError(`Failed to update connection: ${err.message}`);
+      if (updated) {
+        setConnections((prev) =>
+          prev.map((conn) => (conn.id === updated.id ? updated : conn)).filter((conn): conn is ConnectionConfig => conn !== null)
+        );
+        setEditingConnection(null);
+        setNotificationMessage('Connection updated successfully!');
+      } else {
+        setError('Failed to update connection: Update returned null');
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(`Failed to update connection: ${err.message}`);
+      } else {
+        setError('Failed to update connection: Unknown error');
+      }
     }
   };
 
@@ -249,15 +259,51 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                       {connectingId === conn.id ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <Spinner animation="border" size="sm" /> Connecting...
-                          <Button variant="secondary" onClick={() => setConnectingId(null)}>Cancel</Button>
+                          <Button
+                            variant="secondary"
+                            onClick={async () => {
+                              const attemptId = attemptIds[conn.id];
+                              if (attemptId && attemptId !== 'pending') {
+                                try {
+                                  await window.electronAPI.cancelConnectionAttempt(attemptId);
+                                  setAttemptIds(prev => ({ ...prev, [conn.id]: null }));
+                                  setConnectingId(null);
+                                } catch (error: unknown) {
+                                  if (error instanceof Error) {
+                                    setError(`Failed to cancel connection: ${error.message}`);
+                                  } else {
+                                    setError('Failed to cancel connection: Unknown error');
+                                  }
+                                }
+                              } else {
+                                console.warn('Cannot cancel connection: No valid attemptId available', { attemptId });
+                                setConnectingId(null);
+                              }
+                            }}
+                          >
+                            Cancel
+                          </Button>
                         </div>
                       ) : (
                         <>
                           <Button
                             variant="primary"
-                            onClick={() => {
+                            onClick={async () => {
+                              const attemptId = uuidv4();
                               setConnectingId(conn.id);
-                              onConnect(conn.id).finally(() => setConnectingId(null));
+                              setAttemptIds(prev => ({ ...prev, [conn.id]: attemptId }));
+                              try {
+                                await onConnect(conn.id, attemptId);
+                              } catch (error: unknown) {
+                                if (error instanceof Error) {
+                                  setError(`Connection failed: ${error.message}`);
+                                } else {
+                                  setError('Connection failed: Unknown error');
+                                }
+                              } finally {
+                                setAttemptIds(prev => ({ ...prev, [conn.id]: null }));
+                                setConnectingId(null);
+                              }
                             }}
                             disabled={currentStatus !== null}
                           >

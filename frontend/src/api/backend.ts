@@ -15,8 +15,9 @@ declare global {
       deleteConnection: (id: string) => Promise<boolean>;
 
       // MongoDB Connection IPC calls
-      connectToMongo: (connectionId: string) => Promise<ConnectionStatus>;
+      connectToMongo: (connectionId: string, attemptId: string) => Promise<ConnectionStatus>;
       disconnectFromMongo: () => Promise<ConnectionStatus>;
+      cancelConnectionAttempt: (attemptId: string) => Promise<{ success: boolean; message: string }>;
 
       // Database Browse IPC calls
       getDatabaseCollections: () => Promise<CollectionInfo[]>;
@@ -64,12 +65,16 @@ export const deleteConnection = (id: string): Promise<void> => {
 
 // --- MongoDB Connection API Calls ---
 
-export const connectToMongo = (connectionId: string): Promise<ConnectionStatus> => {
-  return window.electronAPI.connectToMongo(connectionId);
+export const connectToMongo = (connectionId: string, attemptId: string): Promise<ConnectionStatus> => {
+  return window.electronAPI.connectToMongo(connectionId, attemptId);
 };
 
 export const disconnectFromMongo = (): Promise<ConnectionStatus> => {
   return window.electronAPI.disconnectFromMongo();
+};
+
+export const cancelConnectionAttempt = async (attemptId: string): Promise<{ success: boolean; message: string }> => {
+  return window.electronAPI.cancelConnectionAttempt(attemptId);
 };
 
 // --- Database Browse API Calls ---
