@@ -56,13 +56,7 @@ export class DatabaseService {
           const collections = await this.activeDb!.listCollections().toArray();
           const result: CollectionInfo[] = [];
           for (const c of collections) {
-            let documentCount = 0;
-            try {
-              documentCount = await this.getDocumentCount(c.name);
-            } catch (err: any) {
-              this.logger.warn(`Failed to get document count for ${c.name}: ${err.message}`);
-            }
-            result.push({ name: c.name, documentCount });
+            result.push({ name: c.name, documentCount: -1 });
           }
           this.collectionsCache = { collections: result, timestamp: Date.now() };
           return result;

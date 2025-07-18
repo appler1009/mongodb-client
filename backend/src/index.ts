@@ -55,6 +55,7 @@ export function initialize(connectionsStore: Store<any>) {
     getDatabaseCollections,
     getCollectionDocuments,
     exportCollectionDocuments,
+    getCollectionDocumentCounts,
     getCollectionSchemaAndSampleDocuments,
     generateAIQuery,
   };
@@ -378,6 +379,20 @@ export const exportCollectionDocuments = async (collectionName: string, params: 
   } catch (error: any) {
     logger.error({ error, collectionName }, 'Backend: Failed to export documents to temp file');
     throw new Error(`Failed to export documents to temporary file for collection ${collectionName}: ${error.message}`);
+  }
+};
+
+export const getCollectionDocumentCounts = async (collectionName: string): Promise<number> => {
+  try {
+    if (!databaseService.isDbActive()) {
+      throw new Error('No active database connection to get document counts.');
+    }
+    const count = await databaseService.getDocumentCount(collectionName);
+    logger.debug({ collectionName, count }, 'Backend: Fetched document count for collection');
+    return count;
+  } catch (error: any) {
+    logger.error({ error, collectionName }, 'Backend: Failed to fetch document count for collection');
+    throw new Error(`Failed to fetch document count for collection ${collectionName}: ${error.message}`);
   }
 };
 

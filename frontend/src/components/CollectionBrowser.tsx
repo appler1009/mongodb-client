@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ListGroup, Button, Card, Badge } from 'react-bootstrap';
 import type { ConnectionStatus, CollectionInfo } from '../types';
 import '../styles/CollectionBrowser.css';
@@ -18,6 +18,47 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
   onSelectCollection,
   onDisconnect,
 }) => {
+  // Local state to store fetched document counts
+  const [localDocumentCounts, setLocalDocumentCounts] = useState<Record<string, number>>({});
+  // Track which collections we've already started to fetch count for
+  const [fetchingCounts, setFetchingCounts] = useState<Set<string>>(new Set());
+
+  // Fetch document counts for collections with negative counts
+  useEffect(() => {
+    collections.forEach(col => {
+      if (col.documentCount < 0 && !fetchingCounts.has(col.name)) {
+        // Mark this collection as being fetched to avoid duplicate requests
+        setFetchingCounts(prev => {
+          const newSet = new Set(prev);
+          newSet.add(col.name);
+          return newSet;
+        });
+
+        // Fetch the document count in the background
+        (async () => {
+          try {
+            const documentCount = await window.electronAPI.getCollectionDocumentCount(col.name);
+            console.debug(`Fetched document count for ${col.name}: ${documentCount}`);
+
+            // Update local state with the fetched count if it's valid
+            if (documentCount >= 0) {
+              setLocalDocumentCounts(prev => ({
+                ...prev,
+                [col.name]: documentCount
+              }));
+            }
+          } catch (err: unknown) {
+            if (err instanceof Error) {
+              console.warn(`Failed to get document count for ${col.name}: ${err.message}`);
+            } else {
+              console.warn(`Failed to get document count for ${col.name}: Unknown error`);
+            }
+          }
+        })();
+      }
+    });
+  }, [collections, fetchingCounts]);
+
   return (
     <div className="collection-browser">
       {currentStatus?.database && (
@@ -52,7 +93,11 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
             >
               <span>{col.name}</span>
               <Badge bg="secondary" className="ms-auto collection-badge" pill>
-                {col.documentCount.toLocaleString()}
+                {col.documentCount < 0 && localDocumentCounts[col.name] !== undefined
+                  ? localDocumentCounts[col.name].toLocaleString()
+                  : col.documentCount < 0
+                    ? '...'
+                    : col.documentCount.toLocaleString()}
               </Badge>
             </ListGroup.Item>
           ))}

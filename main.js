@@ -498,6 +498,15 @@ ipcMain.handle('database:exportDocuments', async (event, collectionName, params)
   }
 });
 
+ipcMain.handle('database:getDocumentCount', async (event, collectionName) => {
+  try {
+    return await backend.getCollectionDocumentCounts(collectionName);
+  } catch (error) {
+    logger.error({ error: error.message, stack: error.stack }, 'IPC error (database:getDocumentCount)');
+    throw error;
+  }
+});
+
 // IPC handler for saving files
 ipcMain.handle('file:save', async (event, defaultFilename, sourceFilePath) => {
   try {

@@ -23,6 +23,7 @@ declare global {
       getDatabaseCollections: () => Promise<CollectionInfo[]>;
       getCollectionDocuments: (collectionName: string, limit: number, skip: number, params: MongoQueryParams) => Promise<DocumentsResponse>;
       exportCollectionDocuments: (collectionName: string, params: MongoQueryParams) => Promise<string>;
+      getCollectionDocumentCount: (collectionName: string) => Promise<number>;
 
       // File system interaction (via Main Process for security)
       saveFile: (defaultFilename: string, sourceFilePath: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;

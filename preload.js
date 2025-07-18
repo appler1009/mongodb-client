@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDatabaseCollections: () => ipcRenderer.invoke('database:getCollections'),
   getCollectionDocuments: (collectionName, limit, skip, params) => ipcRenderer.invoke('database:getDocuments', collectionName, limit, skip, params),
   exportCollectionDocuments: (collectionName, params) => ipcRenderer.invoke('database:exportDocuments', collectionName, params),
+  getCollectionDocumentCount: (collectionName) => ipcRenderer.invoke('database:getDocumentCount', collectionName),
 
   // File system interaction
   saveFile: (defaultFilename, sourceFilePath) => ipcRenderer.invoke('file:save', defaultFilename, sourceFilePath),
