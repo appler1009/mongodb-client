@@ -36,7 +36,7 @@ declare global {
 
       // AI Query Generation IPC calls
       getCollectionSchemaAndSampleDocuments: (collectionName: string, sampleCount?: number) => Promise<{ sampleDocuments: Document[]; schemaMap: SchemaMap }>;
-      generateAIQuery: (userPrompt: string, collectionName: string, schemaMap: SchemaMap, sampleDocuments: Document[]) => Promise<{ generatedQuery?: string; error?: string }>;
+      generateAIQuery: (userPrompt: string, collectionName: string, shareSamples: boolean) => Promise<{ generatedQuery?: string; error?: string }>;
     };
   }
 }
@@ -140,6 +140,6 @@ export const getCollectionSchemaAndSampleDocuments = (collectionName: string, sa
  * @param sampleDocuments Sample documents from the collection.
  * @returns An object containing the generated query string or an error message.
  */
-export const generateAIQuery = (userPrompt: string, collectionName: string, schemaMap: SchemaMap, sampleDocuments: Document[]) => {
-  return window.electronAPI.generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
+export const generateAIQuery = (userPrompt: string, collectionName: string, shareSamples: boolean) => {
+  return window.electronAPI.generateAIQuery(userPrompt, collectionName, shareSamples);
 };

@@ -20,6 +20,7 @@ describe('generateAIQuery', () => {
   const collectionName = 'users';
   const schemaMap: SchemaMap = { _id: ['ObjectId'], name: ['string'], age: ['number'] };
   const sampleDocuments: Document[] = [{ _id: '1', name: 'Alice', age: 25 }];
+  const shareSamples: boolean = false;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -40,7 +41,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -75,7 +76,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -107,7 +108,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -138,7 +139,7 @@ describe('generateAIQuery', () => {
       json: jest.fn().mockResolvedValueOnce(aiResponse),
     } as any);
 
-    const result = await generateAIQuery(userPrompt, collectionName, schemaMap, sampleDocuments);
+    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(

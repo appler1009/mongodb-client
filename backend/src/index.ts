@@ -432,14 +432,21 @@ export const getCollectionSchemaAndSampleDocuments = async (
 export const generateAIQuery = async (
   userPrompt: string,
   collectionName: string,
-  schemaMap: SchemaMap | null | undefined,
-  sampleDocuments: Document[]
+  shareSamples: boolean = false,
 ): Promise<{ generatedQuery?: string; error?: string }> => {
   try {
     const grokModel = "grok-3-mini";
     const apiUrl = `https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions`;
 
-    const formattedSampleDocs = JSON.stringify(sampleDocuments, null, 2);
+    const { sampleDocuments, schemaMap } = await getCollectionSchemaAndSampleDocuments(collectionName, 2);
+
+    const formattedSampleDocs = (shareSamples && sampleDocuments && sampleDocuments.length > 0)
+      ? `
+Document Examples (first ${sampleDocuments.length} documents):
+\`\`\`json
+${JSON.stringify(sampleDocuments, null, 2)}
+\`\`\`
+` : '';
 
     // Handle null or undefined schemaMap
     logger.debug(`schemaMap: ${JSON.stringify(schemaMap)}`);
@@ -482,12 +489,7 @@ Respond ONLY with the raw JSON object. Do not include any other text, explanatio
 Collection Name: "${collectionName}"
 
 ${schemaSummary}
-
-Document Examples (first ${sampleDocuments.length} documents):
-\`\`\`json
 ${formattedSampleDocs}
-\`\`\`
-
 Based on this context, generate a MongoDB query parameters JSON object for the following natural language request:
 
 "${userPrompt}"`;

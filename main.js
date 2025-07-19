@@ -607,10 +607,9 @@ ipcMain.handle('ai:getCollectionSchemaAndSampleDocuments', async (event, collect
   }
 });
 
-ipcMain.handle('ai:generateQuery', async (event, userPrompt, collectionName, schemaSummary, sampleDocuments) => {
+ipcMain.handle('ai:generateQuery', async (event, userPrompt, collectionName, shareSamples) => {
   try {
-    // Assuming backend.generateAIQuery is now available
-    return await backend.generateAIQuery(userPrompt, collectionName, schemaSummary, sampleDocuments);
+    return await backend.generateAIQuery(userPrompt, collectionName, shareSamples);
   } catch (error) {
     logger.error({ error: error.message, stack: error.stack, userPrompt, collectionName }, 'IPC error (ai:generateQuery)');
     throw error;

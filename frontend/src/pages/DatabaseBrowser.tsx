@@ -6,7 +6,6 @@ import {
   getDatabaseCollections,
   getCollectionDocuments,
   exportCollectionDocuments,
-  getCollectionSchemaAndSampleDocuments,
   generateAIQuery,
 } from '../api/backend';
 import { CollectionBrowser } from '../components/CollectionBrowser';
@@ -41,6 +40,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
   const [queryError, setQueryError] = useState<string | null>(null);
   const [hasQueryBeenExecuted, setHasQueryBeenExecuted] = useState<boolean>(false);
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
+  const [shareSamples, setShareSamples] = useState<boolean>(false);
   const [accordionActiveKey, setAccordionActiveKey] = useState<string | null>('0');
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -60,6 +60,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setHasQueryBeenExecuted(false);
     setAiLoading(false);
     setAutoRunGeneratedQuery(true);
+    setShareSamples(false);
     setAccordionActiveKey('0');
   }, []);
 
@@ -196,6 +197,10 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setAutoRunGeneratedQuery(checked);
   };
 
+  const handleShareSamplesToggleChange = (checked: boolean) => {
+    setShareSamples(checked);
+  };
+
   const handlePromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -226,12 +231,10 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setNotificationMessage('Generating query...');
 
     try {
-      const { sampleDocuments, schemaMap } = await getCollectionSchemaAndSampleDocuments(selectedCollection, 2);
       const { generatedQuery, error: backendError } = await generateAIQuery(
         userPrompt,
         selectedCollection,
-        schemaMap,
-        sampleDocuments,
+        shareSamples,
       );
 
       if (backendError) {
@@ -280,7 +283,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     } finally {
       setAiLoading(false);
     }
-  }, [selectedCollection, promptText, autoRunGeneratedQuery, setNotificationMessage, setError, fetchDocuments]);
+  }, [selectedCollection, promptText, autoRunGeneratedQuery, shareSamples, setNotificationMessage, setError, fetchDocuments]);
 
   const handleExecuteManualQuery = async () => {
     if (documentsLoading || aiLoading) {
@@ -436,6 +439,19 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
                         >
                           <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
                           Auto-run
+                        </ToggleButton>
+                        <ToggleButton
+                          id="attach-sample-toggle"
+                          type="checkbox"
+                          variant={shareSamples ? 'primary' : 'outline-secondary'}
+                          checked={shareSamples}
+                          value="1"
+                          onChange={(e) => handleShareSamplesToggleChange(e.currentTarget.checked)}
+                          disabled={aiLoading}
+                          className="me-2"
+                        >
+                          <i className={shareSamples ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
+                          Share Samples
                         </ToggleButton>
                       </div>
                       <div className="d-flex">
