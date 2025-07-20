@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Container, Row, Col } from 'react-bootstrap';
-import type { ConnectionStatus } from '../types';
+import type { ConnectionStatus, MongoQueryParams } from '../types';
 import { CollectionBrowser } from '../components/CollectionBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { QueryForm } from '../components/QueryForm';
@@ -35,21 +35,28 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setCurrentPage,
     setDocumentsPerPage,
   } = useDatabaseBrowser({ currentStatus, setError });
+  const [queryParams, setQueryParams] = useState<MongoQueryParams>({ readPreference: 'primary' });
 
   const handleCollectionSelect = (collectionName: string) => {
     setSelectedCollection(collectionName);
     setCurrentPage(1);
+    setQueryParams({ readPreference: 'primary' });
+    fetchDocuments({ readPreference: 'primary' }, 1);
   };
 
-  const handlePageSelect = (page: number) => {
+  const handlePageSelect = (page: number, params: MongoQueryParams) => {
     setCurrentPage(page);
-    fetchDocuments({ readPreference: 'primary' });
+    fetchDocuments(params, page);
   };
 
   const handleDocumentsPerPageChange = (perPage: number) => {
     setDocumentsPerPage(perPage);
     setCurrentPage(1);
-    fetchDocuments({ readPreference: 'primary' });
+    fetchDocuments(queryParams, 1);
+  };
+
+  const handleQueryParamsChange = (params: MongoQueryParams) => {
+    setQueryParams(params);
   };
 
   if (!currentStatus?.database) {
@@ -78,7 +85,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
             documentsLoading={documentsLoading}
             setNotificationMessage={setNotificationMessage}
             setError={setError}
-            onQueryExecute={fetchDocuments}
+            onQueryExecute={(params) => fetchDocuments(params, 1)}
+            onQueryParamsChange={handleQueryParamsChange}
           />
           {selectedCollection && (
             <PaginationControls
@@ -88,6 +96,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               documentsLoading={documentsLoading}
               aiLoading={false}
               hasQueryBeenExecuted={totalDocumentCount > 0}
+              queryParams={queryParams}
               onPageSelect={handlePageSelect}
               onDocumentsPerPageChange={handleDocumentsPerPageChange}
             />
@@ -100,7 +109,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               documents={documents}
               currentPage={currentPage}
               documentsPerPage={documentsPerPage}
-              queryParams={{ readPreference: 'primary' }}
+              queryParams={queryParams}
               setNotificationMessage={setNotificationMessage}
               setError={setError}
             />

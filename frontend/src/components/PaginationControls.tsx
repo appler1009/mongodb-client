@@ -1,5 +1,6 @@
 import React from 'react';
 import { Form, Pagination } from 'react-bootstrap';
+import type { MongoQueryParams } from '../types';
 
 interface PaginationControlsProps {
   currentPage: number;
@@ -8,7 +9,8 @@ interface PaginationControlsProps {
   documentsLoading: boolean;
   aiLoading: boolean;
   hasQueryBeenExecuted: boolean;
-  onPageSelect: (page: number) => void;
+  queryParams: MongoQueryParams;
+  onPageSelect: (page: number, queryParams: MongoQueryParams) => void;
   onDocumentsPerPageChange: (perPage: number) => void;
 }
 
@@ -19,6 +21,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   documentsLoading,
   aiLoading,
   hasQueryBeenExecuted,
+  queryParams,
   onPageSelect,
   onDocumentsPerPageChange,
 }) => {
@@ -39,8 +42,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         <Pagination.Item
           key={1}
           active={1 === currentPage}
-          onClick={() => onPageSelect(1)}
-          disabled={documentsLoading || aiLoading}
+          onClick={() => onPageSelect(1, queryParams)}
+          disabled={documentsLoading || aiLoading || 1 === currentPage}
         >
           1
         </Pagination.Item>
@@ -55,8 +58,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         <Pagination.Item
           key={page}
           active={page === currentPage}
-          onClick={() => onPageSelect(page)}
-          disabled={documentsLoading || aiLoading}
+          onClick={() => onPageSelect(page, queryParams)}
+          disabled={documentsLoading || aiLoading || page === currentPage}
         >
           {page}
         </Pagination.Item>
@@ -71,8 +74,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         <Pagination.Item
           key={totalPages}
           active={totalPages === currentPage}
-          onClick={() => onPageSelect(totalPages)}
-          disabled={documentsLoading || aiLoading}
+          onClick={() => onPageSelect(totalPages, queryParams)}
+          disabled={documentsLoading || aiLoading || totalPages === currentPage}
         >
           {totalPages}
         </Pagination.Item>
@@ -104,14 +107,14 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
       <div className="d-flex">
         <Pagination>
           <Pagination.Prev
-            onClick={() => onPageSelect(currentPage - 1)}
+            onClick={() => onPageSelect(currentPage - 1, queryParams)}
             disabled={currentPage === 1 || documentsLoading || aiLoading || totalDocumentCount === 0}
           >
             <i className="bi bi-arrow-left"></i>
           </Pagination.Prev>
           {paginationItems}
           <Pagination.Next
-            onClick={() => onPageSelect(currentPage + 1)}
+            onClick={() => onPageSelect(currentPage + 1, queryParams)}
             disabled={currentPage === totalPages || documentsLoading || aiLoading || totalDocumentCount === 0}
           >
             <i className="bi bi-arrow-right"></i>

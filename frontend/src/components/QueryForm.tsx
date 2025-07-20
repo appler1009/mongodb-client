@@ -10,6 +10,7 @@ interface QueryFormProps {
   setNotificationMessage: (message: string | null) => void;
   setError: (message: string | null) => void;
   onQueryExecute: (params: MongoQueryParams) => void;
+  onQueryParamsChange: (params: MongoQueryParams) => void;
 }
 
 export const QueryForm: React.FC<QueryFormProps> = ({
@@ -18,6 +19,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
   setNotificationMessage,
   setError,
   onQueryExecute,
+  onQueryParamsChange,
 }) => {
   const [promptText, setPromptText] = useState<string>('');
   const [queryParams, setQueryParams] = useState<MongoQueryParams>({ readPreference: 'primary' });
@@ -43,6 +45,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
       setQueryParams((prev) => ({ ...prev, [key]: value }));
     }
     setQueryError(null);
+    onQueryParamsChange({ ...queryParams, [key]: value });
   };
 
   const handleAutoRunToggleChange = (checked: boolean) => {
@@ -106,6 +109,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
           if (parsedQuery.readPreference) formattedParams.readPreference = parsedQuery.readPreference;
 
           setQueryParams(formattedParams);
+          onQueryParamsChange(formattedParams);
           if (autoRunGeneratedQuery) {
             onQueryExecute(formattedParams);
             setAccordionActiveKey(null);
@@ -118,6 +122,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
           setQueryError(`Query Helper generated invalid JSON: ${errorMessage}. Please check the Query Helper's output.`);
           setNotificationMessage('Query Helper generated invalid JSON. Manual correction might be needed.');
           setQueryParams({ readPreference: 'primary' });
+          onQueryParamsChange({ readPreference: 'primary' });
         }
       } else {
         setQueryError('Query Helper did not return a query. Please try rephrasing your request.');
@@ -131,7 +136,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
     } finally {
       setAiLoading(false);
     }
-  }, [selectedCollection, promptText, autoRunGeneratedQuery, shareSamples, setNotificationMessage, setError, onQueryExecute]);
+  }, [selectedCollection, promptText, autoRunGeneratedQuery, shareSamples, setNotificationMessage, setError, onQueryExecute, onQueryParamsChange]);
 
   const handleExecuteManualQuery = () => {
     if (documentsLoading || aiLoading) {
@@ -143,6 +148,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
       : queryParams;
     setQueryError(null);
     onQueryExecute(params);
+    onQueryParamsChange(params);
     setAccordionActiveKey(null);
   };
 

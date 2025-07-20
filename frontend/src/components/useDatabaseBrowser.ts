@@ -17,7 +17,7 @@ interface DatabaseBrowserState {
   currentPage: number;
   documentsPerPage: number;
   fetchCollections: () => Promise<void>;
-  fetchDocuments: (params: MongoQueryParams) => Promise<void>;
+  fetchDocuments: (params: MongoQueryParams, page: number) => Promise<void>;
   resetBrowserState: () => void;
   setSelectedCollection: (collectionName: string) => void;
   setCurrentPage: (page: number) => void;
@@ -83,7 +83,7 @@ export const useDatabaseBrowser = ({ currentStatus, setError }: DatabaseBrowserH
     }, 100);
   }, [fetchCollections]);
 
-  const fetchDocuments = useCallback(async (params: MongoQueryParams) => {
+  const fetchDocuments = useCallback(async (params: MongoQueryParams, page: number) => {
     if (!selectedCollection) {
       setDocuments([]);
       setTotalDocumentCount(0);
@@ -92,7 +92,7 @@ export const useDatabaseBrowser = ({ currentStatus, setError }: DatabaseBrowserH
     setDocumentsLoading(true);
     setError(null);
     try {
-      const skip = (currentPage - 1) * documentsPerPage;
+      const skip = (page - 1) * documentsPerPage;
       const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, params);
       setDocuments(response.documents);
       setTotalDocumentCount(response.totalDocuments || 0);
@@ -104,7 +104,7 @@ export const useDatabaseBrowser = ({ currentStatus, setError }: DatabaseBrowserH
     } finally {
       setDocumentsLoading(false);
     }
-  }, [selectedCollection, currentPage, documentsPerPage, setError]);
+  }, [selectedCollection, documentsPerPage, setError]);
 
   useEffect(() => {
     if (currentStatus?.database) {
