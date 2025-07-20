@@ -1,14 +1,10 @@
 import React, { useMemo, useState, useContext, useCallback } from 'react';
-import type { Document } from '../types';
+import type { Document, MongoQueryParams } from '../types';
 import { Button, ButtonGroup, ToggleButton, Table, Alert } from 'react-bootstrap';
-
-// Import SyntaxHighlighter component
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-
-// Import light and dark themes from highlight.js styles
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { ThemeContext } from '../context/ThemeContext';
-
+import { exportCollectionDocuments } from '../api/backend';
 import '../styles/DocumentViewer.css';
 
 interface DocumentViewerProps {
@@ -16,6 +12,9 @@ interface DocumentViewerProps {
   documents: Document[];
   currentPage: number;
   documentsPerPage: number;
+  queryParams: MongoQueryParams;
+  setNotificationMessage: (message: string | null) => void;
+  setError: (message: string | null) => void;
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
@@ -42,11 +41,10 @@ const formatCellValue = (value: unknown): React.ReactNode => {
   return String(value);
 };
 
-// --- JSON View Component ---
 interface JsonViewProps {
   documents: Document[];
   collectionName: string | null;
-  jsonContent: string; // Now receives pre-formatted jsonContent
+  jsonContent: string;
 }
 
 const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionName, jsonContent }) => {
@@ -94,17 +92,20 @@ const JsonDocumentDisplay: React.FC<JsonViewProps> = ({ documents, collectionNam
     </div>
   );
 };
-// --- End JSON Component ---
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   collectionName,
   documents,
   currentPage,
   documentsPerPage,
+  queryParams,
+  setNotificationMessage,
+  setError,
 }) => {
   const [viewMode, setViewMode] = useState<'table' | 'json'>('table');
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [exportLoading, setExportLoading] = useState<boolean>(false);
 
   const columns = useMemo(() => {
     if (!Array.isArray(documents)) {
@@ -125,7 +126,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return sortedKeys;
   }, [documents]);
 
-  // Generate JSON content here for the button and for the JsonDocumentDisplay
   const jsonContent = useMemo(() => {
     if (!collectionName || documents.length === 0) {
       return '';
@@ -133,7 +133,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return JSON.stringify(documents, null, 2);
   }, [documents, collectionName]);
 
-  // Generate CSV content for the table
   const csvContent = useMemo(() => {
     if (!collectionName || documents.length === 0 || columns.length === 0) {
       return '';
@@ -142,13 +141,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const rows = documents.map(doc =>
       columns.map(col => {
         const value = doc[col];
-        return `"${String(value).replace(/"/g, '""')}"`; // Escape double quotes
+        return `"${String(value).replace(/"/g, '""')}"`;
       }).join(',')
     );
     return [header, ...rows].join('\n');
   }, [documents, columns, collectionName]);
 
-  // Handle copying content to clipboard based on view mode
   const handleCopy = useCallback(async () => {
     const content = viewMode === 'json' ? jsonContent : csvContent;
     if (content) {
@@ -160,9 +158,35 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
         setAlertMessage('Failed to copy!');
       }
       setShowAlert(true);
-      setTimeout(() => setShowAlert(false), 2000); // Auto-hide after 2 seconds
+      setTimeout(() => setShowAlert(false), 2000);
     }
   }, [viewMode, jsonContent, csvContent]);
+
+  const handleExport = async () => {
+    if (!collectionName) {
+      setNotificationMessage('Please select a collection to export.');
+      return;
+    }
+    setError(null);
+    setExportLoading(true);
+    try {
+      const { success, filePath, error: exportError } = await exportCollectionDocuments(collectionName, queryParams);
+      if (success && filePath) {
+        setNotificationMessage(`Exported to: ${filePath}`);
+      } else if (!success && exportError) {
+        setNotificationMessage(`Export failed: ${exportError}`);
+        setError(`Export failed: ${exportError}`);
+      } else {
+        setNotificationMessage('Export cancelled or failed.');
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(`An unexpected error occurred during export: ${errorMessage}`);
+      setNotificationMessage(`An unexpected error occurred: ${errorMessage}`);
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   if (!collectionName) {
     return <div className="document-viewer"><p>Please select a collection to view documents.</p></div>;
@@ -180,13 +204,22 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     <div className="document-viewer">
       <div className="document-viewer-header">
         <div className="view-controls-group">
-          {/* 1. Copy button aligned to the left, always visible */}
           <div className="copy-json-container">
             <div className="json-actions">
+              <Button
+                onClick={handleExport}
+                variant="secondary"
+                title="Export all documents matching the current query to a JSON Lines file"
+                disabled={!collectionName || exportLoading}
+                className="me-2"
+              >
+                {exportLoading ? 'Exporting...' : 'Export'}
+              </Button>
               <Button
                 onClick={handleCopy}
                 variant="primary"
                 title={viewMode === 'json' ? 'Copy formatted JSON to clipboard' : 'Copy CSV to clipboard'}
+                disabled={!collectionName || documents.length === 0}
               >
                 Copy
               </Button>
@@ -198,8 +231,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               )}
             </div>
           </div>
-
-          {/* 2. View Mode Toggles: JSON and Table aligned to the right */}
           <div className="view-toggle-container">
             <ButtonGroup>
               <ToggleButton
@@ -208,7 +239,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 variant={viewMode === 'json' ? 'success' : 'outline-success'}
                 value="json"
                 checked={viewMode === 'json'}
-                onChange={(e) => setViewMode('json')}
+                onChange={() => setViewMode('json')}
                 aria-pressed={viewMode === 'json'}
               >
                 JSON
@@ -219,7 +250,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 variant={viewMode === 'table' ? 'success' : 'outline-success'}
                 value="table"
                 checked={viewMode === 'table'}
-                onChange={(e) => setViewMode('table')}
+                onChange={() => setViewMode('table')}
                 aria-pressed={viewMode === 'table'}
               >
                 Table
@@ -228,7 +259,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </div>
         </div>
       </div>
-
       {viewMode === 'table' ? (
         <div className="document-table-container">
           <Table striped bordered hover responsive>
@@ -243,7 +273,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             <tbody>
               {documents.map((doc, docIndex) => {
                 const globalIndex = (currentPage - 1) * documentsPerPage + docIndex + 1;
-
                 return (
                   <tr key={doc._id ? String(doc._id) : `doc-${globalIndex}`}>
                     <td className="document-index-cell">{globalIndex}</td>
