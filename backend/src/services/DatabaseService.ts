@@ -105,7 +105,7 @@ export class DatabaseService {
       this.logger.debug(`Using cached schema for collection: ${collectionName}`);
       schemaMap = cached.schemaMap;
     } else {
-      const { schemaMap: fetchedSchema } = await this.getCollectionSchemaAndSampleDocuments(collectionName, 5);
+      const { schemaMap: fetchedSchema } = await this.getCollectionSchemaAndSampleDocuments(collectionName);
       schemaMap = fetchedSchema;
       this.schemaCache.set(collectionName, { schemaMap, timestamp: Date.now() });
     }
@@ -168,6 +168,7 @@ export class DatabaseService {
       if (field.startsWith('$')) {
         return;
       }
+      this.logger.debug(`field=${field}, value=${value}, context=${context}`);
       if (!schemaMap[field]) {
         this.logger.warn(`Field ${field} in ${context} not found in inferred schema for ${collectionName}`);
         return;
@@ -188,6 +189,12 @@ export class DatabaseService {
 
     const validateObject = (obj: any, context: string, fieldPrefix: string = '') => {
       if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+        // Skip ObjectId or Buffer-like objects
+        if (obj instanceof ObjectId || (obj.buffer && Array.isArray(obj.buffer))) {
+          const fullField = fieldPrefix || '_id'; // Default to '_id' if no prefix
+          validateField(fullField, obj, context);
+          return;
+        }
         for (const [key, value] of Object.entries(obj)) {
           if (key.startsWith('$')) {
             continue;
@@ -317,7 +324,7 @@ export class DatabaseService {
 
   public async getCollectionSchemaAndSampleDocuments(
     collectionName: string,
-    sampleCount: number = 5
+    sampleCount: number = 2
   ): Promise<{ sampleDocuments: MongoDocument[]; schemaMap: SchemaMap }> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
