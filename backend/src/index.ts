@@ -455,12 +455,19 @@ ${JSON.stringify(sampleDocuments, null, 2)}
       schemaSummary = `Schema for ${collectionName} (inferred from ${sampleDocuments.length} samples):\n{\n`;
       for (const [key, types] of Object.entries(schemaMap)) {
         const typeStr = types.join(' | ');
-        schemaSummary += `  ${key}: ${typeStr}${typeStr.includes('Date') ? ' (ISODate("YYYY-MM-DDTHH:mm:ss.sssZ"))' : typeStr.includes('ObjectId') ? ' (ObjectId("24-character-hex-string"))' : ''}\n`;
+        if (typeStr.includes('Date')) {
+          schemaSummary += `  ${key}: ${typeStr}("YYYY-MM-DDTHH:mm:ss.sssZ")\n`;
+        } else if (typeStr.includes('ObjectId')) {
+          schemaSummary += `  ${key}: ${typeStr}("24-character-hex-string")\n`;
+        } else {
+          schemaSummary += `  ${key}: ${typeStr}\n`;
+        }
       }
       schemaSummary += '}';
     } else {
       schemaSummary = `No schema could be inferred from sample documents in ${collectionName} (collection might be empty or samples invalid).`;
     }
+    logger.debug(schemaSummary);
 
     const systemInstruction = `As an expert MongoDB query generator, convert natural language descriptions into a valid MongoDB query parameters JSON object conforming to the following structure:
 {
