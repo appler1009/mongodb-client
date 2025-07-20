@@ -94,6 +94,7 @@ jobs:
         run: npm run package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_BUILDER_PUBLISH: never
 
       - name: Debug release directory
         if: runner.os == 'macOS'
