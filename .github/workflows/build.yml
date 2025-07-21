@@ -2,13 +2,23 @@ name: Build Electron App and Release Notes
 
 on:
   push:
-    branches: [main, mongo-connection-progress]
     tags: ['v*']
-  pull_request:
-    branches: [main]
 
 jobs:
+  check-branch-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch and tag
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.event.ref_type }}" == "tag" && "${{ github.event.base_ref }}" == "refs/heads/main" ]]; then
+            echo "Push to main branch with v* tag detected. Proceeding."
+          else
+            echo "Error: Workflow only runs for pushes to main branch with v* tags."
+            exit 1  # intentionally fail to stop the build
+          fi
+
   release-notes:
+    needs: check-branch-tag
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -39,10 +49,10 @@ jobs:
           path: RELEASE_NOTES.md
 
   build:
-    needs: release-notes
+    needs: [check-branch-tag, release-notes]
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -130,11 +140,10 @@ jobs:
           path: release/
 
   release:
-    needs: [release-notes, build]
+    needs: [check-branch-tag, release-notes, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
