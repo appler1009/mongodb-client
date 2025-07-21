@@ -2,7 +2,7 @@ name: Build Electron App and Release Notes
 
 on:
   push:
-    branches: [main]
+    branches: [main, mongo-connection-progress]
     tags: ['v*']
   pull_request:
     branches: [main]
