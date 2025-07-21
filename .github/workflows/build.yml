@@ -8,13 +8,24 @@ jobs:
   check-branch-tag:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Check branch and tag
         run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.event.ref_type }}" == "tag" && "${{ github.event.base_ref }}" == "refs/heads/main" ]]; then
-            echo "Push to main branch with v* tag detected. Proceeding."
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            TAG_COMMIT=$(git rev-parse "${{ github.ref_name }}")
+            MAIN_COMMIT=$(git rev-parse origin/main)
+            if git merge-base --is-ancestor "$TAG_COMMIT" "$MAIN_COMMIT"; then
+              echo "Push to main branch with v* tag detected. Proceeding."
+            else
+              echo "Error: Tag ${{ github.ref_name }} is not on main branch."
+              exit 1
+            fi
           else
-            echo "Error: Workflow only runs for pushes to main branch with v* tags."
-            exit 1  # intentionally fail to stop the build
+            echo "Error: Workflow only runs for v* tags (e.g., v1.0.35) on main branch."
+            exit 1
           fi
 
   release-notes:
@@ -49,7 +60,7 @@ jobs:
           path: RELEASE_NOTES.md
 
   build:
-    needs: [check-branch-tag, release-notes]
+    needs: check-branch-tag
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -140,7 +151,7 @@ jobs:
           path: release/
 
   release:
-    needs: [check-branch-tag, release-notes, build]
+    needs: [release-notes, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
