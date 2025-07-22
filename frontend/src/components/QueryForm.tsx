@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Form, Button, Alert, ToggleButton, Accordion, Card } from 'react-bootstrap';
+import { jsonrepair } from 'jsonrepair';
 import type { MongoQueryParams } from '../types';
 import { generateAIQuery } from '../api/backend';
 
@@ -97,16 +98,38 @@ export const QueryForm: React.FC<QueryFormProps> = ({
         setNotificationMessage(`Query Helper generation failed: ${backendError}`);
       } else if (generatedQuery) {
         try {
-          const parsedQuery = JSON.parse(generatedQuery) as MongoQueryParams;
-          const formattedParams: MongoQueryParams = { readPreference: 'primary' };
-          if (parsedQuery.query) formattedParams.query = parsedQuery.query as string;
-          if (parsedQuery.sort) formattedParams.sort = parsedQuery.sort as string;
-          if (parsedQuery.filter) formattedParams.filter = parsedQuery.filter as string;
-          if (parsedQuery.pipeline) formattedParams.pipeline = parsedQuery.pipeline as string[];
-          if (parsedQuery.projection) formattedParams.projection = parsedQuery.projection as string;
-          if (parsedQuery.collation) formattedParams.collation = parsedQuery.collation as string;
-          if (parsedQuery.hint) formattedParams.hint = parsedQuery.hint as string;
-          if (parsedQuery.readPreference) formattedParams.readPreference = parsedQuery.readPreference;
+          // Parse the repaired JSON
+          const parsedQuery = JSON.parse(jsonrepair(generatedQuery)) as MongoQueryParams;
+          const repairedParams: Partial<MongoQueryParams> = {};
+
+          // Repair and validate all JSON fields except pipeline
+          const fieldsToValidate: (keyof MongoQueryParams)[] = ['query', 'sort', 'filter', 'projection', 'collation', 'hint'];
+          for (const field of fieldsToValidate) {
+            if (parsedQuery[field] && field !== 'pipeline') {
+              const repaired = jsonrepair(parsedQuery[field] as string) as string;
+              JSON.parse(repaired); // Validate JSON
+              repairedParams[field] = repaired;
+            }
+          }
+          if (parsedQuery.pipeline) {
+            repairedParams.pipeline = (parsedQuery.pipeline as string[]).map(stage => {
+              const repaired = jsonrepair(stage) as string;
+              JSON.parse(repaired); // Validate JSON
+              return repaired;
+            });
+          }
+
+          // Assign repaired fields to formattedParams
+          const formattedParams: MongoQueryParams = {
+            readPreference: parsedQuery.readPreference || 'primary',
+            query: repairedParams.query,
+            sort: repairedParams.sort,
+            filter: repairedParams.filter,
+            pipeline: repairedParams.pipeline,
+            projection: repairedParams.projection,
+            collation: repairedParams.collation,
+            hint: repairedParams.hint,
+          };
 
           setQueryParams(formattedParams);
           onQueryParamsChange(formattedParams);
@@ -143,9 +166,39 @@ export const QueryForm: React.FC<QueryFormProps> = ({
       setQueryError('System is busy. Please wait for current operations to complete.');
       return;
     }
-    const params = Object.keys(queryParams).length === 0 || (Object.keys(queryParams).length === 1 && queryParams.readPreference)
+
+    const params: MongoQueryParams = Object.keys(queryParams).length === 0 ||
+      (Object.keys(queryParams).length === 1 && queryParams.readPreference)
       ? { ...queryParams, query: '{}' }
-      : queryParams;
+      : { ...queryParams };
+
+    // Validate and repair JSON fields
+    try {
+      const fieldsToValidate: (keyof MongoQueryParams)[] = ['query', 'sort', 'filter', 'projection', 'collation', 'hint'];
+      for (const field of fieldsToValidate) {
+        if (params[field]) {
+          const repaired = jsonrepair(params[field] as string);
+          JSON.parse(repaired);
+          if (field !== 'pipeline') {
+            params[field] = repaired as string;
+          }
+        }
+      }
+      if (params.pipeline) {
+        params.pipeline = params.pipeline.map(stage => {
+          const repaired = jsonrepair(stage);
+          JSON.parse(repaired);
+          return repaired as string;
+        });
+      }
+      // Update form fields with repaired JSON
+      setQueryParams(params);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid JSON in query parameters';
+      setQueryError(`Invalid JSON in query parameters: ${errorMessage}. Please correct the input.`);
+      return;
+    }
+
     setQueryError(null);
     onQueryExecute(params);
     onQueryParamsChange(params);
