@@ -4,6 +4,7 @@ import { Form, Button, Alert, ToggleButton, Accordion, Card } from 'react-bootst
 import { jsonrepair } from 'jsonrepair';
 import type { MongoQueryParams } from '../types';
 import { generateAIQuery } from '../api/backend';
+import '../styles/QueryForm.css';
 
 interface QueryFormProps {
   selectedCollection: string | null;
@@ -221,7 +222,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Query Helper</Form.Label>
                 <Form.Control
                   as="textarea"
-                  className="prompt-editor mb-2"
+                  className="prompt-editor query-editor mb-2"
                   value={promptText}
                   onChange={handlePromptTextChange}
                   onKeyDown={handlePromptKeyDown}
@@ -239,9 +240,9 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                       value="1"
                       onChange={(e) => handleAutoRunToggleChange(e.currentTarget.checked)}
                       disabled={aiLoading}
-                      className="me-2"
+                      className="me-2 toggle-checkbox"
                     >
-                      <i className={autoRunGeneratedQuery ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
+                      <i className={autoRunGeneratedQuery ? 'bi bi-check-circle toggle-icon me-1' : 'bi bi-x-circle toggle-icon me-1'}></i>
                       Auto-run
                     </ToggleButton>
                     <ToggleButton
@@ -252,9 +253,9 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                       value="1"
                       onChange={(e) => handleShareSamplesToggleChange(e.currentTarget.checked)}
                       disabled={aiLoading}
-                      className="me-2"
+                      className="me-2 toggle-checkbox"
                     >
-                      <i className={shareSamples ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'}></i>
+                      <i className={shareSamples ? 'bi bi-check-circle toggle-icon me-1' : 'bi bi-x-circle toggle-icon me-1'}></i>
                       Share Samples
                     </ToggleButton>
                   </div>
@@ -264,6 +265,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                       onClick={handleGenerateAIQuery}
                       disabled={documentsLoading || aiLoading || !selectedCollection || promptText.trim().length === 0}
                       title="Generate MongoDB query using Query Helper based on your natural language prompt"
+                      className="generate-query-btn"
                     >
                       {aiLoading ? 'Generating Query...' : 'Generate Query'}
                     </Button>
@@ -274,6 +276,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Query</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.query || ''}
                   onChange={(e) => handleParamChange('query', e.target.value)}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -286,6 +289,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Sort</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.sort || ''}
                   onChange={(e) => handleParamChange('sort', e.target.value)}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -298,6 +302,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Filter</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.filter || ''}
                   onChange={(e) => handleParamChange('filter', e.target.value)}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -310,6 +315,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Pipeline</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.pipeline ? queryParams.pipeline.join('\n') : ''}
                   onChange={(e) => handleParamChange('pipeline', e.target.value.split('\n').filter((v) => v.trim()))}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -322,6 +328,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Projection</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.projection || ''}
                   onChange={(e) => handleParamChange('projection', e.target.value)}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -334,6 +341,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Collation</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.collation || ''}
                   onChange={(e) => handleParamChange('collation', e.target.value)}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -346,6 +354,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 <Form.Label>Hint</Form.Label>
                 <Form.Control
                   as="textarea"
+                  className="query-editor"
                   value={queryParams.hint || ''}
                   onChange={(e) => handleParamChange('hint', e.target.value)}
                   onKeyDown={(e) => handleParamKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
@@ -368,17 +377,16 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                   <option value="nearest">nearest</option>
                 </Form.Select>
               </Form.Group>
-              <div className="d-flex">
-                <div className="me-auto">
-                  <Button
-                    variant="secondary"
-                    onClick={handleExecuteManualQuery}
-                    disabled={documentsLoading || aiLoading || !selectedCollection}
-                    title="Execute the manually entered query"
-                  >
-                    Run Query
-                  </Button>
-                </div>
+              <div className="run-query-container">
+                <Button
+                  variant="primary"
+                  onClick={handleExecuteManualQuery}
+                  disabled={documentsLoading || aiLoading || !selectedCollection}
+                  title="Execute the manually entered query"
+                  className="run-query-btn"
+                >
+                  Run Query
+                </Button>
               </div>
             </Accordion.Body>
           </Accordion.Item>

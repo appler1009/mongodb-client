@@ -1,0 +1,49 @@
+:root[data-bs-theme="light"] {
+  --placeholder-color: #c0c0c0;
+}
+
+:root[data-bs-theme="dark"] {
+  --placeholder-color: #606060;
+}
+
+.prompt-editor,
+.query-editor {
+  font-family: monospace;
+  font-size: 14px;
+}
+
+textarea.query-editor::placeholder {
+  font-style: italic;
+  color: var(--placeholder-color);
+  opacity: 1; /* Ensure consistent opacity across browsers */
+}
+
+.toggle-checkbox {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+}
+
+.toggle-checkbox .form-check-input {
+  margin-right: 0.5rem;
+}
+
+.toggle-checkbox .form-check-label {
+  font-size: 0.9rem;
+}
+
+.toggle-icon {
+  font-size: 1rem;
+  position: relative;
+  top: -1px;
+}
+
+.generate-query-btn,
+.run-query-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.run-query-container {
+  display: flex;
+  justify-content: flex-end;
+}
