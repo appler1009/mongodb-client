@@ -41,18 +41,17 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
     setSelectedCollection(collectionName);
     setCurrentPage(1);
     setQueryParams({ readPreference: 'primary' });
-    fetchDocuments({ readPreference: 'primary' }, 1);
   };
 
   const handlePageSelect = (page: number, params: MongoQueryParams) => {
     setCurrentPage(page);
-    fetchDocuments(params, page);
+    fetchDocuments(params, page, selectedCollection ?? undefined);
   };
 
   const handleDocumentsPerPageChange = (perPage: number) => {
     setDocumentsPerPage(perPage);
     setCurrentPage(1);
-    fetchDocuments(queryParams, 1);
+    fetchDocuments(queryParams, 1, selectedCollection ?? undefined);
   };
 
   const handleQueryParamsChange = (params: MongoQueryParams) => {
@@ -85,10 +84,13 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
             documentsLoading={documentsLoading}
             setNotificationMessage={setNotificationMessage}
             setError={setError}
-            onQueryExecute={(params) => fetchDocuments(params, 1)}
+            onQueryExecute={(params) => {
+              setCurrentPage(1);
+              fetchDocuments(params, 1, selectedCollection ?? undefined);
+            }}
             onQueryParamsChange={handleQueryParamsChange}
           />
-          {selectedCollection && (
+          {selectedCollection && totalDocumentCount > 0 && (
             <PaginationControls
               currentPage={currentPage}
               documentsPerPage={documentsPerPage}
@@ -103,7 +105,7 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
           )}
           {documentsLoading ? (
             <p className="text-center mt-3">Loading documents...</p>
-          ) : (
+          ) : documents.length > 0 ? (
             <DocumentViewer
               collectionName={selectedCollection}
               documents={documents}
@@ -113,6 +115,8 @@ export const DatabaseBrowser: React.FC<DatabaseBrowserProps> = ({
               setNotificationMessage={setNotificationMessage}
               setError={setError}
             />
+          ) : (
+            <p className="text-center mt-3">No documents to display. Run a query to fetch documents.</p>
           )}
         </Col>
       </Row>

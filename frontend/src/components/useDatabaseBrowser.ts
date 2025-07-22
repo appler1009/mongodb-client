@@ -17,7 +17,7 @@ interface DatabaseBrowserState {
   currentPage: number;
   documentsPerPage: number;
   fetchCollections: () => Promise<void>;
-  fetchDocuments: (params: MongoQueryParams, page: number) => Promise<void>;
+  fetchDocuments: (params: MongoQueryParams, page: number, collectionName?: string) => Promise<void>;
   resetBrowserState: () => void;
   setSelectedCollection: (collectionName: string) => void;
   setCurrentPage: (page: number) => void;
@@ -83,8 +83,9 @@ export const useDatabaseBrowser = ({ currentStatus, setError }: DatabaseBrowserH
     }, 100);
   }, [fetchCollections]);
 
-  const fetchDocuments = useCallback(async (params: MongoQueryParams, page: number) => {
-    if (!selectedCollection) {
+  const fetchDocuments = useCallback(async (params: MongoQueryParams, page: number, collectionName?: string) => {
+    const targetCollection = collectionName || selectedCollection;
+    if (!targetCollection) {
       setDocuments([]);
       setTotalDocumentCount(0);
       return;
@@ -93,12 +94,12 @@ export const useDatabaseBrowser = ({ currentStatus, setError }: DatabaseBrowserH
     setError(null);
     try {
       const skip = (page - 1) * documentsPerPage;
-      const response = await getCollectionDocuments(selectedCollection, documentsPerPage, skip, params);
+      const response = await getCollectionDocuments(targetCollection, documentsPerPage, skip, params);
       setDocuments(response.documents);
       setTotalDocumentCount(response.totalDocuments || 0);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-      setError(`Failed to fetch documents for ${selectedCollection}: ${errorMessage}`);
+      setError(`Failed to fetch documents for ${targetCollection}: ${errorMessage}`);
       setDocuments([]);
       setTotalDocumentCount(0);
     } finally {
