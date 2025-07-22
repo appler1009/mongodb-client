@@ -168,19 +168,30 @@ export class DatabaseService {
       if (field.startsWith('$')) {
         return;
       }
-      this.logger.debug(`field=${field}, value=${value}, context=${context}`);
       if (!schemaMap[field]) {
         this.logger.warn(`Field ${field} in ${context} not found in inferred schema for ${collectionName}`);
         return;
       }
       const expectedTypes = schemaMap[field];
+      this.logger.debug(`field=${field}, value=${value}, typeof value=${typeof value}, expectedTypes=${expectedTypes}`);
       let actualType: string;
-      if (value instanceof ObjectId) actualType = 'ObjectId';
-      else if (value instanceof Date) actualType = 'Date';
-      else if (Array.isArray(value)) actualType = 'array';
-      else if (value === null) actualType = 'null';
-      else if (typeof value === 'object') actualType = 'object';
-      else actualType = typeof value;
+      if (value instanceof ObjectId) {
+        actualType = 'ObjectId';
+      } else if (value instanceof Date) {
+        actualType = 'Date';
+      } else if (Array.isArray(value)) {
+        actualType = 'array';
+      } else if (value === null) {
+        actualType = 'null';
+      } else if (typeof value === 'object') {
+        actualType = 'object';
+      } else if (typeof value === 'string' && expectedTypes.includes('ObjectId') && /^[0-9a-fA-F]{24}$/.test(value)) {
+        actualType = 'ObjectId';
+      } else if (typeof value === 'string' && expectedTypes.includes('Date') && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+        actualType = 'Date';
+      } else {
+        actualType = typeof value;
+      }
 
       if (!expectedTypes.includes(actualType)) {
         this.logger.warn(`Type mismatch for ${field} in ${context}: expected ${expectedTypes.join(' | ')}, got ${actualType}`);
@@ -339,39 +350,57 @@ export class DatabaseService {
       const sampleDocuments = (await collection.aggregate([
         { $sample: { size: sampleCount } }
       ]).toArray()) as MongoDocument[];
+      this.logger.debug(`sample docs ${JSON.stringify(sampleDocuments)}`);
 
-      const schemaMap: SchemaMap = {};
-      sampleDocuments.forEach(doc => {
-        if (typeof doc === 'object' && doc !== null) {
-          for (const key in doc) {
-            if (Object.prototype.hasOwnProperty.call(doc, key)) {
-              const value = doc[key];
-              let type: string;
-              if (value instanceof ObjectId) {
-                type = 'ObjectId';
-              } else if (value instanceof Date) {
-                type = 'Date';
-              } else if (Array.isArray(value)) {
-                type = 'array';
-              } else if (value === null) {
-                type = 'null';
-              } else if (typeof value === 'object') {
-                type = 'object';
-              } else {
-                type = typeof value;
-              }
-              if (!schemaMap[key]) {
-                schemaMap[key] = [];
-              }
-              if (!schemaMap[key].includes(type)) {
-                schemaMap[key].push(type);
-              }
+      // Get field names from a single document
+      const sampleDoc = await collection.findOne();
+      if (!sampleDoc) {
+        this.logger.debug('No documents found in collection, returning empty schema.');
+        return { sampleDocuments, schemaMap: {} };
+      }
+      const fields = Object.keys(sampleDoc);
+
+      // Build aggregation pipeline to get BSON types
+      const pipeline = [
+        { $sample: { size: sampleCount } },
+        {
+          $project: Object.fromEntries(
+            fields.map(key => [`${key}_type`, { $type: `$${key}` }])
+          )
+        },
+        {
+          $group: {
+            _id: null,
+            types: {
+              $addToSet: Object.fromEntries(
+                fields.map(key => [key, `$${key}_type`])
+              )
             }
           }
         }
-      });
+      ];
 
-      this.logger.debug({ schemaMap, sampleCount: sampleDocuments.length }, 'Generated schema map and samples.');
+      // Execute aggregation to get types
+      const result = await collection.aggregate(pipeline).toArray();
+      const schemaMap: SchemaMap = {};
+      result[0]?.types.forEach((typeObj: any) => {
+        for (const key in typeObj) {
+          let type = typeObj[key];
+          if (type.toLowerCase() === 'objectid') {
+            type = 'ObjectId';
+          } else if (type.toLowerCase() === 'date') {
+            type = 'Date';
+          }
+          if (!schemaMap[key]) {
+            schemaMap[key] = [];
+          }
+          if (!schemaMap[key].includes(type)) {
+            schemaMap[key].push(type);
+          }
+        }
+      });
+      this.logger.debug({ schemaMap: JSON.stringify(schemaMap), sampleCount: sampleDocuments.length },
+        'Generated schema map and samples.');
       return { sampleDocuments, schemaMap };
     } catch (error: any) {
       this.logger.error({ error, collectionName }, `Failed to get schema and sample documents for ${collectionName}`);
