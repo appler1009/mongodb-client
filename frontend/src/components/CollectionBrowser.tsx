@@ -75,7 +75,7 @@ export const CollectionBrowser: React.FC<CollectionBrowserProps> = ({
   }, [fetchDocumentCounts]);
 
   const connectionInfoVariant = "info";
-  const collectionActionVariant = "secondary";
+  const collectionActionVariant = "success";
 
   return (
     <div className="collection-browser">
