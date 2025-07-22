@@ -274,6 +274,7 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
 
     logger.debug(`IPC: Successfully connected to MongoDB: ${connectionConfig.name} on database: ${activeDatabaseName} with driver ${activeDriverVersion}`);
     return {
+      name: connectionConfig.name,
       message: 'Successfully connected to MongoDB.',
       connectionId: activeConnectionId,
       database: activeDatabaseName

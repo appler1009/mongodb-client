@@ -10,6 +10,7 @@ export interface ConnectionConfig {
 
 // Interface for the connection status from the backend
 export interface ConnectionStatus {
+  name?: string;
   message: string;
   connectionId?: string;
   database?: string;

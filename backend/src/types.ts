@@ -10,6 +10,7 @@ export interface ConnectionConfig {
 }
 
 export interface ConnectionStatus {
+  name?: string;
   message: string;
   connectionId?: string;
   database?: string;

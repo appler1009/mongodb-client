@@ -26,3 +26,7 @@
   vertical-align: super;
   line-height: 1;
 }
+
+.collection-list-actions {
+    margin-top: 1em;
+}
