@@ -62,7 +62,7 @@ export function initialize(connectionsStore: Store<any>) {
 }
 
 // Helper function to disconnect
-async function disconnectMongoInternal() {
+export async function disconnectMongoInternal() {
   if (activeMongoClient) {
     logger.debug('Closing existing MongoDB connection...');
     await activeMongoClient.close();
