@@ -1,4 +1,4 @@
-import { generateAIQuery } from '../index';
+import * as index from '../index';
 import type { Document, SchemaMap } from '../types';
 
 // Mock pino logger
@@ -20,15 +20,26 @@ describe('generateAIQuery', () => {
   const collectionName = 'users';
   const schemaMap: SchemaMap = { _id: ['ObjectId'], name: ['string'], age: ['number'] };
   const sampleDocuments: Document[] = [{ _id: '1', name: 'Alice', age: 25 }];
-  const shareSamples: boolean = false;
+  const shareSamples = false;
+
+  // Mock getCollectionSchemaAndSampleDocuments
+  const mockGetCollectionSchemaAndSampleDocuments = jest
+    .spyOn(index, 'getCollectionSchemaAndSampleDocuments')
+    .mockName('getCollectionSchemaAndSampleDocuments');
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockReset();
+    // Mock implementation for getCollectionSchemaAndSampleDocuments
+    mockGetCollectionSchemaAndSampleDocuments.mockResolvedValue({
+      schemaMap,
+      sampleDocuments,
+    });
   });
 
   afterAll(() => {
     mockFetch.mockRestore();
+    mockGetCollectionSchemaAndSampleDocuments.mockRestore();
   });
 
   it('returns valid JSON from AI response', async () => {
@@ -38,11 +49,12 @@ describe('generateAIQuery', () => {
     };
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: jest.fn().mockResolvedValueOnce(aiResponse),
-    } as any);
+      json: async () => aiResponse,
+    } as Response);
 
-    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
+    const result = await index.generateAIQuery(userPrompt, collectionName, shareSamples);
 
+    expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
       'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
@@ -53,6 +65,7 @@ describe('generateAIQuery', () => {
           'Accept': 'application/json',
           'Accept-Encoding': 'identity',
         }),
+        body: expect.any(String),
       })
     );
     expect(result).toEqual({
@@ -60,7 +73,12 @@ describe('generateAIQuery', () => {
     });
     const mockLogger = require('pino')();
     expect(mockLogger.debug).toHaveBeenCalledWith(
-      expect.objectContaining({ collectionName, userPromptLength: userPrompt.length, sampleDocCount: 1, model: 'grok-3-mini' }),
+      expect.objectContaining({
+        collectionName,
+        userPromptLength: userPrompt.length,
+        sampleDocCount: sampleDocuments.length,
+        model: 'grok-3-mini',
+      }),
       'Sending request to Query Helper (grok-3-mini)...'
     );
     expect(mockLogger.debug).toHaveBeenCalledWith(
@@ -73,11 +91,12 @@ describe('generateAIQuery', () => {
     const aiResponse = { choices: [{ message: { content: '{"query": {"age": "invalid"' } }] };
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: jest.fn().mockResolvedValueOnce(aiResponse),
-    } as any);
+      json: async () => aiResponse,
+    } as Response);
 
-    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
+    const result = await index.generateAIQuery(userPrompt, collectionName, shareSamples);
 
+    expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
       'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
@@ -88,6 +107,7 @@ describe('generateAIQuery', () => {
           'Accept': 'application/json',
           'Accept-Encoding': 'identity',
         }),
+        body: expect.any(String),
       })
     );
     expect(result).toEqual({
@@ -105,11 +125,12 @@ describe('generateAIQuery', () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: jest.fn().mockResolvedValueOnce(aiResponse),
-    } as any);
+      json: async () => aiResponse,
+    } as Response);
 
-    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
+    const result = await index.generateAIQuery(userPrompt, collectionName, shareSamples);
 
+    expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
       'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
@@ -120,6 +141,7 @@ describe('generateAIQuery', () => {
           'Accept': 'application/json',
           'Accept-Encoding': 'identity',
         }),
+        body: expect.any(String),
       })
     );
     expect(result).toEqual({
@@ -136,11 +158,12 @@ describe('generateAIQuery', () => {
     const aiResponse = { choices: [] };
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: jest.fn().mockResolvedValueOnce(aiResponse),
-    } as any);
+      json: async () => aiResponse,
+    } as Response);
 
-    const result = await generateAIQuery(userPrompt, collectionName, shareSamples);
+    const result = await index.generateAIQuery(userPrompt, collectionName, shareSamples);
 
+    expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
       'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
@@ -151,6 +174,7 @@ describe('generateAIQuery', () => {
           'Accept': 'application/json',
           'Accept-Encoding': 'identity',
         }),
+        body: expect.any(String),
       })
     );
     expect(result).toEqual({
