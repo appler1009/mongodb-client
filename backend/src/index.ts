@@ -77,8 +77,17 @@ export async function disconnectMongoInternal() {
 }
 
 // --- Helper: Prepare documents for frontend serialization ---
-const prepareDocumentForFrontend = (doc: any): any => {
-  if (!doc || typeof doc !== 'object') {
+export function prepareDocumentForFrontend(doc: any): any {
+  if (!doc) { // Handles null or undefined
+    return doc;
+  }
+
+  // ADD THIS NEW CHECK HERE:
+  if (doc instanceof Date) {
+    return doc.toISOString();
+  }
+
+  if (typeof doc !== 'object') { // Handles primitives after Date check
     return doc;
   }
 
@@ -91,10 +100,7 @@ const prepareDocumentForFrontend = (doc: any): any => {
     if (Object.prototype.hasOwnProperty.call(doc, key)) {
       const value = doc[key];
 
-      if (value && typeof value === 'object' && value._bsontype === 'ObjectID') {
-        newDoc[key] = value.toHexString();
-      }
-      else if (value instanceof ObjectId) {
+      if (value && typeof value === 'object' && value._bsontype === 'ObjectID' && typeof value.toHexString === 'function') {
         newDoc[key] = value.toHexString();
       }
       else if (value instanceof Date) {
@@ -310,9 +316,13 @@ export const cancelConnectionAttempt = async (attemptId: string): Promise<{ succ
   attempt.controller.abort();
 
   // Run any cleanup if needed (e.g., close an established connection)
-  logger.debug(`Calling cleanup for attempt ID: ${attemptId}`);
   if (attempt.cleanup) {
-    await attempt.cleanup();
+    logger.debug(`Calling cleanup for attempt ID: ${attemptId}`);
+    try {
+      await attempt.cleanup();
+    } catch (cleanupErr: any) {
+      logger.error({ cleanupErr }, `Error during cleanup for attempt ID: ${attemptId}`);
+    }
   }
 
   // Clean up
@@ -339,6 +349,7 @@ export const getCollectionDocuments = async (
   skip: number = 0,
   params: MongoQueryParams = {}
 ): Promise<DocumentsResponse> => {
+  logger.debug('IPC: getCollectionDocuments called');
   try {
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to retrieve documents.');

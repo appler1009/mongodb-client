@@ -9,11 +9,21 @@ export interface ConnectionConfig {
   driverVersion?: 'v6' | 'v5' | 'v4' | 'v3'; // Optional field for the driver version that worked
 }
 
+// Define an enum for the actual status values
+export enum ConnectionStateValue {
+  Connected = 'CONNECTED',
+  Disconnected = 'DISCONNECTED',
+  Error = 'ERROR',
+  Connecting = 'CONNECTING', // You might want to add this for states during connection
+}
+
+// Update the ConnectionStatus interface to include a 'status' field
 export interface ConnectionStatus {
   name?: string;
   message: string;
   connectionId?: string;
   database?: string;
+  status?: ConnectionStateValue;
 }
 
 export interface CollectionInfo {
