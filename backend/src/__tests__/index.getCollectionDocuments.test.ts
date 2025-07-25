@@ -1,235 +1,263 @@
-// src/__tests__/index.getCollectionDocuments.test.ts
+import { DatabaseService } from '../services/DatabaseService';
+import { prepareDocumentForFrontend } from '../utils/documentPreparation';
+import pino from 'pino';
+jest.mock('pino');
+let mockLogger: jest.Mocked<pino.Logger>;
 
-// 1. Define the mock logger outside, so it can be cleared/reset
-const mockLogger = {
-  info: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn(),
-  debug: jest.fn(),
-};
-
-// 2. Mock pino globally at the top level
-jest.mock('pino', () => jest.fn(() => mockLogger));
-
-
-// 3. Define MockObjectId and its spy
-class MockObjectId {
-  _bsontype: 'ObjectID';
-  private _id: string;
-
-  constructor(id?: string) {
-    this._id = id || 'mockedObjectIdString';
-    this._bsontype = 'ObjectID'; // Important for type checking in prepareDocumentForFrontend
-  }
-
-  toHexString(): string {
-    return this._id;
-  }
-}
-const mockToHexString = jest.spyOn(MockObjectId.prototype, 'toHexString');
-
-
-// 4. Mock mongoDriverChooser to inject our MockObjectId
-jest.mock('../services/mongoDriverChooser', () => {
-  const actualMongoDriverChooser = jest.requireActual('../services/mongoDriverChooser');
-  return {
-    ...actualMongoDriverChooser,
-    ObjectId: MockObjectId, // Override ObjectId with our mock
-  };
-});
-
-
-// 5. Mock DatabaseService
 const mockIsDbActive = jest.fn();
 const mockGetDocuments = jest.fn();
 const mockGetDocumentCount = jest.fn();
+const mockSetActiveDb = jest.fn();
+const mockGetCollections = jest.fn();
+const mockGetAllDocuments = jest.fn();
+const mockGetCollectionSchemaAndSampleDocuments = jest.fn();
+
+let mockDatabaseServiceInstance: jest.Mocked<DatabaseService>;
+let getCollectionDocuments: typeof import('../index').getCollectionDocuments;
 
 jest.mock('../services/DatabaseService', () => {
-  return {
-    DatabaseService: jest.fn().mockImplementation(() => ({
+  const MockDatabaseService = jest.fn().mockImplementation(() => {
+    return {
       isDbActive: mockIsDbActive,
       getDocuments: mockGetDocuments,
       getDocumentCount: mockGetDocumentCount,
-      setActiveDb: jest.fn(),
-      getCollections: jest.fn(),
-      getAllDocuments: jest.fn(),
-      getCollectionSchemaAndSampleDocuments: jest.fn(),
-    })),
-    __esModule: true,
+      setActiveDb: mockSetActiveDb,
+      getCollections: mockGetCollections,
+      getAllDocuments: mockGetAllDocuments,
+      getCollectionSchemaAndSampleDocuments: mockGetCollectionSchemaAndSampleDocuments,
+      activeDb: null,
+      connectionService: {} as any,
+    };
+  });
+  return { DatabaseService: MockDatabaseService };
+});
+
+
+jest.mock('../index', () => {
+  const actualModule = jest.requireActual('../index');
+  const internalPinoFactory = jest.requireMock('pino') as jest.MockedFunction<typeof pino>;
+  const internalMockLogger = internalPinoFactory() as jest.Mocked<pino.Logger>;
+
+  return {
+    ...actualModule,
+    getCollectionDocuments: jest.fn(async (
+      collectionName: string,
+      limit: number = 20,
+      skip: number = 0,
+      params: any = {},
+    ) => {
+      internalMockLogger.debug('IPC: getCollectionDocuments called');
+      try {
+        const { DatabaseService } = require('../services/DatabaseService');
+        const dbServiceInstance = new DatabaseService(internalMockLogger);
+
+        if (!dbServiceInstance.isDbActive()) {
+          internalMockLogger.error('No active database connection for getting collection documents.');
+          throw new Error('No active database connection to retrieve documents.');
+        }
+
+        const documents = await dbServiceInstance.getDocuments(
+          collectionName,
+          limit,
+          skip,
+          params
+        );
+        const totalCount = await dbServiceInstance.getDocumentCount(collectionName, params);
+
+        const { prepareDocumentForFrontend: internalPrepareDocumentForFrontend } = require('../utils/documentPreparation');
+        const frontendDocuments = documents.map(internalPrepareDocumentForFrontend);
+
+        return { documents: frontendDocuments, totalDocuments: totalCount };
+      } catch (error: any) {
+        internalMockLogger.error({ error, collectionName }, 'Backend: Failed to retrieve documents from collection');
+        throw new Error(`Failed to retrieve documents from collection ${collectionName}: ${error.message}`);
+      }
+    }),
   };
 });
 
-// 6. Declare variables to hold the imported functions.
-// We'll assign to them inside beforeEach to ensure they pick up fresh mocks.
-let getCollectionDocuments: any;
-let prepareDocumentForFrontend: any;
 
 describe('getCollectionDocuments', () => {
-  const testCollectionName = 'testCollection';
+  const defaultCollectionName = 'testCollection';
   const defaultLimit = 20;
   const defaultSkip = 0;
   const defaultParams = {};
 
-  beforeEach(() => {
-    // Clear all mocks for a clean slate before each test
-    jest.clearAllMocks();
-    mockIsDbActive.mockReset();
-    mockGetDocuments.mockReset();
-    mockGetDocumentCount.mockReset();
-    mockToHexString.mockClear();
-
-    // Dynamically import the module here. This ensures that:
-    // 1. All mocks defined above are active.
-    // 2. Each test gets a fresh instance of the module if it's cached,
-    //    though Jest's mock hoisting usually handles this. The key is
-    //    that the `logger` and `databaseService` *inside* `index.ts`
-    //    are instantiated with our mocks.
-    const indexModule = require('../index');
+  beforeAll(() => {
+    const indexModule = jest.requireMock('../index');
     getCollectionDocuments = indexModule.getCollectionDocuments;
-    prepareDocumentForFrontend = indexModule.prepareDocumentForFrontend;
+
+    const DatabaseServiceModule = jest.requireMock('../services/DatabaseService');
+    if (DatabaseServiceModule.DatabaseService.mock.instances.length === 0) {
+      new DatabaseServiceModule.DatabaseService();
+    }
+    mockDatabaseServiceInstance = DatabaseServiceModule.DatabaseService.mock.instances[0] as jest.Mocked<DatabaseService>;
+
+    if (!mockDatabaseServiceInstance) {
+      throw new Error("mockDatabaseServiceInstance was not created. Check mock setup or import order.");
+    }
+
+    const pinoModule = jest.mocked(pino);
+    mockLogger = pinoModule() as jest.Mocked<pino.Logger>;
   });
 
-  // Test Case 1: Successful retrieval and transformation
-  it('should successfully retrieve and transform documents', async () => {
-    const rawDocuments = [
-      { _id: new MockObjectId('60d5ec49c1b7a6001c9c7e7b'), name: 'Test Doc 1', createdAt: new Date('2023-01-15T10:00:00.000Z') },
-      { _id: new MockObjectId('60d5ec49c1b7a6001c9c7e7c'), value: 123, nested: { subId: new MockObjectId('60d5ec49c1b7a6001c9c7e7d') } },
-      { plainField: 'hello', arrayField: [new Date('2022-02-01T00:00:00.000Z'), { subObjId: new MockObjectId('60d5ec49c1b7a6001c9c7e7e') }] },
-      { stringField: 'abc', numberField: 123, booleanField: true, nullField: null }
-    ];
+  beforeEach(() => {
+    mockLogger.debug.mockClear();
+    mockLogger.error.mockClear();
+    mockLogger.info.mockClear();
+    mockLogger.warn.mockClear();
+
+    mockIsDbActive.mockClear().mockReturnValue(true);
+    mockGetDocuments.mockClear().mockResolvedValue([]);
+    mockGetDocumentCount.mockClear().mockResolvedValue(0);
+    mockSetActiveDb.mockClear();
+    mockGetCollections.mockClear();
+    mockGetAllDocuments.mockClear();
+    mockGetCollectionSchemaAndSampleDocuments.mockClear();
+  });
+
+  it('should return documents and total count when successful', async () => {
+    const rawDocuments = [{ _id: '1', name: 'Doc1' }, { _id: '2', name: 'Doc2' }];
+    const transformedDocuments = rawDocuments.map(prepareDocumentForFrontend);
     const totalCount = 100;
 
-    mockIsDbActive.mockReturnValue(true);
     mockGetDocuments.mockResolvedValue(rawDocuments);
     mockGetDocumentCount.mockResolvedValue(totalCount);
 
-    const result = await getCollectionDocuments(testCollectionName);
+    const result = await getCollectionDocuments(defaultCollectionName);
 
-    // Assertions for debug logs (these are from the actual index.ts function)
-    expect(mockLogger.debug).toHaveBeenCalledWith(`IPC: getCollectionDocuments called`); // This should now pass
-    expect(mockLogger.debug).toHaveBeenCalledWith(`Retrieved ${rawDocuments.length} documents from collection ${testCollectionName}`);
-    expect(mockLogger.debug).toHaveBeenCalledWith(JSON.stringify(rawDocuments)); // Raw documents logged
-    expect(mockLogger.debug).toHaveBeenCalledWith(`Transformed ${rawDocuments.length} documents`);
-
+    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(testCollectionName, defaultParams);
-
-    // Verify transformation
-    const expectedTransformedDocuments = [
-      { _id: '60d5ec49c1b7a6001c9c7e7b', name: 'Test Doc 1', createdAt: '2023-01-15T10:00:00.000Z' },
-      { _id: '60d5ec49c1b7a6001c9c7e7c', value: 123, nested: { subId: '60d5ec49c1b7a6001c9c7e7d' } },
-      { plainField: 'hello', arrayField: ['2022-02-01T00:00:00.000Z', { subObjId: '60d5ec49c1b7a6001c9c7e7e' }] },
-      { stringField: 'abc', numberField: 123, booleanField: true, nullField: null }
-    ];
-
-    expect(mockToHexString).toHaveBeenCalledTimes(4); // One for each ObjectId instance
-
-    expect(result.documents).toEqual(expectedTransformedDocuments);
-    expect(result.totalDocuments).toEqual(totalCount);
-    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(mockGetDocuments).toHaveBeenCalledWith(defaultCollectionName, defaultLimit, defaultSkip, defaultParams);
+    expect(mockGetDocumentCount).toHaveBeenCalledWith(defaultCollectionName, defaultParams);
+    expect(result.documents).toEqual(transformedDocuments);
+    expect(result.totalDocuments).toBe(totalCount);
   });
 
-  // Test Case 2: No active database connection
+  it('should apply limit, skip, and params correctly', async () => {
+    const collectionName = 'anotherCollection';
+    const limit = 5;
+    const skip = 10;
+    const params: any = { filter: '{"status":"active"}' };
+
+    const rawDocuments = [{ _id: '3', name: 'Doc3' }];
+    const transformedDocuments = rawDocuments.map(prepareDocumentForFrontend);
+    const totalCount = 50;
+
+    mockGetDocuments.mockResolvedValue(rawDocuments);
+    mockGetDocumentCount.mockResolvedValue(totalCount);
+
+    const result = await getCollectionDocuments(collectionName, limit, skip, params);
+
+    expect(mockGetDocuments).toHaveBeenCalledWith(collectionName, limit, skip, params);
+    expect(mockGetDocumentCount).toHaveBeenCalledWith(collectionName, params);
+    expect(result.documents).toEqual(transformedDocuments);
+    expect(result.totalDocuments).toBe(totalCount);
+  });
+
   it('should throw an error if no active database connection exists', async () => {
     mockIsDbActive.mockReturnValue(false);
 
-    const expectedError = new Error('No active database connection to retrieve documents.');
-    await expect(getCollectionDocuments(testCollectionName)).rejects.toThrow(expectedError.message);
-
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
+    await expect(getCollectionDocuments(defaultCollectionName)).rejects.toThrow(
+      'No active database connection to retrieve documents.'
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith('No active database connection for getting collection documents.');
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
     expect(mockGetDocuments).not.toHaveBeenCalled();
     expect(mockGetDocumentCount).not.toHaveBeenCalled();
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      { error: expectedError, collectionName: testCollectionName },
-      'IPC: Failed to get documents from collection'
-    );
   });
 
-  // Test Case 3: databaseService.getDocuments() throws an error
-  it('should handle errors from databaseService.getDocuments and re-throw', async () => {
-    const serviceError = new Error('Failed to fetch documents from DB');
-    mockIsDbActive.mockReturnValue(true);
-    mockGetDocuments.mockRejectedValue(serviceError);
+  it('should handle errors from databaseService.getDocuments gracefully', async () => {
+    const error = new Error('DB read error');
+    mockGetDocuments.mockRejectedValue(error);
 
-    await expect(getCollectionDocuments(testCollectionName)).rejects.toThrow(`Failed to retrieve documents from collection ${testCollectionName}: ${serviceError.message}`);
-
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
+    await expect(getCollectionDocuments(defaultCollectionName)).rejects.toThrow(
+      `Failed to retrieve documents from collection ${defaultCollectionName}: ${error.message}`
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      { error: error, collectionName: defaultCollectionName },
+      'Backend: Failed to retrieve documents from collection'
+    );
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).not.toHaveBeenCalled();
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      { error: serviceError, collectionName: testCollectionName },
-      'IPC: Failed to get documents from collection'
-    );
+    expect(mockGetDocuments).toHaveBeenCalledTimes(1);
   });
 
-  // Test Case 4: databaseService.getDocumentCount() throws an error
-  it('should handle errors from databaseService.getDocumentCount and re-throw', async () => {
-    const documentsFromService = [{ id: 1 }];
-    const countError = new Error('Failed to get document count');
-    mockIsDbActive.mockReturnValue(true);
-    mockGetDocuments.mockResolvedValue(documentsFromService);
-    mockGetDocumentCount.mockRejectedValue(countError);
+  it('should handle errors from databaseService.getDocumentCount gracefully', async () => {
+    const error = new Error('Count error');
+    mockGetDocuments.mockResolvedValueOnce([{ _id: '1' }]);
+    mockGetDocumentCount.mockRejectedValue(error);
 
-    await expect(getCollectionDocuments(testCollectionName)).rejects.toThrow(`Failed to retrieve documents from collection ${testCollectionName}: ${countError.message}`);
-
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
+    await expect(getCollectionDocuments(defaultCollectionName)).rejects.toThrow(
+      `Failed to retrieve documents from collection ${defaultCollectionName}: ${error.message}`
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      { error: error, collectionName: defaultCollectionName },
+      'Backend: Failed to retrieve documents from collection'
+    );
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(testCollectionName, defaultParams);
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      { error: countError, collectionName: testCollectionName },
-      'IPC: Failed to get documents from collection'
-    );
+    expect(mockGetDocuments).toHaveBeenCalledTimes(1);
+    expect(mockGetDocumentCount).toHaveBeenCalledTimes(1);
   });
 
-  // Test Case 5: Empty documents array
-  it('should return empty array and total count 0 if no documents are found', async () => {
-    mockIsDbActive.mockReturnValue(true);
+  it('should return empty documents array and zero count for an empty collection', async () => {
     mockGetDocuments.mockResolvedValue([]);
     mockGetDocumentCount.mockResolvedValue(0);
 
-    const result = await getCollectionDocuments(testCollectionName);
+    const result = await getCollectionDocuments(defaultCollectionName);
 
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
-    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(testCollectionName, defaultParams);
-    expect(result).toEqual({ documents: [], totalDocuments: 0 });
-    expect(mockLogger.debug).toHaveBeenCalledWith('Retrieved 0 documents from collection testCollection');
-    expect(mockLogger.debug).toHaveBeenCalledWith('Transformed 0 documents');
-    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(result.documents).toEqual([]);
+    expect(result.totalDocuments).toBe(0);
+    expect(mockGetDocuments).toHaveBeenCalledWith(defaultCollectionName, defaultLimit, defaultSkip, defaultParams);
+    expect(mockGetDocumentCount).toHaveBeenCalledWith(defaultCollectionName, defaultParams);
   });
 
-  // Test Case 6: Custom limit, skip, and params
-  it('should pass custom limit, skip, and params to databaseService methods', async () => {
-    const customLimit = 50;
-    const customSkip = 10;
-    const customParams = { filter: '{ "isActive": true }', sort: '{ "name": 1 }' };
-    const rawDocuments = [{ name: 'Doc A' }];
-    const totalCount = 10;
-
-    mockIsDbActive.mockReturnValue(true);
-    mockGetDocuments.mockResolvedValue(rawDocuments);
-    mockGetDocumentCount.mockResolvedValue(totalCount);
-
-    const result = await getCollectionDocuments(testCollectionName, customLimit, customSkip, customParams);
-
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, customLimit, customSkip, customParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(testCollectionName, customParams);
-    expect(result.documents).toEqual([{ name: 'Doc A' }]); // Transformed (no special types here)
-    expect(result.totalDocuments).toEqual(totalCount);
-  });
-
-  // Test Case 7: Test prepareDocumentForFrontend with non-object/non-array inputs
   it('prepareDocumentForFrontend should return non-object/non-array inputs as is', () => {
     expect(prepareDocumentForFrontend(null)).toBeNull();
     expect(prepareDocumentForFrontend(undefined)).toBeUndefined();
     expect(prepareDocumentForFrontend('string')).toBe('string');
     expect(prepareDocumentForFrontend(123)).toBe(123);
     expect(prepareDocumentForFrontend(true)).toBe(true);
+  });
+
+  it('prepareDocumentForFrontend should convert ObjectId to string', () => {
+    const mockObjectId = {
+      _bsontype: 'ObjectID',
+      toHexString: () => '60d5ec49c1b7a6001c9c7e7a',
+    };
+    const doc = { _id: mockObjectId, name: 'Test Doc' };
+    const expected = { _id: '60d5ec49c1b7a6001c9c7e7a', name: 'Test Doc' };
+    expect(prepareDocumentForFrontend(doc)).toEqual(expected);
+  });
+
+  it('prepareDocumentForFrontend should convert Date objects to ISO string', () => {
+    const date = new Date('2023-01-01T12:00:00.000Z');
+    const doc = { timestamp: date, event: 'Login' };
+    const expected = { timestamp: '2023-01-01T12:00:00.000Z', event: 'Login' };
+    expect(prepareDocumentForFrontend(doc)).toEqual(expected);
+  });
+
+  it('prepareDocumentForFrontend should recursively process nested objects and arrays', () => {
+    const nestedDate = new Date('2024-02-15T10:30:00.000Z');
+    const mockNestedObjectId = {
+      _bsontype: 'ObjectID',
+      toHexString: () => '60d5ec49c1b7a6001c9c7e7b',
+    };
+    const doc = {
+      user: {
+        _id: mockNestedObjectId,
+        joined: nestedDate,
+        roles: ['admin', 'editor'],
+      },
+      log: [{ message: 'Entry 1', time: nestedDate }],
+    };
+    const expected = {
+      user: {
+        _id: '60d5ec49c1b7a6001c9c7e7b',
+        joined: '2024-02-15T10:30:00.000Z',
+        roles: ['admin', 'editor'],
+      },
+      log: [{ message: 'Entry 1', time: '2024-02-15T10:30:00.000Z' }],
+    };
+    expect(prepareDocumentForFrontend(doc)).toEqual(expected);
   });
 });

@@ -9,6 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { default as Store } from 'electron-store';
+import { prepareDocumentForFrontend } from './utils/documentPreparation';
 
 // Map to store active connection attempts for cancellation
 const connectionAttempts = new Map<string, { controller: AbortController, cleanup?: () => Promise<void> }>();
@@ -75,47 +76,6 @@ export async function disconnectMongoInternal() {
     logger.debug('MongoDB connection closed.');
   }
 }
-
-// --- Helper: Prepare documents for frontend serialization ---
-export function prepareDocumentForFrontend(doc: any): any {
-  if (!doc) { // Handles null or undefined
-    return doc;
-  }
-
-  // ADD THIS NEW CHECK HERE:
-  if (doc instanceof Date) {
-    return doc.toISOString();
-  }
-
-  if (typeof doc !== 'object') { // Handles primitives after Date check
-    return doc;
-  }
-
-  if (Array.isArray(doc)) {
-    return doc.map(item => prepareDocumentForFrontend(item));
-  }
-
-  const newDoc: { [key: string]: any } = {};
-  for (const key in doc) {
-    if (Object.prototype.hasOwnProperty.call(doc, key)) {
-      const value = doc[key];
-
-      if (value && typeof value === 'object' && value._bsontype === 'ObjectID' && typeof value.toHexString === 'function') {
-        newDoc[key] = value.toHexString();
-      }
-      else if (value instanceof Date) {
-        newDoc[key] = value.toISOString();
-      }
-      else if (typeof value === 'object' && value !== null) {
-        newDoc[key] = prepareDocumentForFrontend(value);
-      }
-      else {
-        newDoc[key] = value;
-      }
-    }
-  }
-  return newDoc;
-};
 
 // --- IPC Handlers (Exposed functions) ---
 
@@ -189,10 +149,8 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
     logger.debug(`IPC: Attempting to connect to MongoDB using ID: ${connectionId}`);
     logger.debug(`IPC: Connection details: ${connectionId} ${JSON.stringify(connectionConfig)}`);
 
-    // Generate a unique attempt ID for cancellation tracking
     const controller = new AbortController();
 
-    // Store the controller for possible cancellation
     connectionAttempts.set(attemptId, { controller });
 
     const options: UniversalMongoClientOptions = {
@@ -212,7 +170,6 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
       driverVersion = result.driverVersion;
 
       await client.connect();
-      // Store cleanup function in case connection is aborted later
       connectionAttempts.get(attemptId)!.cleanup = async () => {
         try {
           if (client) await client.close();
@@ -221,14 +178,11 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
         }
       };
     } catch (error: unknown) {
-      // Clean up on failure
       connectionAttempts.delete(attemptId);
-      // Check if it was an abort error
       if (error instanceof Error && error.name === 'AbortError') {
         logger.debug(`Connection attempt ${attemptId} aborted by user.`);
         throw new Error(`Connection attempt aborted for ID: ${connectionId}`);
       }
-      // Regular error handling
       if (error instanceof Error) {
         logger.error(`Error connecting to MongoDB for ID ${connectionId}:`, error);
       } else {
@@ -236,13 +190,11 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
       }
       throw error;
     } finally {
-      // Ensure cleanup if needed, though this is mostly handled in success or error paths
       if (connectionAttempts.has(attemptId) && !connectionAttempts.get(attemptId)!.cleanup) {
         connectionAttempts.delete(attemptId);
       }
     }
 
-    // On success, clean up the attempt entry
     connectionAttempts.delete(attemptId);
     logger.debug(`Attempt ID ${attemptId} deleted`);
 
@@ -303,7 +255,6 @@ export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
   }
 };
 
-// Function to cancel a connection attempt
 export const cancelConnectionAttempt = async (attemptId: string): Promise<{ success: boolean; message: string }> => {
   logger.debug(`Received cancellation request for attempt ID: ${attemptId}`);
   const attempt = connectionAttempts.get(attemptId);
@@ -311,11 +262,9 @@ export const cancelConnectionAttempt = async (attemptId: string): Promise<{ succ
     return { success: false, message: 'No matching connection attempt found' };
   }
 
-  // Abort the controller
   logger.debug(`Calling abort for attempt ID: ${attemptId}`);
   attempt.controller.abort();
 
-  // Run any cleanup if needed (e.g., close an established connection)
   if (attempt.cleanup) {
     logger.debug(`Calling cleanup for attempt ID: ${attemptId}`);
     try {
@@ -325,7 +274,6 @@ export const cancelConnectionAttempt = async (attemptId: string): Promise<{ succ
     }
   }
 
-  // Clean up
   connectionAttempts.delete(attemptId);
   return { success: true, message: 'Connection attempt cancelled' };
 };
@@ -460,7 +408,6 @@ ${JSON.stringify(sampleDocuments, null, 2)}
 \`\`\`
 ` : '';
 
-    // Handle null or undefined schemaMap
     logger.debug(`schemaMap: ${JSON.stringify(schemaMap)}`);
     let schemaSummary = '';
     if (schemaMap && Object.keys(schemaMap).length > 0) {

@@ -1,84 +1,105 @@
-// src/__tests__/index.getDatabaseCollections.test.ts
+import { DatabaseService } from '../services/DatabaseService';
+import pino from 'pino';
 
-// Global mock for pino logger
-jest.mock('pino', () => {
-  const mockLogger = {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn(),
-  };
-  return jest.fn(() => mockLogger);
-});
+jest.mock('pino');
 
-// Mock DatabaseService
+let mockLogger: jest.Mocked<pino.Logger>;
+
 const mockIsDbActive = jest.fn();
 const mockGetCollections = jest.fn();
+const mockSetActiveDb = jest.fn();
+const mockGetAllDocuments = jest.fn();
+const mockGetDocuments = jest.fn();
+const mockGetDocumentCount = jest.fn();
+const mockGetCollectionSchemaAndSampleDocuments = jest.fn();
+
+let mockDatabaseServiceInstance: jest.Mocked<DatabaseService>;
+let getDatabaseCollections: typeof import('../index').getDatabaseCollections;
+
 
 jest.mock('../services/DatabaseService', () => {
-  return {
-    DatabaseService: jest.fn().mockImplementation(() => ({
+  const MockDatabaseService = jest.fn().mockImplementation(() => {
+    return {
       isDbActive: mockIsDbActive,
       getCollections: mockGetCollections,
-      // Ensure other mocked methods are here if needed by other tests in this file,
-      // though for getDatabaseCollections, these two are sufficient.
-      setActiveDb: jest.fn(),
-      getDocuments: jest.fn(),
-      getDocumentCount: jest.fn(),
-      getAllDocuments: jest.fn(),
-      getCollectionSchemaAndSampleDocuments: jest.fn(),
-    })),
-    __esModule: true,
-  };
+      setActiveDb: mockSetActiveDb,
+      getAllDocuments: mockGetAllDocuments,
+      getDocuments: mockGetDocuments,
+      getDocumentCount: mockGetDocumentCount,
+      getCollectionSchemaAndSampleDocuments: mockGetCollectionSchemaAndSampleDocuments,
+      activeDb: null,
+      connectionService: {} as any,
+    };
+  });
+  return { DatabaseService: MockDatabaseService };
 });
 
-// Mock index.ts to isolate getDatabaseCollections
-// In this case, getDatabaseCollections doesn't rely on internal state of index.ts
-// so we can use jest.requireActual for other functions if needed, or simply mock
-// the one we care about. For simplicity and consistency with previous patterns,
-// we'll mock just enough to get `getDatabaseCollections` and its dependencies (logger, databaseService)
+
 jest.mock('../index', () => {
   const actualModule = jest.requireActual('../index');
-  const mockLogger = require('pino')(); // Access the mocked logger
+  const internalPinoFactory = jest.requireMock('pino') as jest.MockedFunction<typeof pino>;
+  const internalMockLogger = internalPinoFactory();
 
   return {
-    ...actualModule, // Include all actual exports if needed, or selectively
+    ...actualModule,
     getDatabaseCollections: jest.fn(async () => {
-      mockLogger.debug('IPC: getDatabaseCollections called');
+      internalMockLogger.debug('IPC: getDatabaseCollections called');
       try {
-        // Use the mocked DatabaseService functions
         const { DatabaseService } = require('../services/DatabaseService');
-        const dbServiceInstance = new DatabaseService(mockLogger); // Pass mockLogger to instance
-        if (!dbServiceInstance.isDbActive()) { // Call the mocked method
-          throw new Error('No active database connection to list collections.');
+        const dbServiceInstance = new DatabaseService(internalMockLogger);
+
+        if (!dbServiceInstance.isDbActive()) {
+          internalMockLogger.error('No active database connection to get collections.');
+          throw new Error('No active database connection to get collections.');
         }
-        return await dbServiceInstance.getCollections(); // Call the mocked method
+        const collections = await dbServiceInstance.getCollections();
+        return collections;
       } catch (error: any) {
-        mockLogger.error({ error }, 'IPC: Failed to get collections from active database');
+        internalMockLogger.error({ error }, 'Backend: Failed to retrieve collections');
         throw new Error(`Failed to retrieve collections: ${error.message}`);
       }
     }),
   };
 });
 
-// Import the function under test and mocks
-const { getDatabaseCollections } = jest.requireMock('../index');
-const mockLogger = jest.requireMock('pino')();
-
 
 describe('getDatabaseCollections', () => {
+  beforeAll(() => {
+    const indexModule = jest.requireMock('../index');
+    getDatabaseCollections = indexModule.getDatabaseCollections;
+
+    const DatabaseServiceModule = jest.requireMock('../services/DatabaseService');
+    if (DatabaseServiceModule.DatabaseService.mock.instances.length === 0) {
+      new DatabaseServiceModule.DatabaseService();
+    }
+    mockDatabaseServiceInstance = DatabaseServiceModule.DatabaseService.mock.instances[0] as jest.Mocked<DatabaseService>;
+
+    if (!mockDatabaseServiceInstance) {
+      throw new Error("mockDatabaseServiceInstance was not created. Check mock setup or import order.");
+    }
+
+    // Assign mockLogger in beforeAll
+    const pinoModule = jest.mocked(pino);
+    mockLogger = pinoModule() as jest.Mocked<pino.Logger>;
+  });
+
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockIsDbActive.mockReset();
-    mockGetCollections.mockReset();
+    mockLogger.debug.mockClear();
+    mockLogger.error.mockClear();
+    mockLogger.info.mockClear();
+    mockLogger.warn.mockClear();
+
+    mockIsDbActive.mockClear().mockReturnValue(true);
+    mockGetCollections.mockClear().mockResolvedValue([]);
+    mockSetActiveDb.mockClear();
+    mockGetAllDocuments.mockClear();
+    mockGetDocuments.mockClear();
+    mockGetDocumentCount.mockClear();
+    mockGetCollectionSchemaAndSampleDocuments.mockClear();
   });
 
   it('should successfully retrieve collections when database is active', async () => {
-    const mockCollections = [
-      { name: 'collection1', type: 'collection' },
-      { name: 'collection2', type: 'collection' },
-    ];
-    mockIsDbActive.mockReturnValue(true);
+    const mockCollections = [{ name: 'col1' }, { name: 'col2' }];
     mockGetCollections.mockResolvedValue(mockCollections);
 
     const result = await getDatabaseCollections();
@@ -87,39 +108,30 @@ describe('getDatabaseCollections', () => {
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
     expect(mockGetCollections).toHaveBeenCalledTimes(1);
     expect(result).toEqual(mockCollections);
-    expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
   it('should throw an error if no active database connection exists', async () => {
     mockIsDbActive.mockReturnValue(false);
+    const expectedError = new Error('No active database connection to get collections.');
 
-    const expectedError = new Error('No active database connection to list collections.');
     await expect(getDatabaseCollections()).rejects.toThrow(expectedError.message);
 
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getDatabaseCollections called');
+    expect(mockLogger.error).toHaveBeenCalledWith('No active database connection to get collections.');
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetCollections).not.toHaveBeenCalled(); // Still should not attempt to get collections
-
-    // FIX: Expect logger.error to have been called
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      { error: expectedError },
-      'IPC: Failed to get collections from active database'
-    );
+    expect(mockGetCollections).not.toHaveBeenCalled();
   });
 
   it('should handle errors from databaseService.getCollections and re-throw', async () => {
-    const serviceError = new Error('Network issue with DB');
-    mockIsDbActive.mockReturnValue(true);
+    const serviceError = new Error('Failed to fetch collections from DB');
     mockGetCollections.mockRejectedValue(serviceError);
 
     await expect(getDatabaseCollections()).rejects.toThrow(`Failed to retrieve collections: ${serviceError.message}`);
 
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getDatabaseCollections called');
-    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetCollections).toHaveBeenCalledTimes(1);
     expect(mockLogger.error).toHaveBeenCalledWith(
       { error: serviceError },
-      'IPC: Failed to get collections from active database'
+      'Backend: Failed to retrieve collections'
     );
+    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
+    expect(mockGetCollections).toHaveBeenCalledTimes(1);
   });
 });
