@@ -1,210 +1,245 @@
+import * as index from '../index';
 import { DatabaseService } from '../services/DatabaseService';
-import pino from 'pino';
-jest.mock('pino');
-let mockLogger: jest.Mocked<pino.Logger>;
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import * as documentPreparation from '../utils/documentPreparation';
+import type { MongoQueryParams } from '../types';
 
-const mockGetDocuments = jest.fn();
-const mockGetDocumentCount = jest.fn();
-const mockSetActiveDb = jest.fn();
-const mockIsDbActive = jest.fn();
-const mockGetCollections = jest.fn();
-const mockGetAllDocuments = jest.fn();
-const mockGetCollectionSchemaAndSampleDocuments = jest.fn();
-
-let mockDatabaseServiceInstance: jest.Mocked<DatabaseService>;
-let getCollectionDocuments: typeof import('../index').getCollectionDocuments;
-
-jest.mock('../services/DatabaseService', () => {
-  const MockDatabaseService = jest.fn().mockImplementation(() => {
-    return {
-      getDocuments: mockGetDocuments,
-      getDocumentCount: mockGetDocumentCount,
-      setActiveDb: mockSetActiveDb,
-      isDbActive: mockIsDbActive,
-      getCollections: mockGetCollections,
-      getAllDocuments: mockGetAllDocuments,
-      getCollectionSchemaAndSampleDocuments: mockGetCollectionSchemaAndSampleDocuments,
-      activeDb: null,
-      connectionService: {} as any,
-    };
-  });
-  return { DatabaseService: MockDatabaseService };
+jest.mock('pino', () => {
+  const mockLogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
+  return jest.fn(() => mockLogger);
 });
 
-const mockedPrepareDocumentForFrontend = jest.fn(doc => doc);
-jest.mock('../utils/documentPreparation', () => ({
-  prepareDocumentForFrontend: mockedPrepareDocumentForFrontend,
-}));
-
-jest.mock('../index', () => {
-  const actualModule = jest.requireActual('../index');
-  const internalPinoFactory = jest.requireMock('pino') as jest.MockedFunction<typeof pino>;
-  const internalMockLogger = internalPinoFactory() as jest.Mocked<pino.Logger>;
-
+jest.mock('../services/DatabaseService', () => {
+  const mockIsDbActive = jest.fn();
+  const mockGetAllDocuments = jest.fn();
   return {
-    ...actualModule,
-    getCollectionDocuments: jest.fn(async (collectionName: string, limit: number = 20, skip: number = 0, params: any = {}) => {
-      internalMockLogger.debug('IPC: getCollectionDocuments called');
-      try {
-        const { DatabaseService } = require('../services/DatabaseService');
-        const dbServiceInstance = new DatabaseService(internalMockLogger);
-
-        if (!dbServiceInstance.isDbActive()) {
-          internalMockLogger.error('No active database connection to get documents.');
-          throw new Error('No active database connection to get documents.');
-        }
-
-        const documents = await dbServiceInstance.getDocuments(collectionName, limit, skip, params);
-        const count = await dbServiceInstance.getDocumentCount(collectionName, params);
-
-        const { prepareDocumentForFrontend: internalPrepareDocumentForFrontend } = require('../utils/documentPreparation');
-        const transformedDocuments = documents.map((doc: any) => internalPrepareDocumentForFrontend(doc));
-
-        return { documents: transformedDocuments, count };
-      } catch (error: any) {
-        internalMockLogger.error({ error, collectionName, limit, skip }, 'Backend: Failed to retrieve documents');
-        throw new Error(`Failed to retrieve documents for collection ${collectionName}: ${error.message}`);
-      }
-    }),
+    DatabaseService: jest.fn().mockImplementation(() => ({
+      isDbActive: mockIsDbActive,
+      getAllDocuments: mockGetAllDocuments,
+    })),
+    __esModule: true,
+    mockIsDbActive,
+    mockGetAllDocuments,
   };
 });
 
+jest.mock('fs/promises', () => ({
+  writeFile: jest.fn(),
+}));
 
-describe('getCollectionDocuments', () => {
-  const testCollectionName = 'myTestCollection';
-  const defaultLimit = 20;
-  const defaultSkip = 0;
-  const defaultParams = {};
+jest.mock('os', () => ({
+  tmpdir: jest.fn(),
+}));
 
-  beforeAll(() => {
-    const indexModule = jest.requireMock('../index');
-    getCollectionDocuments = indexModule.getCollectionDocuments;
+jest.mock('path', () => {
+  const actualPath = jest.requireActual('path');
+  return {
+    ...actualPath,
+    join: jest.fn(),
+  };
+});
 
-    const DatabaseServiceModule = jest.requireMock('../services/DatabaseService');
-    if (DatabaseServiceModule.DatabaseService.mock.instances.length === 0) {
-      new DatabaseServiceModule.DatabaseService();
-    }
-    mockDatabaseServiceInstance = DatabaseServiceModule.DatabaseService.mock.instances[0] as jest.Mocked<DatabaseService>;
+jest.mock('uuid', () => ({
+  v4: jest.fn(),
+}));
 
-    if (!mockDatabaseServiceInstance) {
-      throw new Error("mockDatabaseServiceInstance was not created. Check mock setup or import order.");
-    }
+jest.mock('../utils/documentPreparation', () => ({
+  prepareDocumentForFrontend: jest.fn(),
+}));
 
-    const pinoModule = jest.mocked(pino);
-    mockLogger = pinoModule() as jest.Mocked<pino.Logger>;
-  });
+const { mockIsDbActive, mockGetAllDocuments } = jest.requireMock('../services/DatabaseService');
+const mockLogger = jest.requireMock('pino')();
+const mockWriteFile = jest.requireMock('fs/promises').writeFile;
+const mockTmpdir = jest.requireMock('os').tmpdir;
+const mockPathJoin = jest.requireMock('path').join;
+const mockUuidv4 = jest.requireMock('uuid').v4;
+const mockPrepareDocumentForFrontend = jest.requireMock('../utils/documentPreparation').prepareDocumentForFrontend;
+
+describe.only('exportCollectionDocuments', () => {
+  const collectionName = 'testCollection';
+  const params: MongoQueryParams = {
+    query: '{"status":"active"}',
+    sort: '{"name":1}',
+  };
+  const tempDir = '/tmp';
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+  const tempFileName = `export_${collectionName}_${uuid}.jsonl`;
+  const tempFilePath = `${tempDir}/${tempFileName}`;
 
   beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
     mockLogger.debug.mockClear();
     mockLogger.error.mockClear();
-    mockLogger.info.mockClear();
-    mockLogger.warn.mockClear();
-
-    mockIsDbActive.mockClear().mockReturnValue(true);
-    mockGetDocuments.mockClear().mockResolvedValue([]);
-    mockGetDocumentCount.mockClear().mockResolvedValue(0);
-    mockSetActiveDb.mockClear();
-    mockGetCollections.mockClear();
+    mockIsDbActive.mockClear();
     mockGetAllDocuments.mockClear();
-    mockGetCollectionSchemaAndSampleDocuments.mockClear();
-    mockedPrepareDocumentForFrontend.mockClear().mockImplementation(doc => doc);
+    mockWriteFile.mockClear();
+    mockTmpdir.mockClear();
+    mockPathJoin.mockClear();
+    mockUuidv4.mockClear();
+    mockPrepareDocumentForFrontend.mockClear();
+
+    // Default mocks
+    mockIsDbActive.mockReturnValue(true);
+    mockTmpdir.mockReturnValue(tempDir);
+    mockUuidv4.mockReturnValue(uuid);
+    mockPathJoin.mockImplementation((...args: string[]) => args.join('/'));
+    mockWriteFile.mockResolvedValue(undefined);
+    mockPrepareDocumentForFrontend.mockImplementation((doc: any) => doc);
   });
 
-  it('should successfully retrieve and transform documents with count', async () => {
-    const rawDocuments = [{ _id: '1', data: 'abc' }, { _id: '2', data: 'xyz' }];
-    const expectedCount = 2;
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
 
-    mockGetDocuments.mockResolvedValue(rawDocuments);
-    mockGetDocumentCount.mockResolvedValue(expectedCount);
-    mockedPrepareDocumentForFrontend
-      .mockImplementationOnce(doc => ({ ...doc, transformed: true }))
-      .mockImplementationOnce(doc => ({ ...doc, transformed: true }));
+  it('should successfully export documents to a temporary file', async () => {
+    const documents = [
+      { _id: '1', name: 'Doc1', status: 'active' },
+      { _id: '2', name: 'Doc2', status: 'active' },
+    ];
+    mockGetAllDocuments.mockResolvedValue(documents);
 
-    const result = await getCollectionDocuments(testCollectionName, defaultLimit, defaultSkip, defaultParams);
+    const result = await index.exportCollectionDocuments(collectionName, params);
 
-    expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledTimes(1);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(testCollectionName, defaultParams);
-    expect(mockedPrepareDocumentForFrontend).toHaveBeenCalledTimes(rawDocuments.length);
-    expect(result.documents.length).toBe(rawDocuments.length);
-    expect(result.documents[0]).toEqual({ ...rawDocuments[0], transformed: true });
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledTimes(2);
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[0]);
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[1]);
+    expect(mockTmpdir).toHaveBeenCalledTimes(1);
+    expect(mockUuidv4).toHaveBeenCalledTimes(1);
+    expect(mockPathJoin).toHaveBeenCalledWith(tempDir, tempFileName);
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      tempFilePath,
+      `${JSON.stringify(documents[0])}\n${JSON.stringify(documents[1])}`,
+      { encoding: 'utf8' }
+    );
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+    expect(result).toBe(tempFilePath);
+    expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
-  it('should throw an error if no active database connection exists', async () => {
+  it('should handle empty document list', async () => {
+    mockGetAllDocuments.mockResolvedValue([]);
+
+    const result = await index.exportCollectionDocuments(collectionName, params);
+
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockPrepareDocumentForFrontend).not.toHaveBeenCalled();
+    expect(mockTmpdir).toHaveBeenCalledTimes(1);
+    expect(mockUuidv4).toHaveBeenCalledTimes(1);
+    expect(mockPathJoin).toHaveBeenCalledWith(tempDir, tempFileName);
+    expect(mockWriteFile).toHaveBeenCalledWith(tempFilePath, '', { encoding: 'utf8' });
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+    expect(result).toBe(tempFilePath);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('should use default params when none provided', async () => {
+    const documents = [{ _id: '1', name: 'Doc1' }];
+    mockGetAllDocuments.mockResolvedValue(documents);
+
+    const result = await index.exportCollectionDocuments(collectionName);
+
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, {});
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledTimes(1);
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[0]);
+    expect(mockTmpdir).toHaveBeenCalledTimes(1);
+    expect(mockUuidv4).toHaveBeenCalledTimes(1);
+    expect(mockPathJoin).toHaveBeenCalledWith(tempDir, tempFileName);
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      tempFilePath,
+      JSON.stringify(documents[0]),
+      { encoding: 'utf8' }
+    );
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
+    expect(result).toBe(tempFilePath);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('should throw error if no active database connection exists', async () => {
     mockIsDbActive.mockReturnValue(false);
-    const expectedError = new Error('No active database connection to get documents.');
+    const expectedError = new Error('No active database connection to export documents.');
 
-    await expect(getCollectionDocuments(testCollectionName, defaultLimit, defaultSkip)).rejects.toThrow(expectedError.message);
-
-    expect(mockLogger.error).toHaveBeenCalledWith('No active database connection to get documents.');
-    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).not.toHaveBeenCalled();
-    expect(mockGetDocumentCount).not.toHaveBeenCalled();
-    expect(mockedPrepareDocumentForFrontend).not.toHaveBeenCalled();
-  });
-
-  it('should handle errors from databaseService.getDocuments and re-throw', async () => {
-    const serviceError = new Error('Failed to fetch documents from DB');
-    mockGetDocuments.mockRejectedValue(serviceError);
-
-    await expect(getCollectionDocuments(testCollectionName, defaultLimit, defaultSkip, defaultParams)).rejects.toThrow(
-      `Failed to retrieve documents for collection ${testCollectionName}: ${serviceError.message}`
+    await expect(index.exportCollectionDocuments(collectionName, params)).rejects.toThrow(
+      expectedError.message
     );
 
+    expect(mockLogger.debug).not.toHaveBeenCalled();
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledTimes(1);
-    expect(mockGetDocumentCount).not.toHaveBeenCalled();
-    expect(mockedPrepareDocumentForFrontend).not.toHaveBeenCalled();
+    expect(mockGetAllDocuments).not.toHaveBeenCalled();
+    expect(mockPrepareDocumentForFrontend).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockLogger.error).toHaveBeenCalledWith(
-      { error: serviceError, collectionName: testCollectionName, limit: defaultLimit, skip: defaultSkip },
-      'Backend: Failed to retrieve documents'
+      expect.objectContaining({ error: expect.any(Error), collectionName }),
+      'Backend: Failed to export documents to temp file'
     );
+    expect(mockTmpdir).not.toHaveBeenCalled();
+    expect(mockUuidv4).not.toHaveBeenCalled();
+    expect(mockPathJoin).not.toHaveBeenCalled();
   });
 
-  it('should handle errors from databaseService.getDocumentCount and re-throw', async () => {
-    const serviceError = new Error('Failed to fetch document count from DB');
-    mockGetDocumentCount.mockRejectedValue(serviceError);
-    mockGetDocuments.mockResolvedValue([]);
+  it('should handle errors from databaseService.getAllDocuments and re-throw', async () => {
+    const serviceError = new Error('Failed to fetch documents');
+    mockGetAllDocuments.mockRejectedValue(serviceError);
 
-    await expect(getCollectionDocuments(testCollectionName, defaultLimit, defaultSkip, defaultParams)).rejects.toThrow(
-      `Failed to retrieve documents for collection ${testCollectionName}: ${serviceError.message}`
+    await expect(index.exportCollectionDocuments(collectionName, params)).rejects.toThrow(
+      `Failed to export documents to temporary file for collection ${collectionName}: ${serviceError.message}`
     );
 
+    expect(mockLogger.debug).not.toHaveBeenCalled();
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledTimes(1);
-    expect(mockGetDocumentCount).toHaveBeenCalledTimes(1);
-    expect(mockedPrepareDocumentForFrontend).not.toHaveBeenCalled();
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockPrepareDocumentForFrontend).not.toHaveBeenCalled();
+    expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockLogger.error).toHaveBeenCalledWith(
-      { error: serviceError, collectionName: testCollectionName, limit: defaultLimit, skip: defaultSkip },
-      'Backend: Failed to retrieve documents'
+      expect.objectContaining({ error: serviceError, collectionName }),
+      'Backend: Failed to export documents to temp file'
     );
+    expect(mockTmpdir).not.toHaveBeenCalled();
+    expect(mockUuidv4).not.toHaveBeenCalled();
+    expect(mockPathJoin).not.toHaveBeenCalled();
   });
 
-  it('should retrieve documents for an empty collection', async () => {
-    mockGetDocuments.mockResolvedValue([]);
-    mockGetDocumentCount.mockResolvedValue(0);
+  it('should handle errors from fs.writeFile and re-throw', async () => {
+    const documents = [{ _id: '1', name: 'Doc1' }];
+    mockGetAllDocuments.mockResolvedValue(documents);
+    const writeError = new Error('Failed to write file');
+    mockWriteFile.mockRejectedValue(writeError);
 
-    const result = await getCollectionDocuments(testCollectionName, defaultLimit, defaultSkip);
+    await expect(index.exportCollectionDocuments(collectionName, params)).rejects.toThrow(
+      `Failed to export documents to temporary file for collection ${collectionName}: ${writeError.message}`
+    );
 
-    expect(mockGetDocuments).toHaveBeenCalledTimes(1);
-    expect(mockGetDocumentCount).toHaveBeenCalledTimes(1);
-    expect(result.documents).toEqual([]);
-    expect(mockedPrepareDocumentForFrontend).not.toHaveBeenCalled();
-    expect(mockLogger.error).not.toHaveBeenCalled();
-  });
-
-  it('should pass custom parameters to databaseService methods', async () => {
-    const customParams = { filter: '{"status":"active"}', sort: '{"date":-1}' };
-    mockGetDocuments.mockResolvedValue([]);
-    mockGetDocumentCount.mockResolvedValue(0);
-
-    await getCollectionDocuments(testCollectionName, defaultLimit, defaultSkip, customParams);
-
-    expect(mockGetDocuments).toHaveBeenCalledWith(testCollectionName, defaultLimit, defaultSkip, customParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(testCollectionName, customParams);
-    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(mockLogger.debug).not.toHaveBeenCalled();
+    expect(mockIsDbActive).toHaveBeenCalledTimes(1);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledTimes(1);
+    expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[0]);
+    expect(mockTmpdir).toHaveBeenCalledTimes(1);
+    expect(mockUuidv4).toHaveBeenCalledTimes(1);
+    expect(mockPathJoin).toHaveBeenCalledWith(tempDir, tempFileName);
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      tempFilePath,
+      JSON.stringify(documents[0]),
+      { encoding: 'utf8' }
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ error: writeError, collectionName }),
+      'Backend: Failed to export documents to temp file'
+    );
   });
 });

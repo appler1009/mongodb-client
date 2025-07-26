@@ -4,7 +4,7 @@ import { DatabaseService } from './services/DatabaseService';
 import pino from 'pino';
 import dotenv from 'dotenv';
 import { ConnectionConfig, CollectionInfo, DocumentsResponse, ConnectionStatus, Document, MongoQueryParams, SchemaMap } from './types';
-import { promises as fs } from 'fs';
+import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -345,7 +345,10 @@ export const exportCollectionDocuments = async (collectionName: string, params: 
     }
     const documents = await databaseService.getAllDocuments(collectionName, params);
 
-    const transformedDocuments = documents.map(prepareDocumentForFrontend);
+    const transformedDocuments: any[] = [];
+    for (const doc of documents) {
+      transformedDocuments.push(prepareDocumentForFrontend(doc));
+    }
     const ndjsonContent = transformedDocuments.map(doc => JSON.stringify(doc)).join('\n');
 
     const tempDir = os.tmpdir();
