@@ -63,7 +63,7 @@ const mockPathJoin = jest.requireMock('path').join;
 const mockUuidv4 = jest.requireMock('uuid').v4;
 const mockPrepareDocumentForFrontend = jest.requireMock('../utils/documentPreparation').prepareDocumentForFrontend;
 
-describe.only('exportCollectionDocuments', () => {
+describe('exportCollectionDocuments', () => {
   const collectionName = 'testCollection';
   const params: MongoQueryParams = {
     query: '{"status":"active"}',
