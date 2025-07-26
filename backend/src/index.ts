@@ -70,8 +70,8 @@ export function initialize(connectionsStore: Store<any>) {
   };
 }
 
-// --- Internal Helper function, but exported for tests ---
-
+// --- Helper functions, but exported for tests ---
+/* istanbul ignore next */
 export function getActiveMongoClient(): MongoClient | null {
   return activeMongoClient;
 }
