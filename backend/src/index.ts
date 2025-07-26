@@ -10,9 +10,17 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { default as Store } from 'electron-store';
 import { prepareDocumentForFrontend } from './utils/documentPreparation';
+import { disconnectMongo } from './utils/disconnectMongo';
 
 // Map to store active connection attempts for cancellation
 const connectionAttempts = new Map<string, { controller: AbortController, cleanup?: () => Promise<void> }>();
+export const __test = {
+  addConnectionAttempt: (id: string, controller: AbortController, cleanup?: () => Promise<void>) => {
+    connectionAttempts.set(id, { controller, cleanup });
+  },
+  getConnectionAttempt: (id: string) => connectionAttempts.get(id),
+  clearConnectionAttempts: () => connectionAttempts.clear(),
+};
 
 dotenv.config();
 
@@ -28,7 +36,7 @@ const logger = pino({
 // --- Global state for active MongoDB connection (managed here) ---
 let activeMongoClient: MongoClient | null = null;
 let activeDb: Db | null = null;
-let activeConnectionId: string | null = null;
+let activeConnectionId: string | undefined = undefined;
 let activeDatabaseName: string | undefined = undefined;
 let activeDriverVersion: string | null = null;
 
@@ -62,19 +70,30 @@ export function initialize(connectionsStore: Store<any>) {
   };
 }
 
-// Helper function to disconnect
-export async function disconnectMongoInternal() {
-  if (activeMongoClient) {
-    logger.debug('Closing existing MongoDB connection...');
-    await activeMongoClient.close();
-    activeMongoClient = null;
-    activeDb = null;
-    activeConnectionId = null;
-    activeDatabaseName = undefined;
-    activeDriverVersion = null;
-    databaseService.setActiveDb(null);
-    logger.debug('MongoDB connection closed.');
-  }
+// --- Internal Helper function, but exported for tests ---
+
+export function getActiveMongoClient(): MongoClient | null {
+  return activeMongoClient;
+}
+
+export function setActiveMongoClient(client: MongoClient | null) {
+  activeMongoClient = client;
+}
+
+export function setActiveDb(db: Db | null) {
+  activeDb = db;
+}
+
+export function setActiveConnectionId(id: string | undefined) {
+  activeConnectionId = id;
+}
+
+export function setActiveDatabaseName(name: string | undefined) {
+  activeDatabaseName = name;
+}
+
+export function setActiveDriverVersion(version: string | null) {
+  activeDriverVersion = version;
 }
 
 // --- IPC Handlers (Exposed functions) ---
@@ -104,7 +123,7 @@ export const updateConnection = async (id: string, updatedConnection: Connection
     const result = await connectionService.updateConnection(id, updatedConnection);
     if (result) {
       if (activeConnectionId === id) {
-        await disconnectMongoInternal();
+        await disconnectMongo(databaseService, logger);
         logger.warn(`IPC: Updated active connection ${id}. Disconnected existing connection.`);
       }
       logger.debug({ id }, 'IPC: Connection updated');
@@ -122,7 +141,8 @@ export const deleteConnection = async (id: string): Promise<boolean> => {
     const deleted = await connectionService.deleteConnection(id);
     if (deleted) {
       if (activeConnectionId === id) {
-        await disconnectMongoInternal();
+        await disconnectMongo(databaseService, logger);
+
         logger.warn(`IPC: Deleted active connection ${id}. Disconnected existing connection.`);
       }
       logger.debug({ id }, 'IPC: Connection deleted');
@@ -138,7 +158,7 @@ export const deleteConnection = async (id: string): Promise<boolean> => {
 export const connectToMongo = async (connectionId: string, attemptId: string): Promise<ConnectionStatus> => {
   try {
     if (activeMongoClient) {
-      await disconnectMongoInternal();
+      await disconnectMongo(databaseService, logger);
     }
 
     const connectionConfig = await connectionService.getConnectionById(connectionId);
@@ -213,11 +233,11 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
       logger.debug(`No explicit database name found in URI path. Connected to database: '${dbNameFromUri}'.`);
     }
 
-    activeMongoClient = client;
-    activeDb = client.db(dbNameFromUri);
-    activeConnectionId = connectionId;
-    activeDatabaseName = dbNameFromUri;
-    activeDriverVersion = driverVersion;
+    setActiveMongoClient(client);
+    setActiveDb(client.db(dbNameFromUri));
+    setActiveConnectionId(connectionId);
+    setActiveDatabaseName(dbNameFromUri);
+    setActiveDriverVersion(driverVersion);
 
     if (connectionConfig && driverVersion) {
       const updatedConnection: ConnectionConfig = {
@@ -239,14 +259,14 @@ export const connectToMongo = async (connectionId: string, attemptId: string): P
     };
   } catch (error: any) {
     logger.error({ error, connectionId }, 'IPC: Failed to connect to MongoDB');
-    await disconnectMongoInternal();
+    await disconnectMongo(databaseService, logger);
     throw new Error(`Failed to connect to MongoDB: ${error.message}`);
   }
 };
 
 export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
   try {
-    await disconnectMongoInternal();
+    await disconnectMongo(databaseService, logger);
     logger.debug('IPC: Successfully disconnected from MongoDB.');
     return { message: 'Successfully disconnected from MongoDB.' };
   } catch (error: any) {

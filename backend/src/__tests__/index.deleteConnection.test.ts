@@ -1,6 +1,5 @@
 import * as index from '../index';
-import { ConnectionService } from '../services/ConnectionService';
-import type { ConnectionConfig } from '../types';
+import { disconnectMongo } from '../utils/disconnectMongo';
 
 jest.mock('pino', () => {
   const mockLogger = {
@@ -23,68 +22,34 @@ jest.mock('../services/ConnectionService', () => {
   };
 });
 
-let mockInternalActiveConnectionId: string | null = null;
-const mockDisconnectMongoInternal = jest.fn(async () => {});
-
-jest.mock('../index', () => {
-  const actualIndex = jest.requireActual('../index');
-  const { mockDeleteConnection: mockConnectionServiceDelete } = jest.requireMock('../services/ConnectionService');
-
-  return {
-    ...actualIndex,
-    deleteConnection: jest.fn(async (id: string) => {
-      try {
-        const deleted = await mockConnectionServiceDelete(id);
-        if (deleted) {
-          if (mockInternalActiveConnectionId === id) {
-            await mockDisconnectMongoInternal();
-            const mockLogger = require('pino')();
-            mockLogger.warn(`IPC: Deleted active connection ${id}. Disconnected existing connection.`);
-          }
-          const mockLogger = require('pino')();
-          mockLogger.debug({ id }, 'IPC: Connection deleted');
-          return true;
-        }
-        return false;
-      } catch (error: any) {
-        const mockLogger = require('pino')();
-        mockLogger.error({ error, id }, 'IPC: Failed to delete connection');
-        throw new Error(`Failed to delete connection: ${error.message}`);
-      }
-    }),
-    disconnectMongoInternal: mockDisconnectMongoInternal,
-    __setMockActiveConnectionId: (value: string | null) => {
-      mockInternalActiveConnectionId = value;
-    },
-  };
-});
+jest.mock('../utils/disconnectMongo', () => ({
+  disconnectMongo: jest.fn(async () => undefined),
+}));
 
 const { mockDeleteConnection } = jest.requireMock('../services/ConnectionService');
-const {
-  deleteConnection: deleteConnectionUnderTest,
-  disconnectMongoInternal: disconnectMongoInternalSpy,
-  __setMockActiveConnectionId,
-} = jest.requireMock('../index');
+const mockLogger = jest.requireMock('pino')();
 
 describe('deleteConnection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockDeleteConnection.mockReset();
-    disconnectMongoInternalSpy.mockReset();
-    __setMockActiveConnectionId(null);
+    index.setActiveConnectionId(undefined);
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('deletes a non-active connection successfully', async () => {
     const connectionId = '1';
     mockDeleteConnection.mockResolvedValue(true);
 
-    const result = await deleteConnectionUnderTest(connectionId);
+    const result = await index.deleteConnection(connectionId);
 
     expect(mockDeleteConnection).toHaveBeenCalledTimes(1);
     expect(mockDeleteConnection).toHaveBeenCalledWith(connectionId);
-    expect(disconnectMongoInternalSpy).not.toHaveBeenCalled();
+    expect(disconnectMongo).not.toHaveBeenCalled();
     expect(result).toBe(true);
-    const mockLogger = require('pino')();
     expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.objectContaining({ id: connectionId }),
       'IPC: Connection deleted'
@@ -93,16 +58,15 @@ describe('deleteConnection', () => {
 
   it('deletes active connection and triggers disconnection', async () => {
     const connectionId = '1';
-    __setMockActiveConnectionId(connectionId);
+    index.setActiveConnectionId(connectionId);
     mockDeleteConnection.mockResolvedValue(true);
 
-    const result = await deleteConnectionUnderTest(connectionId);
+    const result = await index.deleteConnection(connectionId);
 
     expect(mockDeleteConnection).toHaveBeenCalledTimes(1);
     expect(mockDeleteConnection).toHaveBeenCalledWith(connectionId);
-    expect(disconnectMongoInternalSpy).toHaveBeenCalledTimes(1);
+    expect(disconnectMongo).toHaveBeenCalledTimes(1);
     expect(result).toBe(true);
-    const mockLogger = require('pino')();
     expect(mockLogger.warn).toHaveBeenCalledWith(
       `IPC: Deleted active connection ${connectionId}. Disconnected existing connection.`
     );
@@ -116,13 +80,12 @@ describe('deleteConnection', () => {
     const connectionId = '1';
     mockDeleteConnection.mockResolvedValue(false);
 
-    const result = await deleteConnectionUnderTest(connectionId);
+    const result = await index.deleteConnection(connectionId);
 
     expect(mockDeleteConnection).toHaveBeenCalledTimes(1);
     expect(mockDeleteConnection).toHaveBeenCalledWith(connectionId);
-    expect(disconnectMongoInternalSpy).not.toHaveBeenCalled();
+    expect(disconnectMongo).not.toHaveBeenCalled();
     expect(result).toBe(false);
-    const mockLogger = require('pino')();
     expect(mockLogger.warn).not.toHaveBeenCalled();
     expect(mockLogger.debug).not.toHaveBeenCalled();
   });
@@ -132,14 +95,13 @@ describe('deleteConnection', () => {
     const errorMessage = 'Failed to delete connection';
     mockDeleteConnection.mockRejectedValue(new Error(errorMessage));
 
-    await expect(deleteConnectionUnderTest(connectionId)).rejects.toThrow(
+    await expect(index.deleteConnection(connectionId)).rejects.toThrow(
       `Failed to delete connection: ${errorMessage}`
     );
 
     expect(mockDeleteConnection).toHaveBeenCalledTimes(1);
     expect(mockDeleteConnection).toHaveBeenCalledWith(connectionId);
-    expect(disconnectMongoInternalSpy).not.toHaveBeenCalled();
-    const mockLogger = require('pino')();
+    expect(disconnectMongo).not.toHaveBeenCalled();
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.any(Error), id: connectionId }),
       'IPC: Failed to delete connection'

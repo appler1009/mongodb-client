@@ -1,6 +1,7 @@
-import * as actualIndex from '../index';
+import * as index from '../index';
 import { ConnectionService } from '../services/ConnectionService';
 import type { ConnectionConfig } from '../types';
+import { disconnectMongo } from '../utils/disconnectMongo';
 
 jest.mock('pino', () => {
   const mockLogger = {
@@ -17,118 +18,76 @@ jest.mock('../services/ConnectionService', () => {
   return {
     ConnectionService: jest.fn().mockImplementation(() => ({
       updateConnection: mockUpdateConnection,
+      databaseService: { setActiveDb: jest.fn() }, // Mock databaseService for disconnectMongo
     })),
     __esModule: true,
     mockUpdateConnection,
   };
 });
 
-let mockActiveConnectionId: string | null = null;
-const mockMongoClientClose = jest.fn().mockResolvedValue(undefined);
-
-const mockedDisconnectMongoInternal = jest.fn(async () => {
-  if (mockActiveConnectionId) {
-    await mockMongoClientClose();
-    mockActiveConnectionId = null;
-  }
-});
-
-jest.mock('../index', () => {
-  const { mockUpdateConnection: mockConnectionServiceUpdate } = jest.requireMock('../services/ConnectionService');
-
+jest.mock('../utils/disconnectMongo', () => {
+  const disconnectMongoSpy = jest.fn(async () => {
+    console.log('disconnectMongoSpy called');
+    return undefined;
+  });
   return {
-    updateConnection: jest.fn(async (id: string, updatedConnection: ConnectionConfig) => {
-      try {
-        const result = await mockConnectionServiceUpdate(id, updatedConnection);
-
-        if (result) {
-          if (mockActiveConnectionId === id) {
-            await mockedDisconnectMongoInternal();
-            const mockLogger = require('pino')();
-            mockLogger.warn(`IPC: Updated active connection ${id}. Disconnected existing connection.`);
-          }
-          const mockLogger = require('pino')();
-          mockLogger.debug({ id }, 'IPC: Connection updated');
-          return result;
-        }
-        return null;
-      } catch (error: any) {
-        const mockLogger = require('pino')();
-        mockLogger.error({ error, id, body: updatedConnection }, 'IPC: Failed to update connection');
-        throw new Error(`Failed to update connection: ${error.message}`);
-      }
-    }),
-    disconnectMongoInternal: mockedDisconnectMongoInternal,
-    get activeConnectionId() {
-      return mockActiveConnectionId;
-    },
-    set activeConnectionId(value: string | null) {
-      mockActiveConnectionId = value;
-    },
-    __setMockActiveConnectionId: (value: string | null) => {
-      mockActiveConnectionId = value;
-    },
-    __getMockMongoClientClose: () => mockMongoClientClose,
+    disconnectMongo: disconnectMongoSpy,
   };
 });
 
 const { mockUpdateConnection } = jest.requireMock('../services/ConnectionService');
-const {
-  __setMockActiveConnectionId,
-  __getMockMongoClientClose,
-  disconnectMongoInternal: actualMockedDisconnectMongoInternal,
-  updateConnection: mockedIndexUpdateConnection,
-} = jest.requireMock('../index');
+const mockLogger = jest.requireMock('pino')();
+const disconnectMongoSpy = disconnectMongo as jest.Mock;
 
 describe('updateConnection', () => {
-  let localMockedDisconnectMongoInternal: jest.Mock;
+  const connectionId = '1';
+  const updatedConnection: ConnectionConfig = {
+    id: connectionId,
+    name: 'UpdatedDB',
+    uri: 'mongodb://updated:27017/test',
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockUpdateConnection.mockReset();
-    localMockedDisconnectMongoInternal = actualMockedDisconnectMongoInternal.mockReset();
-    __setMockActiveConnectionId(null);
+    disconnectMongoSpy.mockReset();
+    index.setActiveConnectionId(undefined);
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
   });
 
   it('updates a non-active connection successfully', async () => {
-    const connectionId = '1';
-    const updatedConnection: ConnectionConfig = {
-      id: connectionId,
-      name: 'UpdatedDB',
-      uri: 'mongodb://updated:27017/test',
-    };
     mockUpdateConnection.mockResolvedValue(updatedConnection);
 
-    const result = await mockedIndexUpdateConnection(connectionId, updatedConnection);
+    const result = await index.updateConnection(connectionId, updatedConnection);
 
     expect(mockUpdateConnection).toHaveBeenCalledTimes(1);
     expect(mockUpdateConnection).toHaveBeenCalledWith(connectionId, updatedConnection);
-    expect(localMockedDisconnectMongoInternal).not.toHaveBeenCalled();
+    expect(disconnectMongoSpy).not.toHaveBeenCalled();
     expect(result).toEqual(updatedConnection);
-    const mockLogger = require('pino')();
     expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.objectContaining({ id: connectionId }),
       'IPC: Connection updated'
     );
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 
   it('updates active connection and triggers disconnection', async () => {
-    const connectionId = '1';
-    const updatedConnection: ConnectionConfig = {
-      id: connectionId,
-      name: 'UpdatedDB',
-      uri: 'mongodb://updated:27017/test',
-    };
-    __setMockActiveConnectionId(connectionId);
+    index.setActiveConnectionId(connectionId);
     mockUpdateConnection.mockResolvedValue(updatedConnection);
 
-    const result = await mockedIndexUpdateConnection(connectionId, updatedConnection);
+    const result = await index.updateConnection(connectionId, updatedConnection);
 
     expect(mockUpdateConnection).toHaveBeenCalledTimes(1);
     expect(mockUpdateConnection).toHaveBeenCalledWith(connectionId, updatedConnection);
-    expect(localMockedDisconnectMongoInternal).toHaveBeenCalledTimes(1);
+    expect(disconnectMongoSpy).toHaveBeenCalledTimes(1);
+    expect(disconnectMongoSpy).toHaveBeenCalledWith(
+      expect.any(Object), // databaseService
+      mockLogger
+    );
     expect(result).toEqual(updatedConnection);
-    const mockLogger = require('pino')();
     expect(mockLogger.warn).toHaveBeenCalledWith(
       `IPC: Updated active connection ${connectionId}. Disconnected existing connection.`
     );
@@ -139,43 +98,29 @@ describe('updateConnection', () => {
   });
 
   it('returns null when connection is not found', async () => {
-    const connectionId = '1';
-    const updatedConnection: ConnectionConfig = {
-      id: connectionId,
-      name: 'UpdatedDB',
-      uri: 'mongodb://updated:27017/test',
-    };
     mockUpdateConnection.mockResolvedValue(null);
 
-    const result = await mockedIndexUpdateConnection(connectionId, updatedConnection);
+    const result = await index.updateConnection(connectionId, updatedConnection);
 
     expect(mockUpdateConnection).toHaveBeenCalledTimes(1);
     expect(mockUpdateConnection).toHaveBeenCalledWith(connectionId, updatedConnection);
-    expect(localMockedDisconnectMongoInternal).not.toHaveBeenCalled();
+    expect(disconnectMongoSpy).not.toHaveBeenCalled();
     expect(result).toBeNull();
-    const mockLogger = require('pino')();
     expect(mockLogger.warn).not.toHaveBeenCalled();
     expect(mockLogger.debug).not.toHaveBeenCalled();
   });
 
   it('throws error when updateConnection fails', async () => {
-    const connectionId = '1';
-    const updatedConnection: ConnectionConfig = {
-      id: connectionId,
-      name: 'UpdatedDB',
-      uri: 'mongodb://updated:27017/test',
-    };
     const errorMessage = 'Failed to update connection';
     mockUpdateConnection.mockRejectedValue(new Error(errorMessage));
 
-    await expect(mockedIndexUpdateConnection(connectionId, updatedConnection)).rejects.toThrow(
+    await expect(index.updateConnection(connectionId, updatedConnection)).rejects.toThrow(
       `Failed to update connection: ${errorMessage}`
     );
 
     expect(mockUpdateConnection).toHaveBeenCalledTimes(1);
     expect(mockUpdateConnection).toHaveBeenCalledWith(connectionId, updatedConnection);
-    expect(localMockedDisconnectMongoInternal).not.toHaveBeenCalled();
-    const mockLogger = require('pino')();
+    expect(disconnectMongoSpy).not.toHaveBeenCalled();
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.any(Error), id: connectionId, body: updatedConnection }),
       'IPC: Failed to update connection'

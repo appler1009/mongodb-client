@@ -1,8 +1,15 @@
+import * as index from '../index';
 import pino from 'pino';
 
-jest.mock('pino');
-
-let mockLogger: jest.Mocked<pino.Logger>;
+jest.mock('pino', () => {
+  const mockLogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
+  return jest.fn(() => mockLogger);
+});
 
 const mockAbort = jest.fn();
 class MockAbortController {
@@ -14,91 +21,36 @@ class MockAbortController {
 }
 global.AbortController = MockAbortController as any;
 
-jest.mock('../index', () => {
-  const internalPinoFactory = jest.requireMock('pino') as jest.MockedFunction<typeof pino>;
-  const internalMockLogger = internalPinoFactory();
-
-  const connectionAttempts = new Map<string, { controller: AbortController, cleanup?: () => Promise<void> }>();
-
-  const mockedCancelConnectionAttempt = jest.fn(async (attemptId: string) => {
-    internalMockLogger.debug(`Received cancellation request for attempt ID: ${attemptId}`);
-    const attempt = connectionAttempts.get(attemptId);
-    if (!attempt) {
-      return { success: false, message: 'No matching connection attempt found' };
-    }
-
-    internalMockLogger.debug(`Calling abort for attempt ID: ${attemptId}`);
-    attempt.controller.abort();
-
-    if (attempt.cleanup) {
-      internalMockLogger.debug(`Calling cleanup for attempt ID: ${attemptId}`);
-      try {
-        await attempt.cleanup();
-      } catch (cleanupErr: any) {
-        internalMockLogger.error({ cleanupErr }, `Error during cleanup for attempt ID: ${attemptId}`);
-      }
-    }
-
-    connectionAttempts.delete(attemptId);
-    return { success: true, message: 'Connection attempt cancelled' };
-  });
-
-  const __addConnectionAttempt = (id: string, controller: AbortController, cleanup?: () => Promise<void>) => {
-    connectionAttempts.set(id, { controller, cleanup });
-  };
-
-  const __getConnectionAttempt = (id: string) => {
-    return connectionAttempts.get(id);
-  };
-
-  const __clearConnectionAttempts = () => {
-    connectionAttempts.clear();
-  };
-
-  return {
-    cancelConnectionAttempt: mockedCancelConnectionAttempt,
-    __addConnectionAttempt,
-    __getConnectionAttempt,
-    __clearConnectionAttempts,
-  };
-});
-
-const {
-  cancelConnectionAttempt,
-  __addConnectionAttempt,
-  __getConnectionAttempt,
-  __clearConnectionAttempts,
-} = jest.requireMock('../index');
-
+const mockLogger = jest.requireMock('pino')();
 
 describe('cancelConnectionAttempt', () => {
   const testAttemptId = 'test-attempt-123';
   let mockCleanup: jest.Mock;
   let mockAbortControllerInstance: MockAbortController;
 
-  beforeAll(() => {
-    const pinoModule = jest.mocked(pino);
-    mockLogger = pinoModule() as jest.Mocked<pino.Logger>;
-  });
-
-
   beforeEach(() => {
+    jest.clearAllMocks();
     mockLogger.debug.mockClear();
     mockLogger.error.mockClear();
     mockLogger.info.mockClear();
     mockLogger.warn.mockClear();
 
-    __clearConnectionAttempts();
+    // Clear connectionAttempts using test helper
+    index.__test.clearConnectionAttempts();
 
     mockCleanup = jest.fn().mockResolvedValue(undefined);
     mockAbortControllerInstance = new MockAbortController();
     mockAbort.mockClear();
   });
 
-  it('should successfully cancel an existing connection attempt with cleanup', async () => {
-    __addConnectionAttempt(testAttemptId, mockAbortControllerInstance, mockCleanup);
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
 
-    const result = await cancelConnectionAttempt(testAttemptId);
+  it('should successfully cancel an existing connection attempt with cleanup', async () => {
+    index.__test.addConnectionAttempt(testAttemptId, mockAbortControllerInstance, mockCleanup);
+
+    const result = await index.cancelConnectionAttempt(testAttemptId);
 
     expect(result).toEqual({ success: true, message: 'Connection attempt cancelled' });
     expect(mockLogger.debug).toHaveBeenCalledWith(`Received cancellation request for attempt ID: ${testAttemptId}`);
@@ -106,25 +58,26 @@ describe('cancelConnectionAttempt', () => {
     expect(mockLogger.debug).toHaveBeenCalledWith(`Calling cleanup for attempt ID: ${testAttemptId}`);
     expect(mockAbort).toHaveBeenCalledTimes(1);
     expect(mockCleanup).toHaveBeenCalledTimes(1);
-    expect(__getConnectionAttempt(testAttemptId)).toBeUndefined();
+    expect(index.__test.getConnectionAttempt(testAttemptId)).toBeUndefined();
   });
 
   it('should successfully cancel an existing connection attempt without cleanup', async () => {
-    __addConnectionAttempt(testAttemptId, mockAbortControllerInstance);
+    index.__test.addConnectionAttempt(testAttemptId, mockAbortControllerInstance);
 
-    const result = await cancelConnectionAttempt(testAttemptId);
+    const result = await index.cancelConnectionAttempt(testAttemptId);
 
     expect(result).toEqual({ success: true, message: 'Connection attempt cancelled' });
     expect(mockLogger.debug).toHaveBeenCalledWith(`Received cancellation request for attempt ID: ${testAttemptId}`);
+    expect(mockLogger.debug).toHaveBeenCalledWith(`Calling abort for attempt ID: ${testAttemptId}`);
     expect(mockLogger.debug).not.toHaveBeenCalledWith(expect.stringContaining('Calling cleanup'));
     expect(mockAbort).toHaveBeenCalledTimes(1);
     expect(mockCleanup).not.toHaveBeenCalled();
-    expect(__getConnectionAttempt(testAttemptId)).toBeUndefined();
+    expect(index.__test.getConnectionAttempt(testAttemptId)).toBeUndefined();
   });
 
   it('should return false if no matching connection attempt is found', async () => {
     const nonExistentAttemptId = 'non-existent-id';
-    const result = await cancelConnectionAttempt(nonExistentAttemptId);
+    const result = await index.cancelConnectionAttempt(nonExistentAttemptId);
 
     expect(result).toEqual({ success: false, message: 'No matching connection attempt found' });
     expect(mockLogger.debug).toHaveBeenCalledWith(`Received cancellation request for attempt ID: ${nonExistentAttemptId}`);
@@ -132,21 +85,21 @@ describe('cancelConnectionAttempt', () => {
     expect(mockLogger.debug).not.toHaveBeenCalledWith(expect.stringContaining('Calling cleanup'));
     expect(mockAbort).not.toHaveBeenCalled();
     expect(mockCleanup).not.toHaveBeenCalled();
-    expect(__getConnectionAttempt(nonExistentAttemptId)).toBeUndefined();
+    expect(index.__test.getConnectionAttempt(nonExistentAttemptId)).toBeUndefined();
   });
 
-  it('should handle cleanup promise rejection gracefully (does not throw)', async () => {
+  it('should handle cleanup errors gracefully', async () => {
     const cleanupError = new Error('Cleanup failed');
     mockCleanup.mockRejectedValue(cleanupError);
 
-    __addConnectionAttempt(testAttemptId, mockAbortControllerInstance, mockCleanup);
+    index.__test.addConnectionAttempt(testAttemptId, mockAbortControllerInstance, mockCleanup);
 
-    const result = await cancelConnectionAttempt(testAttemptId);
+    const result = await index.cancelConnectionAttempt(testAttemptId);
 
     expect(result).toEqual({ success: true, message: 'Connection attempt cancelled' });
     expect(mockAbort).toHaveBeenCalledTimes(1);
     expect(mockCleanup).toHaveBeenCalledTimes(1);
-    expect(__getConnectionAttempt(testAttemptId)).toBeUndefined();
+    expect(index.__test.getConnectionAttempt(testAttemptId)).toBeUndefined();
     expect(mockLogger.error).toHaveBeenCalledWith(
       { cleanupErr: cleanupError },
       `Error during cleanup for attempt ID: ${testAttemptId}`
