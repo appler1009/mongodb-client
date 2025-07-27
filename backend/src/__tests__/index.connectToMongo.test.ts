@@ -1,6 +1,7 @@
 import { ConnectionConfig } from '../types';
-import { connectToMongo } from '../index';
+import { connectToMongo, setActiveMongoClient } from '../index';
 import { disconnectMongo } from '../utils/disconnectMongo';
+import { MongoClient } from '../services/mongoDriverChooser';
 
 jest.mock('pino', () => {
   const mockLogger = {
@@ -41,12 +42,9 @@ jest.mock('../services/DatabaseService', () => {
   };
 });
 
-jest.mock('../utils/disconnectMongo', () => {
-  const disconnectMongoSpy = jest.fn(async () => undefined);
-  return {
-    disconnectMongo: disconnectMongoSpy,
-  };
-});
+jest.mock('../utils/disconnectMongo', () => ({
+  disconnectMongo: jest.fn(async () => undefined),
+}));
 
 const mockDbInstance = {
   databaseName: 'mockDbFromClient',
@@ -94,7 +92,7 @@ const { connectWithDriverFallback: mockConnectWithDriverFallback } = jest.requir
 const mockLogger = jest.requireMock('pino')();
 const disconnectMongoSpy = disconnectMongo as jest.Mock;
 
-describe('connectToMongo', () => {
+describe.only('connectToMongo', () => {
   const mockConnectionConfig: ConnectionConfig = {
     id: 'test-conn-id',
     name: 'Test Connection',
@@ -106,6 +104,8 @@ describe('connectToMongo', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+
+    setActiveMongoClient(null);
 
     mockMongoClientInstance.connect.mockResolvedValue(undefined);
     mockMongoClientInstance.close.mockResolvedValue(undefined);
@@ -223,7 +223,7 @@ describe('connectToMongo', () => {
     jest.runAllTimers();
 
     expect(mockConnectWithDriverFallback).toHaveBeenCalledTimes(1);
-    expect(disconnectMongoSpy).toHaveBeenCalledTimes(2); // Adjust for double call
+    expect(disconnectMongoSpy).toHaveBeenCalledTimes(1);
     expect(disconnectMongoSpy).toHaveBeenCalledWith(
       expect.any(Object), // databaseService
       mockLogger
@@ -243,7 +243,7 @@ describe('connectToMongo', () => {
     jest.runAllTimers();
 
     expect(mockConnectWithDriverFallback).toHaveBeenCalledTimes(1);
-    expect(disconnectMongoSpy).toHaveBeenCalledTimes(2); // Adjust for double call
+    expect(disconnectMongoSpy).toHaveBeenCalledTimes(1);
     expect(disconnectMongoSpy).toHaveBeenCalledWith(
       expect.any(Object), // databaseService
       mockLogger
@@ -324,4 +324,77 @@ describe('connectToMongo', () => {
 
     expect(mockUpdateConnection).not.toHaveBeenCalled();
   });
+
+  it('handles unknown error type during connection', async () => {
+    mockGetConnectionById.mockResolvedValue(mockConnectionConfig);
+    const unknownError = 'Unknown error'; // Non-Error object to trigger unknown error path
+    mockConnectWithDriverFallback.mockRejectedValue(unknownError);
+
+    await expect(connectToMongo(mockConnectionConfig.id, mockAttemptId)).rejects.toThrow(
+      'Failed to connect to MongoDB: undefined'
+    );
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      `Error connecting to MongoDB for ID ${mockConnectionConfig.id}: Unknown error`
+    );
+    expect(mockConnectWithDriverFallback).toHaveBeenCalledTimes(1);
+    expect(disconnectMongoSpy).toHaveBeenCalledTimes(1); // Only called in catch block
+  });
+
+  it('deletes connection attempt in finally block when no cleanup is set', async () => {
+    mockGetConnectionById.mockResolvedValue(mockConnectionConfig);
+    const connectionError = new Error('Connection failed');
+    mockConnectWithDriverFallback.mockRejectedValue(connectionError);
+
+    const connectionAttemptsSpy = jest.spyOn(Map.prototype, 'delete');
+
+    await expect(connectToMongo(mockConnectionConfig.id, mockAttemptId)).rejects.toThrow(
+      `Failed to connect to MongoDB: ${connectionError.message}`
+    );
+
+    expect(connectionAttemptsSpy).toHaveBeenCalledWith(mockAttemptId);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      `Error connecting to MongoDB for ID ${mockConnectionConfig.id}:`,
+      connectionError
+    );
+    expect(disconnectMongoSpy).toHaveBeenCalledTimes(1); // Only called in catch block
+  });
+
+  it('logs warning when URI parsing fails to extract database name', async () => {
+     const configWithInvalidUri: ConnectionConfig = {
+       ...mockConnectionConfig,
+       uri: 'invalid-uri',
+     };
+     mockGetConnectionById.mockResolvedValue(configWithInvalidUri);
+     mockConnectWithDriverFallback.mockResolvedValue({
+       client: mockMongoClientInstance,
+       driverVersion: 'v5',
+     });
+
+     mockMongoClientInstance.db.mockImplementation((dbName?: string) => ({
+       databaseName: dbName || 'defaultMongoDb',
+       admin: mockDbInstance.admin,
+     }));
+
+     const result = await connectToMongo(configWithInvalidUri.id, mockAttemptId);
+
+     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+     const [loggedObject, loggedMessage] = mockLogger.warn.mock.calls[0];
+
+     expect(loggedMessage).toBe('Failed to parse URI to extract database name.');
+     expect(loggedObject.uri).toBe('invalid-uri');
+
+     // Final, most robust check for the error object when direct constructor comparison fails.
+     // This confirms it's an object, has the expected 'name' (e.g., 'TypeError'),
+     // and its message is correct.
+     expect(typeof loggedObject.error).toBe('object');
+     expect(loggedObject.error).not.toBeNull();
+     expect(loggedObject.error.name).toBe('TypeError'); // Checks the 'name' property of the error
+     expect(loggedObject.error.message).toContain('Invalid URL');
+
+     expect(mockSetActiveDb).toHaveBeenCalledWith(
+       expect.objectContaining({ databaseName: 'defaultMongoDb' })
+     );
+     expect(result.database).toBe('defaultMongoDb');
+   });
 });

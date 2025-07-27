@@ -25,15 +25,9 @@ jest.mock('../services/ConnectionService', () => {
   };
 });
 
-jest.mock('../utils/disconnectMongo', () => {
-  const disconnectMongoSpy = jest.fn(async () => {
-    console.log('disconnectMongoSpy called');
-    return undefined;
-  });
-  return {
-    disconnectMongo: disconnectMongoSpy,
-  };
-});
+jest.mock('../utils/disconnectMongo', () => ({
+  disconnectMongo: jest.fn(async () => undefined),
+}));
 
 const { mockUpdateConnection } = jest.requireMock('../services/ConnectionService');
 const mockLogger = jest.requireMock('pino')();
