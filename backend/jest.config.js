@@ -13,6 +13,7 @@ module.exports = {
     '/packages/mongodb-wrapper-v5/dist/',
     '/packages/mongodb-wrapper-v4/dist/',
     '/packages/mongodb-wrapper-v3/dist/',
+    '/dist/__mocks__/',
   ],
   coverageReporters: ['lcov', 'text'],
   coverageDirectory: 'coverage',

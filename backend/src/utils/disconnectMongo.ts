@@ -11,7 +11,6 @@ import {
 } from '../index';
 
 export async function disconnectMongo(dbService: DatabaseService, logger: Logger) {
-  console.log(`disconnectMongoInternal original called`);
   const activeMongoClient = getActiveMongoClient();
   if (activeMongoClient) {
     logger.debug('Closing existing MongoDB connection...');

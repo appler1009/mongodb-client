@@ -15,19 +15,6 @@ jest.mock('mongodb', () => {
   }
 });
 
-/*
-jest.mock('mongodb-wrapper-v6', () => {
-    const actualMongodb = jest.requireActual('mongodb-wrapper-v6');
-    return {
-        ...actualMongodb,
-        ObjectId: jest.fn((value?: string | number | Buffer | typeof actualMongodb.ObjectId) => {
-            return new actualMongodb.ObjectId(value);
-        }),
-    };
-});
-*/
-
-//import { Collection, Db, FindCursor, AggregationCursor, ObjectId } from 'mongodb-wrapper-v6';
 import { Collection, Db, FindCursor, AggregationCursor, ObjectId } from '../services/mongoDriverChooser';
 import { DatabaseService } from '../services/DatabaseService';
 import { Logger } from 'pino';
