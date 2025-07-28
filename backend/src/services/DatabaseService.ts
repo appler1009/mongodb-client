@@ -39,36 +39,37 @@ export class DatabaseService {
       throw error;
     }
     this.logger.debug(`Fetching collections from database: ${this.activeDb!.databaseName}`);
-    try {
-      // Check cache
-      if (this.collectionsCache && Date.now() - this.collectionsCache.timestamp < this.cacheTTL) {
-        this.logger.debug(`Using cached collections for database: ${this.activeDb!.databaseName}`);
-        return this.collectionsCache.collections;
-      }
-      // If a fetch is already in progress, reuse the same promise
-      if (this.collectionsCachePromise) {
-        this.logger.debug(`Reusing in-progress collections fetch for database: ${this.activeDb!.databaseName}`);
-        return this.collectionsCachePromise;
-      }
-      // Start a new fetch and cache the promise
-      this.collectionsCachePromise = (async () => {
-        try {
-          const collections = await this.activeDb!.listCollections().toArray();
-          const result: CollectionInfo[] = [];
-          for (const c of collections) {
-            result.push({ name: c.name, documentCount: -1 });
-          }
-          this.collectionsCache = { collections: result, timestamp: Date.now() };
-          return result;
-        } finally {
-          this.collectionsCachePromise = null; // Clear promise after completion
-        }
-      })();
-      return this.collectionsCachePromise;
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to list collections');
-      throw error;
+
+    // Check cache
+    if (this.collectionsCache && Date.now() - this.collectionsCache.timestamp < this.cacheTTL) {
+      this.logger.debug(`Using cached collections for database: ${this.activeDb!.databaseName}`);
+      return this.collectionsCache.collections;
     }
+
+    // If a fetch is already in progress, reuse the same promise
+    if (this.collectionsCachePromise) {
+      this.logger.debug(`Reusing in-progress collections fetch for database: ${this.activeDb!.databaseName}`);
+      return this.collectionsCachePromise;
+    }
+
+    // Start a new fetch and cache the promise
+    this.collectionsCachePromise = new Promise(async (resolve, reject) => {
+      try {
+        const collections = await this.activeDb!.listCollections().toArray();
+        const result: CollectionInfo[] = [];
+        for (const c of collections) {
+          result.push({ name: c.name, documentCount: -1 });
+        }
+        this.collectionsCache = { collections: result, timestamp: Date.now() };
+        resolve(result);
+      } catch(er) {
+        this.logger.error({ error: er }, 'Failed to list collections');
+        reject(er);
+      } finally {
+        this.collectionsCachePromise = null; // Clear promise after completion
+      }
+    });
+    return this.collectionsCachePromise;
   }
 
   private async buildQueryCursor(

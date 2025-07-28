@@ -7,6 +7,13 @@ module.exports = {
   transform: {
     '^.+\\.(ts|js)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.json' }]
   },
+  transformIgnorePatterns: [
+    '/node_modules/',
+    '/packages/mongodb-wrapper-v6/dist/',
+    '/packages/mongodb-wrapper-v5/dist/',
+    '/packages/mongodb-wrapper-v4/dist/',
+    '/packages/mongodb-wrapper-v3/dist/',
+  ],
   coverageReporters: ['lcov', 'text'],
   coverageDirectory: 'coverage',
   moduleDirectories: ['node_modules', '<rootDir>/../packages'],
