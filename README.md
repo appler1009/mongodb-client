@@ -1,5 +1,65 @@
 # mongodb-client
 
+## Development
+
+### Testing
+
+Run all tests (backend and frontend):
+```bash
+npm test
+```
+
+Run tests and generate coverage report:
+```bash
+npm run test && npm run test-coverage
+```
+
+Run backend tests only:
+```bash
+npm run test-backend
+```
+
+Run frontend tests only:
+```bash
+npm run test-frontend
+```
+
+Generate coverage report from existing test results:
+```bash
+npm run test-coverage
+```
+
+**Note**: The `test-coverage` command reads existing coverage reports generated from previous test runs. It does not run tests itself.
+
+### Building
+
+Build backend:
+```bash
+npm run build-backend
+```
+
+Build frontend:
+```bash
+npm run build-frontend
+```
+
+Build for production:
+```bash
+npm run package
+```
+
+### Development Server
+
+Start development environment (frontend + electron):
+```bash
+npm run dev
+```
+
+Start frontend development server only:
+```bash
+npm run start-frontend-dev-server
+```
+
 ## Features
 
 - **Connection Management**: Add, edit, delete, and manage multiple MongoDB connections with support for different driver versions (v3, v4, v5, v6).

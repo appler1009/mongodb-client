@@ -10,7 +10,11 @@
     "start-electron-dev": "electron .",
     "dev": "npm run build-backend && concurrently \"npm run start-frontend-dev-server\" \"npm run start-electron-dev\"",
     "start-frontend-dev-server": "cd frontend && npm run dev",
-    "package": "npm run build-backend && npm run build-frontend && electron-builder"
+    "package": "npm run build-backend && npm run build-frontend && electron-builder",
+    "test": "npm run test-backend && npm run test-frontend && npm run test-coverage",
+    "test-backend": "cd backend && npm test",
+    "test-frontend": "cd frontend && npm test",
+    "test-coverage": "node scripts/generate-coverage-report.js"
   },
   "repository": {
     "type": "git",

@@ -15,8 +15,8 @@ module.exports = {
     '/packages/mongodb-wrapper-v3/dist/',
     '/dist/__mocks__/',
   ],
-  coverageReporters: ['lcov', 'text'],
-  coverageDirectory: 'coverage',
+  coverageReporters: ['lcov', 'text', 'json'],
+  coverageDirectory: '../coverage/backend',
   moduleDirectories: ['node_modules', '<rootDir>/../packages'],
   moduleNameMapper: {
     '^mongodb-wrapper-v6$': '<rootDir>/../packages/mongodb-wrapper-v6',

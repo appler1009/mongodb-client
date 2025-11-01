@@ -9,8 +9,8 @@ export default {
   transformIgnorePatterns: [
     '/node_modules/',
   ],
-  coverageReporters: ['lcov', 'text'],
-  coverageDirectory: 'coverage',
+  coverageReporters: ['lcov', 'text', 'json'],
+  coverageDirectory: '../coverage/frontend',
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/jest.setup.js'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
