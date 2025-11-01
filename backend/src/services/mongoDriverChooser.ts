@@ -29,7 +29,7 @@ type MongoWrapperConstructor =
 // For simplicity, use the most comprehensive MongoClientOptions (from V6)
 export type UniversalMongoClientOptions = MongoClientOptionsV6;
 
-interface ConnectionAttemptResult {
+export interface ConnectionAttemptResult {
   client: MongoClient;
   wrapper: MongoDBWrapperV6 | MongoDBWrapperV5 | MongoDBWrapperV4 | MongoDBWrapperV3;
   driverVersion: 'v6' | 'v5' | 'v4' | 'v3';
