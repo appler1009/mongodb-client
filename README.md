@@ -29,6 +29,18 @@ Generate coverage report from existing test results:
 npm run test-coverage
 ```
 
+View coverage reports:
+```bash
+# Open unified coverage report (backend + frontend)
+open coverage/index.html
+
+# Open backend coverage report only
+open coverage/backend/lcov-report/index.html
+
+# Open frontend coverage report only
+open coverage/frontend/lcov-report/index.html
+```
+
 **Note**: The `test-coverage` command reads existing coverage reports generated from previous test runs. It does not run tests itself.
 
 ### Building
