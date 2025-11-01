@@ -313,4 +313,82 @@ describe('ConnectionService', () => {
       expect(mockLogger.error).toHaveBeenCalledWith('ConnectionService: electron-store not initialized. Call setStore() first.');
     });
   });
+
+  describe('getConnections()', () => {
+    it('should return all connections from the store', async () => {
+      const connections: ConnectionConfig[] = [
+        { id: 'conn1', name: 'Conn 1', uri: 'mongodb://conn1' },
+        { id: 'conn2', name: 'Conn 2', uri: 'mongodb://conn2' },
+      ];
+      mockGet.mockReturnValue(connections);
+
+      const result = await connectionService.getConnections();
+
+      expect(result).toEqual(connections);
+      expect(mockGet).toHaveBeenCalledWith('connections', []);
+    });
+
+    it('should return empty array if no connections exist', async () => {
+      mockGet.mockReturnValue([]);
+
+      const result = await connectionService.getConnections();
+
+      expect(result).toEqual([]);
+      expect(mockGet).toHaveBeenCalledWith('connections', []);
+    });
+
+    it('should throw an error if store is not initialized (getConnections)', async () => {
+      const uninitializedService = new ConnectionService(mockLogger);
+
+      await expect(uninitializedService.getConnections()).rejects.toThrow(
+        'ConnectionService: electron-store not initialized. Call setStore() first.'
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith('ConnectionService: electron-store not initialized. Call setStore() first.');
+    });
+  });
+
+  describe('getConnectionById()', () => {
+    it('should return the connection with the specified ID', async () => {
+      const connections: ConnectionConfig[] = [
+        { id: 'conn1', name: 'Conn 1', uri: 'mongodb://conn1' },
+        { id: 'conn2', name: 'Conn 2', uri: 'mongodb://conn2' },
+      ];
+      mockGet.mockReturnValue(connections);
+
+      const result = await connectionService.getConnectionById('conn2');
+
+      expect(result).toEqual(connections[1]);
+      expect(mockGet).toHaveBeenCalledWith('connections', []);
+    });
+
+    it('should return undefined if connection with ID is not found', async () => {
+      const connections: ConnectionConfig[] = [
+        { id: 'conn1', name: 'Conn 1', uri: 'mongodb://conn1' },
+      ];
+      mockGet.mockReturnValue(connections);
+
+      const result = await connectionService.getConnectionById('non-existent-id');
+
+      expect(result).toBeUndefined();
+      expect(mockGet).toHaveBeenCalledWith('connections', []);
+    });
+
+    it('should throw an error if store is not initialized (getConnectionById)', async () => {
+      const uninitializedService = new ConnectionService(mockLogger);
+
+      await expect(uninitializedService.getConnectionById('some-id')).rejects.toThrow(
+        'ConnectionService: electron-store not initialized. Call setStore() first.'
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith('ConnectionService: electron-store not initialized. Call setStore() first.');
+    });
+  });
+
+  describe('setStore()', () => {
+    it('should set the store instance and log debug message', () => {
+      const newStore = new MockStore();
+      connectionService.setStore(newStore);
+
+      expect(mockLogger.debug).toHaveBeenCalledWith('ConnectionService: electron-store instance injected.');
+    });
+  });
 });
