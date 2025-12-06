@@ -99,8 +99,8 @@ describe('getCollectionDocuments', () => {
 
     expect(mockLogger.debug).toHaveBeenCalledWith('IPC: getCollectionDocuments called');
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetDocuments).toHaveBeenCalledWith(defaultCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(defaultCollectionName, defaultParams);
+    expect(mockGetDocuments).toHaveBeenCalledWith(defaultCollectionName, defaultLimit, defaultSkip, defaultParams, undefined);
+    expect(mockGetDocumentCount).toHaveBeenCalledWith(defaultCollectionName, defaultParams, undefined);
     expect(result.documents).toEqual(transformedDocuments);
     expect(result.totalDocuments).toBe(totalCount);
   });
@@ -120,8 +120,8 @@ describe('getCollectionDocuments', () => {
 
     const result = await getCollectionDocuments(collectionName, limit, skip, params);
 
-    expect(mockGetDocuments).toHaveBeenCalledWith(collectionName, limit, skip, params);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(collectionName, params);
+    expect(mockGetDocuments).toHaveBeenCalledWith(collectionName, limit, skip, params, undefined);
+    expect(mockGetDocumentCount).toHaveBeenCalledWith(collectionName, params, undefined);
     expect(result.documents).toEqual(transformedDocuments);
     expect(result.totalDocuments).toBe(totalCount);
   });
@@ -184,8 +184,8 @@ describe('getCollectionDocuments', () => {
 
     expect(result.documents).toEqual([]);
     expect(result.totalDocuments).toBe(0);
-    expect(mockGetDocuments).toHaveBeenCalledWith(defaultCollectionName, defaultLimit, defaultSkip, defaultParams);
-    expect(mockGetDocumentCount).toHaveBeenCalledWith(defaultCollectionName, defaultParams);
+    expect(mockGetDocuments).toHaveBeenCalledWith(defaultCollectionName, defaultLimit, defaultSkip, defaultParams, undefined);
+    expect(mockGetDocumentCount).toHaveBeenCalledWith(defaultCollectionName, defaultParams, undefined);
   });
 
   it('prepareDocumentForFrontend should return non-object/non-array inputs as is', () => {

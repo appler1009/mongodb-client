@@ -62,6 +62,7 @@ describe('initialize', () => {
       connectToMongo: expect.any(Function),
       disconnectFromMongo: expect.any(Function),
       cancelConnectionAttempt: expect.any(Function),
+      cancelQuery: expect.any(Function),
       getDatabaseCollections: expect.any(Function),
       getCollectionDocuments: expect.any(Function),
       exportCollectionDocuments: expect.any(Function),
