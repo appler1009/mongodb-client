@@ -14,12 +14,21 @@ import { disconnectMongo } from './utils/disconnectMongo';
 
 // Map to store active connection attempts for cancellation
 const connectionAttempts = new Map<string, { controller: AbortController, cleanup?: () => Promise<void> }>();
+
+// Map to store active query attempts for cancellation
+const queryAttempts = new Map<string, AbortController>();
+
 export const __test = {
   addConnectionAttempt: (id: string, controller: AbortController, cleanup?: () => Promise<void>) => {
     connectionAttempts.set(id, { controller, cleanup });
   },
   getConnectionAttempt: (id: string) => connectionAttempts.get(id),
   clearConnectionAttempts: () => connectionAttempts.clear(),
+  addQueryAttempt: (id: string, controller: AbortController) => {
+    queryAttempts.set(id, controller);
+  },
+  getQueryAttempt: (id: string) => queryAttempts.get(id),
+  clearQueryAttempts: () => queryAttempts.clear(),
 };
 
 dotenv.config();
@@ -61,6 +70,7 @@ export function initialize(connectionsStore: Store<any>) {
     connectToMongo,
     disconnectFromMongo,
     cancelConnectionAttempt,
+    cancelQuery,
     getDatabaseCollections,
     getCollectionDocuments,
     exportCollectionDocuments,
@@ -275,6 +285,20 @@ export const disconnectFromMongo = async (): Promise<ConnectionStatus> => {
   }
 };
 
+export const cancelQuery = async (queryId: string): Promise<{ success: boolean; message: string }> => {
+  logger.debug(`Received cancellation request for query ID: ${queryId}`);
+  const controller = queryAttempts.get(queryId);
+  if (!controller) {
+    return { success: false, message: 'No matching query attempt found' };
+  }
+
+  logger.debug(`Calling abort for query ID: ${queryId}`);
+  controller.abort();
+
+  queryAttempts.delete(queryId);
+  return { success: true, message: 'Query cancelled' };
+};
+
 export const cancelConnectionAttempt = async (attemptId: string): Promise<{ success: boolean; message: string }> => {
   logger.debug(`Received cancellation request for attempt ID: ${attemptId}`);
   const attempt = connectionAttempts.get(attemptId);
@@ -322,10 +346,26 @@ export const getCollectionDocuments = async (
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to retrieve documents.');
     }
-    const documents = await databaseService.getDocuments(collectionName, limit, skip, params);
+
+    const queryId = params.queryId;
+    let controller: AbortController | undefined;
+    if (queryId) {
+      controller = new AbortController();
+      __test.addQueryAttempt(queryId, controller);
+      logger.debug(`Added query attempt for ID: ${queryId}`);
+    }
+
+    const documents = await databaseService.getDocuments(collectionName, limit, skip, params, controller?.signal);
     logger.debug(`Retrieved ${documents.length} documents from collection ${collectionName}`);
     logger.debug(JSON.stringify(documents));
-    const totalDocuments = await databaseService.getDocumentCount(collectionName, params);
+
+    const totalDocumentsPromise = databaseService.getDocumentCount(collectionName, params, controller?.signal);
+    const totalDocuments = await totalDocumentsPromise;
+
+    if (queryId && controller) {
+      queryAttempts.delete(queryId);
+      logger.debug(`Removed query attempt for ID: ${queryId}`);
+    }
 
     const transformedDocuments = documents.map(prepareDocumentForFrontend);
     logger.debug(`Transformed ${transformedDocuments.length} documents`);
@@ -333,6 +373,11 @@ export const getCollectionDocuments = async (
 
     return { documents: transformedDocuments, totalDocuments };
   } catch (error: any) {
+    if (error.name === 'AbortError' && params.queryId) {
+      queryAttempts.delete(params.queryId);
+      logger.debug(`Query aborted for ID: ${params.queryId}`);
+      throw new Error('Query was cancelled by the user.');
+    }
     logger.error({ error, collectionName }, 'IPC: Failed to get documents from collection');
     throw new Error(`Failed to retrieve documents from collection ${collectionName}: ${error.message}`);
   }
@@ -343,7 +388,20 @@ export const exportCollectionDocuments = async (collectionName: string, params: 
     if (!databaseService.isDbActive()) {
       throw new Error('No active database connection to export documents.');
     }
-    const documents = await databaseService.getAllDocuments(collectionName, params);
+    const queryId = params.queryId;
+    let controller: AbortController | undefined;
+    if (queryId) {
+      controller = new AbortController();
+      __test.addQueryAttempt(queryId, controller);
+      logger.debug(`Added export query attempt for ID: ${queryId}`);
+    }
+
+    const documents = await databaseService.getAllDocuments(collectionName, params, controller?.signal);
+
+    if (queryId && controller) {
+      queryAttempts.delete(queryId);
+      logger.debug(`Removed export query attempt for ID: ${queryId}`);
+    }
 
     const transformedDocuments: any[] = [];
     for (const doc of documents) {
@@ -360,6 +418,11 @@ export const exportCollectionDocuments = async (collectionName: string, params: 
 
     return tempFilePath;
   } catch (error: any) {
+    if (error.name === 'AbortError' && params.queryId) {
+      queryAttempts.delete(params.queryId);
+      logger.debug(`Export query aborted for ID: ${params.queryId}`);
+      throw new Error('Export was cancelled by the user.');
+    }
     logger.error({ error, collectionName }, 'Backend: Failed to export documents to temp file');
     throw new Error(`Failed to export documents to temporary file for collection ${collectionName}: ${error.message}`);
   }

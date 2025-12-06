@@ -18,6 +18,7 @@ declare global {
       connectToMongo: (connectionId: string, attemptId: string) => Promise<ConnectionStatus>;
       disconnectFromMongo: () => Promise<ConnectionStatus>;
       cancelConnectionAttempt: (attemptId: string) => Promise<{ success: boolean; message: string }>;
+      cancelQuery: (queryId: string) => Promise<{ success: boolean; message: string }>;
 
       // Database Browse IPC calls
       getDatabaseCollections: () => Promise<CollectionInfo[]>;
@@ -91,6 +92,11 @@ export const getCollectionDocuments = (
   params: MongoQueryParams = {}
 ): Promise<DocumentsResponse> => {
   return window.electronAPI.getCollectionDocuments(collectionName, limit, skip, params);
+};
+
+// --- Query Cancellation API Calls ---
+export const cancelQuery = (queryId: string): Promise<{ success: boolean; message: string }> => {
+  return window.electronAPI.cancelQuery(queryId);
 };
 
 // --- Export documents from a collection ---

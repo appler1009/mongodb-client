@@ -55,6 +55,7 @@ export interface MongoQueryParams {
   collation?: string; // JSON-stringified, e.g., '{"locale":"en"}'
   hint?: string; // JSON-stringified or index name, e.g., '{"name":1}' or '"indexName"'
   readPreference?: string; // e.g., "primary"
+  queryId?: string; // Unique identifier for the query to enable cancellation
 }
 
 // Schema map type for representing field types in a collection

@@ -43,4 +43,5 @@ export interface MongoQueryParams {
   collation?: string;
   hint?: string;
   readPreference?: string;
+  queryId?: string; // Unique identifier for the query to enable cancellation
 }
