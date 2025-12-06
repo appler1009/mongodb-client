@@ -1,0 +1,1 @@
+- run unit tests after code changes
