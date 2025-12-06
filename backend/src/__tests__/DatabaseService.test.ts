@@ -314,7 +314,7 @@ describe('DatabaseService', () => {
       const result = await service.getDocumentCount(collectionName, params);
 
       expect(mockDb.collection).toHaveBeenCalledWith(collectionName);
-      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ status: 'active' });
+      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ status: 'active' }, { signal: undefined });
       expect(result).toBe(expectedCount);
       expect(mockLogger.debug).toHaveBeenCalledWith(`Counting documents in collection "${collectionName}"`);
     });

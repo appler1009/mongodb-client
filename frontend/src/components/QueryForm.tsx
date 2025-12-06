@@ -3,7 +3,8 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Form, Button, Alert, ToggleButton, Accordion, Card } from 'react-bootstrap';
 import { jsonrepair } from 'jsonrepair';
 import type { MongoQueryParams } from '../types';
-import { generateAIQuery } from '../api/backend';
+import { generateAIQuery, cancelQuery } from '../api/backend';
+import { v4 as uuidv4 } from 'uuid';
 import '../styles/QueryForm.css';
 
 interface QueryFormProps {
@@ -30,6 +31,7 @@ export const QueryForm: React.FC<QueryFormProps> = ({
   const [autoRunGeneratedQuery, setAutoRunGeneratedQuery] = useState<boolean>(true);
   const [shareSamples, setShareSamples] = useState<boolean>(false);
   const [accordionActiveKey, setAccordionActiveKey] = useState<string | null>('0');
+  const [currentQueryId, setCurrentQueryId] = useState<string | null>(null);
 
   const handlePromptTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setPromptText(e.target.value);
@@ -131,11 +133,19 @@ export const QueryForm: React.FC<QueryFormProps> = ({
             collation: repairedParams.collation,
             hint: repairedParams.hint,
           };
-
+        
+          // Generate queryId if auto-running
+          let finalParams = formattedParams;
+          if (autoRunGeneratedQuery) {
+            const queryId = generateQueryId();
+            finalParams = { ...formattedParams, queryId };
+            setCurrentQueryId(queryId);
+          }
+        
           setQueryParams(formattedParams);
           onQueryParamsChange(formattedParams);
           if (autoRunGeneratedQuery) {
-            onQueryExecute(formattedParams);
+            onQueryExecute(finalParams);
             setAccordionActiveKey(null);
             setNotificationMessage('Query Helper generated and executed query successfully!');
           } else {
@@ -162,7 +172,11 @@ export const QueryForm: React.FC<QueryFormProps> = ({
     }
   }, [selectedCollection, promptText, autoRunGeneratedQuery, shareSamples, setNotificationMessage, setError, onQueryExecute, onQueryParamsChange]);
 
-  const handleExecuteManualQuery = () => {
+  const generateQueryId = (): string => {
+    return `query_${uuidv4()}`;
+  };
+
+  const handleExecuteManualQuery = async () => {
     if (documentsLoading || aiLoading) {
       setQueryError('System is busy. Please wait for current operations to complete.');
       return;
@@ -172,6 +186,11 @@ export const QueryForm: React.FC<QueryFormProps> = ({
       (Object.keys(queryParams).length === 1 && queryParams.readPreference)
       ? { ...queryParams, query: '{}' }
       : { ...queryParams };
+
+    // Generate queryId
+    const queryId = generateQueryId();
+    params.queryId = queryId;
+    setCurrentQueryId(queryId);
 
     // Validate and repair JSON fields
     try {
@@ -204,6 +223,25 @@ export const QueryForm: React.FC<QueryFormProps> = ({
     onQueryExecute(params);
     onQueryParamsChange(params);
     setAccordionActiveKey(null);
+  };
+
+  const handleStopQuery = async () => {
+    if (!currentQueryId) {
+      setQueryError('No active query to stop.');
+      return;
+    }
+
+    try {
+      const result = await cancelQuery(currentQueryId);
+      if (result.success) {
+        setNotificationMessage('Query stopped successfully.');
+        setCurrentQueryId(null);
+      } else {
+        setQueryError(result.message);
+      }
+    } catch (error: any) {
+      setQueryError(`Failed to stop query: ${error.message}`);
+    }
   };
 
   return (
@@ -378,15 +416,36 @@ export const QueryForm: React.FC<QueryFormProps> = ({
                 </Form.Select>
               </Form.Group>
               <div className="run-query-container">
-                <Button
-                  variant="primary"
-                  onClick={handleExecuteManualQuery}
-                  disabled={documentsLoading || aiLoading || !selectedCollection}
-                  title="Execute the manually entered query"
-                  className="run-query-btn"
-                >
-                  Run Query
-                </Button>
+                {documentsLoading ? (
+                  <>
+                    <Button
+                      variant="danger"
+                      onClick={handleStopQuery}
+                      disabled={!currentQueryId}
+                      title="Stop the running query"
+                      className="run-query-btn me-2"
+                    >
+                      Stop Query
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled
+                      className="run-query-btn"
+                    >
+                      Running...
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="primary"
+                    onClick={handleExecuteManualQuery}
+                    disabled={aiLoading || !selectedCollection}
+                    title="Execute the manually entered query"
+                    className="run-query-btn"
+                  >
+                    Run Query
+                  </Button>
+                )}
               </div>
             </Accordion.Body>
           </Accordion.Item>

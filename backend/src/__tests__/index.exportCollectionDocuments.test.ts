@@ -111,7 +111,7 @@ describe('exportCollectionDocuments', () => {
 
     expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params, undefined);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledTimes(2);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[0]);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[1]);
@@ -135,7 +135,7 @@ describe('exportCollectionDocuments', () => {
 
     expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params, undefined);
     expect(mockPrepareDocumentForFrontend).not.toHaveBeenCalled();
     expect(mockTmpdir).toHaveBeenCalledTimes(1);
     expect(mockUuidv4).toHaveBeenCalledTimes(1);
@@ -154,7 +154,7 @@ describe('exportCollectionDocuments', () => {
 
     expect(mockLogger.debug).toHaveBeenCalledWith(`Exported NDJSON content to temporary file: ${tempFilePath}`);
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, {});
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, {}, undefined);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledTimes(1);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[0]);
     expect(mockTmpdir).toHaveBeenCalledTimes(1);
@@ -202,7 +202,7 @@ describe('exportCollectionDocuments', () => {
 
     expect(mockLogger.debug).not.toHaveBeenCalled();
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params, undefined);
     expect(mockPrepareDocumentForFrontend).not.toHaveBeenCalled();
     expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockLogger.error).toHaveBeenCalledWith(
@@ -226,7 +226,7 @@ describe('exportCollectionDocuments', () => {
 
     expect(mockLogger.debug).not.toHaveBeenCalled();
     expect(mockIsDbActive).toHaveBeenCalledTimes(1);
-    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params);
+    expect(mockGetAllDocuments).toHaveBeenCalledWith(collectionName, params, undefined);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledTimes(1);
     expect(mockPrepareDocumentForFrontend).toHaveBeenCalledWith(documents[0]);
     expect(mockTmpdir).toHaveBeenCalledTimes(1);

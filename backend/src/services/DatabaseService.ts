@@ -75,6 +75,7 @@ export class DatabaseService {
   private async buildQueryCursor(
     collectionName: string,
     params: MongoQueryParams,
+    signal?: AbortSignal,
     forCount: boolean = false
   ): Promise<{
     cursor?: FindCursor<MongoDocument> | AggregationCursor<MongoDocument>;
@@ -90,15 +91,15 @@ export class DatabaseService {
       hint = '{}',
       readPreference = 'primary',
     } = params;
-
+  
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to build query cursor without active DB');
       throw error;
     }
-
+  
     const collection: Collection = this.activeDb.collection(collectionName);
-
+  
     // Check cache for schema
     const cached = this.schemaCache.get(collectionName);
     let schemaMap: SchemaMap;
@@ -111,7 +112,7 @@ export class DatabaseService {
       this.schemaCache.set(collectionName, { schemaMap, timestamp: Date.now() });
     }
     this.logger.debug(`schema map: ${JSON.stringify(schemaMap)}`);
-
+  
     // Convert values to MongoDB types based on schema
     const convertValue = (value: any, field: string): any => {
       this.logger.debug(`Converting value ${JSON.stringify(value)} for field ${field}`);
@@ -148,7 +149,7 @@ export class DatabaseService {
       }
       return value;
     };
-
+  
     // Parse stringified params
     let parsedQuery, parsedFilter, parsedSort, parsedPipeline, parsedProjection, parsedCollation, parsedHint;
     try {
@@ -163,7 +164,7 @@ export class DatabaseService {
       this.logger.error({ err, params }, 'Failed to parse query parameters');
       throw new Error('Invalid JSON in query parameters');
     }
-
+  
     // Validate field types against schema, skipping MongoDB operators
     const validateField = (field: string, value: any, context: string) => {
       if (field.startsWith('$')) {
@@ -193,12 +194,12 @@ export class DatabaseService {
       } else {
         actualType = typeof value;
       }
-
+  
       if (!expectedTypes.includes(actualType)) {
         this.logger.warn(`Type mismatch for ${field} in ${context}: expected ${expectedTypes.join(' | ')}, got ${actualType}`);
       }
     };
-
+  
     const validateObject = (obj: any, context: string, fieldPrefix: string = '') => {
       if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
         // Skip ObjectId or Buffer-like objects
@@ -220,7 +221,7 @@ export class DatabaseService {
         }
       }
     };
-
+  
     validateObject(parsedQuery, 'query');
     validateObject(parsedFilter, 'filter');
     parsedPipeline.forEach((stage, index) => validateObject(stage, `pipeline[${index}]`));
@@ -233,13 +234,16 @@ export class DatabaseService {
     this.logger.debug(`Validated projection: ${JSON.stringify(parsedProjection)}`);
     this.logger.debug(`Validated collation: ${JSON.stringify(parsedCollation)}`);
     this.logger.debug(`Validated hint: ${JSON.stringify(parsedHint)}`);
-
-    const options: any = { readPreference };
-
+  
+    const options: any = {
+      readPreference,
+      ...(signal && { signal })
+    };
+  
     if (forCount) {
       return { countQuery: { ...parsedQuery, ...parsedFilter } };
     }
-
+  
     if (parsedPipeline.length > 0) {
       const aggPipeline = [{ $match: { ...parsedQuery, ...parsedFilter } }, ...parsedPipeline];
       if (Object.keys(parsedSort).length > 0) {
@@ -256,7 +260,7 @@ export class DatabaseService {
       }
       return { cursor: collection.aggregate(aggPipeline, options) };
     }
-
+  
     let findQuery = collection.find({ ...parsedQuery, ...parsedFilter }, options);
     if (Object.keys(parsedSort).length > 0) {
       findQuery = findQuery.sort(parsedSort);
@@ -277,11 +281,12 @@ export class DatabaseService {
     collectionName: string,
     limit: number,
     skip: number,
-    params: MongoQueryParams = {}
+    params: MongoQueryParams = {},
+    signal?: AbortSignal
   ): Promise<MongoDocument[]> {
     this.logger.debug(`Fetching documents from collection: ${collectionName} (limit: ${limit}, skip: ${skip})`);
     try {
-      const { cursor } = await this.buildQueryCursor(collectionName, params);
+      const { cursor } = await this.buildQueryCursor(collectionName, params, signal);
       if (!cursor) {
         throw new Error('No cursor returned from buildQueryCursor');
       }
@@ -289,47 +294,60 @@ export class DatabaseService {
       this.logger.debug(`Retrieved ${documents.length} documents from collection ${collectionName}`);
       this.logger.debug(JSON.stringify(documents));
       return documents;
-    } catch (error) {
-      this.logger.error({ error, collectionName, params }, 'Failed to retrieve documents from collection');
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.debug(`Query aborted for collection: ${collectionName}`);
+        throw error;
+      }
+      this.logger.error({ error: error as Error, collectionName, params }, 'Failed to retrieve documents from collection');
       throw error;
     }
   }
 
   async getDocumentCount(
     collectionName: string,
-    params: MongoQueryParams = {}
+    params: MongoQueryParams = {},
+    signal?: AbortSignal
   ): Promise<number> {
     if (!this.activeDb) {
       const error = new Error('No active database connection.');
       this.logger.error(error, 'Attempted to count documents without active DB');
       throw error;
     }
-
+  
     this.logger.debug(`Counting documents in collection "${collectionName}"`);
     try {
-      const { countQuery } = await this.buildQueryCursor(collectionName, params, true);
+      const { countQuery } = await this.buildQueryCursor(collectionName, params, signal, true);
       if (!countQuery) {
         throw new Error('No count query returned from buildQueryCursor');
       }
       const collection: Collection<MongoDocument> = this.activeDb.collection(collectionName);
-      return await collection.countDocuments(countQuery);
-    } catch (error) {
-      this.logger.error({ error, collectionName, params }, `Failed to count documents in ${collectionName}`);
+      return await collection.countDocuments(countQuery, { signal });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.debug(`Count query aborted for collection: ${collectionName}`);
+        throw error;
+      }
+      this.logger.error({ error: error as Error, collectionName, params }, `Failed to count documents in ${collectionName}`);
       throw error;
     }
   }
 
-  public async getAllDocuments(collectionName: string, params: MongoQueryParams = {}): Promise<MongoDocument[]> {
+  public async getAllDocuments(collectionName: string, params: MongoQueryParams = {}, signal?: AbortSignal): Promise<MongoDocument[]> {
     this.logger.debug(`Fetching ALL documents from collection: ${collectionName} for export`);
     try {
-      const { cursor } = await this.buildQueryCursor(collectionName, params);
+      const { cursor } = await this.buildQueryCursor(collectionName, params, signal);
       if (!cursor) {
         throw new Error('No cursor returned from buildQueryCursor');
       }
       const documents = await cursor.toArray();
       return documents;
-    } catch (error) {
-      this.logger.error({ error, collectionName, params }, 'Failed to retrieve all documents for export from collection');
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.debug(`Export query aborted for collection: ${collectionName}`);
+        throw error;
+      }
+      this.logger.error({ error: error as Error, collectionName, params }, 'Failed to retrieve all documents for export from collection');
       throw error;
     }
   }
