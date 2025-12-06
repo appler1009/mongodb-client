@@ -57,7 +57,7 @@ describe('generateAIQuery', () => {
     expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
+      'https://hwe4vtgiscnw5uspzbx67gggoi0niota.lambda-url.us-west-2.on.aws/v1/chat/completions',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -77,13 +77,13 @@ describe('generateAIQuery', () => {
         collectionName,
         userPromptLength: userPrompt.length,
         sampleDocCount: sampleDocuments.length,
-        model: 'grok-3-mini',
+        model: 'grok-4-1-fast-reasoning',
       }),
-      'Sending request to Query Helper (grok-3-mini)...'
+      'Sending request to Query Helper (grok-4-1-fast-reasoning)...'
     );
     expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.objectContaining({ generatedTextLength: expect.any(Number) }),
-      'Query Helper (grok-3-mini) returned a response.'
+      'Query Helper (grok-4-1-fast-reasoning) returned a response.'
     );
   });
 
@@ -99,7 +99,7 @@ describe('generateAIQuery', () => {
     expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
+      'https://hwe4vtgiscnw5uspzbx67gggoi0niota.lambda-url.us-west-2.on.aws/v1/chat/completions',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -133,7 +133,7 @@ describe('generateAIQuery', () => {
     expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
+      'https://hwe4vtgiscnw5uspzbx67gggoi0niota.lambda-url.us-west-2.on.aws/v1/chat/completions',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -166,7 +166,7 @@ describe('generateAIQuery', () => {
     expect(mockGetCollectionSchemaAndSampleDocuments).toHaveBeenCalledWith(collectionName, 2);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions',
+      'https://hwe4vtgiscnw5uspzbx67gggoi0niota.lambda-url.us-west-2.on.aws/v1/chat/completions',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -183,7 +183,7 @@ describe('generateAIQuery', () => {
     const mockLogger = require('pino')();
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ result: aiResponse }),
-      'Query Helper (grok-3-mini) did not return a valid response structure.'
+      'Query Helper (grok-4-1-fast-reasoning) did not return a valid response structure.'
     );
   });
 });
