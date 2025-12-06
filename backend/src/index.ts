@@ -418,8 +418,8 @@ export const generateAIQuery = async (
   shareSamples: boolean = false,
 ): Promise<{ generatedQuery?: string; error?: string }> => {
   try {
-    const grokModel = "grok-3-mini";
-    const apiUrl = `https://5rzrdmbmtr2n5eobrxe5wr7rvm0yecco.lambda-url.us-west-2.on.aws/v1/chat/completions`;
+    const grokModel = "grok-4-1-fast-reasoning";
+    const apiUrl = `https://hwe4vtgiscnw5uspzbx67gggoi0niota.lambda-url.us-west-2.on.aws/v1/chat/completions`;
 
     const { sampleDocuments, schemaMap } = await getCollectionSchemaAndSampleDocuments(collectionName, 2);
 
